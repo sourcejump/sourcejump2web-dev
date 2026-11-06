@@ -90,7 +90,11 @@ export function RecentRunTable({
             <TableHeaderCell>Player</TableHeaderCell>
             <TableHeaderCell>Map</TableHeaderCell>
             <TableHeaderCell numeric>Time</TableHeaderCell>
-            <TableHeaderCell numeric className="w-20">
+            {/* Both as narrow as their content, so the play button sits midway between the time and the place. */}
+            <TableHeaderCell className="w-px">
+              <span className="sr-only">Replay</span>
+            </TableHeaderCell>
+            <TableHeaderCell numeric className="w-px">
               Place
             </TableHeaderCell>
           </tr>
@@ -144,8 +148,8 @@ export function RecentRunTable({
                 </span>
               </TableCell>
               <TableCell numeric>
-                <span className="inline-flex flex-col items-end gap-0.5">
-                  <span className="flex items-center gap-1.5">
+                <span className="inline-flex flex-col items-end">
+                  <span className="flex items-baseline gap-1.5">
                     <RunLink
                       runId={run.run_id}
                       className="hover:text-accent font-bold underline-offset-4 hover:underline"
@@ -169,18 +173,19 @@ export function RecentRunTable({
                           : `(${formatGap(run.gap)})`}
                       </span>
                     )}
-                    <ReplayLink runId={run.run_id} />
                   </span>
                   {/* Counted from now, which differs between the server's render and the browser's. */}
                   <time
                     dateTime={run.finished_at}
                     suppressHydrationWarning
-                    // Clear of the play button's column, so it sits under the time.
-                    className="text-text-subtle mr-7.5 text-xs"
+                    className="text-text-subtle text-xs leading-4"
                   >
                     {formatAge(run.finished_at)}
                   </time>
                 </span>
+              </TableCell>
+              <TableCell className="text-center">
+                <ReplayLink runId={run.run_id} />
               </TableCell>
               <TableCell numeric>
                 {run.world_record ? (
