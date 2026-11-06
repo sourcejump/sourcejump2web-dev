@@ -16,7 +16,7 @@ export function SiteFooter() {
   return (
     <footer className="border-border border-t">
       <div className="text-text-muted mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm">
-        <p>SourceJump: global records for Counter-Strike: Source bunnyhop.</p>
+        <p>SourceJump: global records for Counter-Strike: Source bunnyhop. (preview test)</p>
         <nav aria-label="Footer">
           <ul className="flex flex-wrap gap-6">
             <li>
