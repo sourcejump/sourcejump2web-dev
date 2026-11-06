@@ -244,8 +244,9 @@ export function ServerRowFrame({
   return (
     <div
       className={classNames(
-        "border-border bg-surface @container overflow-hidden rounded-lg border",
-        unlisted && "border-dashed",
+        // A cell of the Servers board, which draws the frame and the lines between rows.
+        "@container h-full overflow-hidden",
+        unlisted && "bg-bg/40",
         className,
       )}
     >

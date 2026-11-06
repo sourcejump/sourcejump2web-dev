@@ -1,10 +1,9 @@
 "use client";
-// Players online across listed servers over the last day, week, month or year. Hovering, tapping or arrow
-// keys read a point: players and servers at that time. Every range arrives with the page, so switching is
-// instant.
+// The top of the Servers board: its title and players online across listed servers over the last day, week,
+// month or year. Hovering, tapping or arrow keys read a point: players and servers at that time. Every range
+// arrives with the page, so switching is instant.
 import { type ReactNode, useState } from "react";
 import type { Schemas } from "@/api/client";
-import { Card } from "@/ui/Card";
 import { classNames } from "@/ui/classNames";
 import { LineChart } from "@/ui/LineChart";
 import { Segmented } from "@/ui/Segmented";
@@ -36,8 +35,11 @@ const date = new Intl.DateTimeFormat("en", {
 });
 
 export function ServerActivity({
+  heading,
   activity,
 }: {
+  /** Sits in the chart's top row, so the page doesn't spend a line on its own title. */
+  heading: string;
   activity: Partial<Record<Range, Schemas["ServerActivity"]>>;
 }) {
   const [range, setRange] = useState<Range>("day");
@@ -47,48 +49,54 @@ export function ServerActivity({
   // The longer ranges' buckets are averages, so "now" always comes from the day's.
   const now = activity.day?.points.at(-1) ?? points.at(-1);
   const hovered = active === null ? undefined : points[active];
-  if (!current || !now || points.length < 2) return null;
+  const title = <h1 className="text-xl font-bold">{heading}</h1>;
+  // Without a chart to draw, the board still opens with its title.
+  if (!current || !now || points.length < 2)
+    return <div className="px-4 py-4">{title}</div>;
   const peak = Math.max(...points.map((point) => point.players));
 
   return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3 max-sm:justify-center">
-        <p
-          aria-live="polite"
-          className="text-text-muted flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums max-sm:justify-center"
-        >
-          {hovered ? (
-            <>
-              <Stat value={hovered.players}>
-                {hovered.players === 1 ? "player" : "players"}
-                {range !== "day" && " on average"}
-              </Stat>
-              <Dot />
-              <Stat value={hovered.servers}>
-                {hovered.servers === 1 ? "server" : "servers"}
-              </Stat>
-              <Dot />
-              <span className="text-text-subtle">
-                {when(hovered.at, current.bucket_minutes)}
-              </span>
-            </>
-          ) : (
-            <>
-              <Stat
-                value={now.players}
-                tone={now.players > 0 ? "text-success" : "text-danger"}
-              >
-                online now
-              </Stat>
-              <Dot />
-              <Stat value={now.servers}>
-                {now.servers === 1 ? "server" : "servers"}
-              </Stat>
-              <Dot />
-              <Stat value={peak}>peak in {rangeLabel(range)}</Stat>
-            </>
-          )}
-        </p>
+    <div className="flex flex-col gap-3 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 max-sm:justify-center">
+        <div className="flex min-w-0 flex-col gap-1 max-sm:items-center">
+          {title}
+          <p
+            aria-live="polite"
+            className="text-text-muted flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums max-sm:justify-center"
+          >
+            {hovered ? (
+              <>
+                <Stat value={hovered.players}>
+                  {hovered.players === 1 ? "player" : "players"}
+                  {range !== "day" && " on average"}
+                </Stat>
+                <Dot />
+                <Stat value={hovered.servers}>
+                  {hovered.servers === 1 ? "server" : "servers"}
+                </Stat>
+                <Dot />
+                <span className="text-text-subtle">
+                  {when(hovered.at, current.bucket_minutes)}
+                </span>
+              </>
+            ) : (
+              <>
+                <Stat
+                  value={now.players}
+                  tone={now.players > 0 ? "text-success" : "text-danger"}
+                >
+                  online now
+                </Stat>
+                <Dot />
+                <Stat value={now.servers}>
+                  {now.servers === 1 ? "server" : "servers"}
+                </Stat>
+                <Dot />
+                <Stat value={peak}>peak in {rangeLabel(range)}</Stat>
+              </>
+            )}
+          </p>
+        </div>
         <Segmented
           label="Range"
           fillOnPhones
@@ -101,7 +109,8 @@ export function ServerActivity({
         />
       </div>
 
-      <div className="flex flex-col gap-1">
+      {/* Darker than the board, so the trace reads as a screen rather than more flat fill. */}
+      <div className="bg-bg flex flex-col gap-1 px-4 pt-2 pb-3">
         <LineChart
           size="sm"
           label={`Players online over the last ${rangeLabel(range)}. Use the arrow keys to read each point.`}
@@ -116,7 +125,7 @@ export function ServerActivity({
           <span>{edge(points.at(-1)?.at, range)}</span>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 

@@ -10,8 +10,7 @@ export const metadata: Metadata = {
 
 export default function ServersPage() {
   return (
-    <Page className="gap-6">
-      <h1 className="text-3xl font-bold">Servers</h1>
+    <Page>
       <ServerList />
     </Page>
   );

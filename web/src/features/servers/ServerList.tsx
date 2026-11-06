@@ -1,5 +1,6 @@
-// The Servers page: activity over time, then the listed servers running the SourceJump plugin, online ones
-// first. Staff with manage_servers also see unlisted servers there, and list or unlist them in place.
+// The Servers page as one board: its title and activity over time, then the listed servers running the
+// SourceJump plugin, online ones first. Staff with manage_servers also see unlisted servers there, and list or
+// unlist them in place.
 import { api } from "@/api/client";
 import { ServerActivity } from "./ServerActivity";
 import { ServerRows } from "./ServerRows";
@@ -14,22 +15,29 @@ export async function ServerList() {
     ),
   ]);
   const servers = result?.data?.servers;
-  if (!servers) {
-    return <p>Servers couldn&apos;t be loaded. Try again in a moment.</p>;
-  }
-  if (servers.length === 0) return <ServerRows servers={servers} />;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="border-border bg-surface overflow-hidden rounded-lg border">
       <ServerActivity
-        activity={{
-          day: day?.data,
-          week: week?.data,
-          month: month?.data,
-          year: year?.data,
-        }}
+        heading="Servers"
+        activity={
+          servers && servers.length > 0
+            ? {
+                day: day?.data,
+                week: week?.data,
+                month: month?.data,
+                year: year?.data,
+              }
+            : {}
+        }
       />
-      <ServerRows servers={servers} />
+      {servers ? (
+        <ServerRows servers={servers} />
+      ) : (
+        <p className="text-text-muted border-border border-t px-4 py-6">
+          Servers couldn&apos;t be loaded. Try again in a moment.
+        </p>
+      )}
     </div>
   );
 }
