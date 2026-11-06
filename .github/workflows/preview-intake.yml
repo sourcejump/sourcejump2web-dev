@@ -27,7 +27,9 @@ concurrency:
 jobs:
   intake:
     runs-on: ubuntu-24.04
-    if: github.event.pull_request.state == 'open'
+    # Bots (Dependabot, from upstream's config) don't get previews; upstream's own dependency updates reach
+    # main through preview-sync anyway.
+    if: github.event.pull_request.state == 'open' && github.event.pull_request.user.type != 'Bot'
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
