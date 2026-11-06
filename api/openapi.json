@@ -4727,7 +4727,7 @@
             }
           },
           "403": {
-            "description": "Needs manage_bans, from SourceJump's pages",
+            "description": "Needs manage_bans (and invalidate_runs to invalidate), from SourceJump's pages",
             "content": {
               "application/json": {
                 "schema": {
@@ -6080,7 +6080,7 @@
           },
           "invalidate_runs": {
             "type": "boolean",
-            "description": "Also invalidate every valid run they have. Needs `no_records`."
+            "description": "Also invalidate every valid run they have. Needs `no_records`, and the `invalidate_runs` privilege."
           },
           "reason": {
             "type": "string",

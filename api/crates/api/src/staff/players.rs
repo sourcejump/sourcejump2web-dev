@@ -217,7 +217,7 @@ async fn read_bans(db: &PgPool, which: Which) -> Result<Vec<Ban>, sqlx::Error> {
         r#"
         SELECT * FROM (
             SELECT b.id, b.restrictions, b.reason, b.banned_at, b.ends_at, b.lifted_at, b.lift_reason,
-                   b.lifted_at IS NULL AND (b.ends_at IS NULL OR b.ends_at > now()) AS "active!",
+                   EXISTS (SELECT 1 FROM active_bans a WHERE a.id = b.id) AS "active!",
                    p.steamid64::text AS "steamid64!", p.name, p.avatar_url, p.country_code,
                    s.steamid64::text AS "by_steamid64?", s.name AS "by_name?",
                    s.avatar_url AS by_avatar_url, s.country_code AS by_country_code,
@@ -434,7 +434,7 @@ pub struct BanRequest {
     pub reason: String,
     /// When it ends by itself; null or left out: until lifted.
     pub ends_at: Option<DateTime<Utc>>,
-    /// Also invalidate every valid run they have. Needs `no_records`.
+    /// Also invalidate every valid run they have. Needs `no_records`, and the `invalidate_runs` privilege.
     #[serde(default)]
     pub invalidate_runs: bool,
 }
@@ -449,7 +449,7 @@ pub struct BanRequest {
     responses(
         (status = CREATED, body = Banned),
         (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
-        (status = FORBIDDEN, description = "Needs manage_bans, from SourceJump's pages", body = ErrorBody),
+        (status = FORBIDDEN, description = "Needs manage_bans (and invalidate_runs to invalidate), from SourceJump's pages", body = ErrorBody),
         (status = UNPROCESSABLE_ENTITY, description = "Not a SteamID, no restriction or reason, an end in the past, or yourself", body = ErrorBody),
     ),
 )]
@@ -460,6 +460,9 @@ pub async fn post_ban(
     JsonBody(request): JsonBody<BanRequest>,
 ) -> Result<(StatusCode, Json<Banned>), ApiError> {
     staff.require(Privilege::ManageBans)?;
+    if request.invalidate_runs {
+        staff.require(Privilege::InvalidateRuns)?;
+    }
     let player = parse_player(&player)?;
     let reason = check_reason(&request.reason)?;
     let banned = ban(
@@ -671,7 +674,12 @@ mod tests {
         .execute(&db)
         .await
         .unwrap();
-        let token = session(&db, STAFF, &[Privilege::ManageBans]).await;
+        let token = session(
+            &db,
+            STAFF,
+            &[Privilege::ManageBans, Privilege::InvalidateRuns],
+        )
+        .await;
         submit(&db, &key, "before", 30.0).await;
 
         let body = json!({
@@ -831,6 +839,27 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn a_ban_takes_runs_only_from_staff_who_may_invalidate_them(db: PgPool) {
+        let key = setup(&db).await;
+        let token = session(&db, STAFF, &[Privilege::ManageBans]).await;
+        submit(&db, &key, "r1", 30.0).await;
+
+        let body = json!({ "restrictions": ["no_records"], "reason": "Cheating", "invalidate_runs": true });
+        assert_eq!(post_ban(&db, &token, body).await.status, 403);
+        // Refused whole: no ban either, and the run stays on the board.
+        let bans = sqlx::query_scalar!("SELECT count(*) FROM bans")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(bans, Some(0));
+        assert_eq!(board(&db).await, [30.0]);
+
+        let body = json!({ "restrictions": ["no_records"], "reason": "Cheating" });
+        let banned: Banned = post_ban(&db, &token, body).await.json();
+        assert_eq!(banned.invalidated_runs, 0);
+    }
+
+    #[sqlx::test]
     async fn a_ban_from_posting_stops_post_writes(db: PgPool) {
         let staff = session(&db, STAFF, &[Privilege::ManageBans]).await;
         let author = session(&db, GABE, &[Privilege::PostCommunity]).await;
@@ -871,7 +900,12 @@ mod tests {
 
     #[sqlx::test]
     async fn bans_are_checked(db: PgPool) {
-        let token = session(&db, STAFF, &[Privilege::ManageBans]).await;
+        let token = session(
+            &db,
+            STAFF,
+            &[Privilege::ManageBans, Privilege::InvalidateRuns],
+        )
+        .await;
         for body in [
             json!({ "restrictions": [], "reason": "Nothing" }),
             json!({ "restrictions": ["no_records"], "reason": " " }),

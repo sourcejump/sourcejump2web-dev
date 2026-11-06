@@ -1,9 +1,11 @@
 //! The replay job: finds uploaded replays, checks each against its run, and stores the good ones as SJR.
 //!
-//! Servers upload straight to storage and tell the API nothing, so the job lists the upload folder instead.
-//! One listing covers every pending upload however many runs are waiting, and a complete upload is all that
-//! appears there: S3 only shows an object once its upload has finished. A bad upload is deleted and its
-//! reason kept; the server may upload again with a fresh link. A stored replay is final.
+//! Servers upload straight to the private staging bucket and tell the API nothing, so the job lists the
+//! upload folder instead. One listing covers every pending upload however many runs are waiting, and a
+//! complete upload is all that appears there: S3 only shows an object once its upload has finished. Only
+//! the SJR the job built from a checked upload reaches the public bucket, so nothing a server uploads is
+//! ever served as it sent it. A bad upload is deleted and its reason kept; the server may upload again with
+//! a fresh link. A stored replay is final.
 
 use std::time::Duration;
 
@@ -15,7 +17,7 @@ use super::{MAX_REPLAY_BYTES, UPLOAD_PREFIX, header, route, sjr};
 use crate::{
     players::INDIVIDUAL_BASE,
     record_events,
-    storage::{Storage, StorageError, StoredObject, random_key_part},
+    storage::{Staged, Staging, Storage, StoredObject, random_key_part},
 };
 
 /// How often the job looks for uploads. Replays aren't needed the moment a run ends; this keeps the
@@ -23,13 +25,13 @@ use crate::{
 const INTERVAL: Duration = Duration::from_secs(30);
 
 /// Runs for as long as the API does. The API runs as one process, so only one job lists at a time.
-pub async fn run(db: PgPool, storage: Storage) {
+pub async fn run(db: PgPool, storage: Storage, staging: Staging) {
     let mut ticks = tokio::time::interval(INTERVAL);
     ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
         ticks.tick().await;
         // Only listing the uploads fails the whole tick; each upload's own errors are logged as it goes.
-        if let Err(error) = process_uploads(&db, &storage).await {
+        if let Err(error) = process_uploads(&db, &storage, &staging).await {
             tracing::error!(%error, "replay job couldn't list uploads; trying again later");
         }
     }
@@ -48,12 +50,13 @@ pub struct Processed {
 pub async fn process_uploads(
     db: &PgPool,
     storage: &Storage,
+    staging: &Staging,
 ) -> Result<Processed, Box<dyn std::error::Error + Send + Sync>> {
     let mut processed = Processed::default();
-    for upload in storage.list(UPLOAD_PREFIX).await? {
+    for upload in staging.list(UPLOAD_PREFIX).await? {
         // One upload failing (storage refusing that object, a database error) is skipped and tried again
         // next tick. Ending the tick instead would stop every upload listed after it, on every tick.
-        let outcome = match process(db, storage, &upload).await {
+        let outcome = match process(db, storage, staging, &upload).await {
             Ok(outcome) => outcome,
             Err(error) => {
                 tracing::error!(key = upload.key, %error, "replay upload failed; trying it again later");
@@ -71,7 +74,7 @@ pub async fn process_uploads(
         }
         // Deleted only after the database has the outcome, so a failure in between means the upload is
         // looked at again, never lost.
-        if let Err(error) = storage.delete(&upload.key).await {
+        if let Err(error) = staging.delete(&upload.key).await {
             tracing::error!(key = upload.key, %error, "replay upload not deleted; it is looked at again");
         }
     }
@@ -85,6 +88,7 @@ enum Outcome {
 }
 
 /// What the upload is checked against.
+#[derive(Clone)]
 struct Expected {
     run_id: i64,
     already_stored: bool,
@@ -98,6 +102,7 @@ struct Expected {
 async fn process(
     db: &PgPool,
     storage: &Storage,
+    staging: &Staging,
     upload: &StoredObject,
 ) -> Result<Outcome, Box<dyn std::error::Error + Send + Sync>> {
     let expected = sqlx::query_as!(
@@ -116,25 +121,36 @@ async fn process(
         return Ok(Outcome::Discarded);
     };
 
-    let checked = if usize::try_from(upload.size).map_or(true, |size| size > MAX_REPLAY_BYTES) {
+    // The listed size is only what was there then: the server holds the link for an hour and may replace
+    // the file before it's read, so the read itself stops past the limit.
+    let too_large = || {
         Err(format!(
-            "the file is {} bytes; replays over {MAX_REPLAY_BYTES} bytes aren't accepted",
-            upload.size
+            "the file is over {MAX_REPLAY_BYTES} bytes; larger replays aren't accepted"
         ))
+    };
+    let checked = if usize::try_from(upload.size).map_or(true, |size| size > MAX_REPLAY_BYTES) {
+        too_large()
     } else {
-        let file = match storage.get(&upload.key).await {
-            Ok(file) => file,
+        match staging.read(&upload.key, MAX_REPLAY_BYTES).await? {
             // Deleted between the listing and now, by an earlier run of the job that failed later on.
-            Err(StorageError::Status(404)) => return Ok(Outcome::Discarded),
-            Err(error) => return Err(error.into()),
-        };
-        check(&file, &expected).map(|header| {
-            (
-                sjr::encode(&file, &header),
-                route::route(&file, &header),
-                file.len(),
-            )
-        })
+            Staged::Missing => return Ok(Outcome::Discarded),
+            Staged::TooLarge => too_large(),
+            Staged::Bytes(file) => {
+                // Parsing, compressing at gzip's highest level and tracing the route of a file up to 128 MB
+                // take seconds of CPU: off the async workers, so requests aren't held up meanwhile.
+                let run = expected.clone();
+                tokio::task::spawn_blocking(move || {
+                    check(&file, &run).map(|header| {
+                        (
+                            sjr::encode(&file, &header),
+                            route::route(&file, &header),
+                            file.len(),
+                        )
+                    })
+                })
+                .await?
+            }
+        }
     };
 
     match checked {
@@ -196,7 +212,8 @@ fn check(file: &[u8], run: &Expected) -> Result<header::ReplayHeader, String> {
     if steamid64 != run.steamid64 {
         return Err("the replay is of another player".to_owned());
     }
-    if (header.tickrate - run.tickrate).abs() > 0.01 {
+    // A NaN in the file would pass a plain `>`: every comparison with NaN is false.
+    if !header.tickrate.is_finite() || (header.tickrate - run.tickrate).abs() > 0.01 {
         return Err(format!(
             "the replay was recorded at {} tick, the run at {}",
             header.tickrate, run.tickrate
@@ -205,7 +222,7 @@ fn check(file: &[u8], run: &Expected) -> Result<header::ReplayHeader, String> {
     // The header stores the time as a 32-bit float, so allow for its rounding: half a tick is far beyond
     // that and still tells runs apart.
     let half_tick = 0.5 / f64::from(run.tickrate);
-    if (f64::from(header.time) - run.time).abs() > half_tick {
+    if !header.time.is_finite() || (f64::from(header.time) - run.time).abs() > half_tick {
         return Err(format!(
             "the replay's time is {:.3} s, the run's {:.3} s",
             header.time, run.time
@@ -220,6 +237,7 @@ mod tests {
     use sqlx::PgPool;
 
     use super::{Processed, process_uploads};
+    use crate::replays::download::forget_derived_shavit_files;
     use crate::{
         replays::{
             UPLOAD_PREFIX,
@@ -227,7 +245,7 @@ mod tests {
             sjr,
         },
         runs::{RunAccepted, tests::setup},
-        storage::Storage,
+        storage::{Staging, Storage},
         test_client,
     };
 
@@ -248,11 +266,19 @@ mod tests {
             .json();
         let url = accepted.replay.expect("the replay is wanted").upload_url;
         let path = url::Url::parse(&url).unwrap().path().to_owned();
+        assert!(
+            path.starts_with("/test-staging/"),
+            "uploads go to the private bucket: {url}"
+        );
         let at = path.find(UPLOAD_PREFIX).expect("an upload key");
         path[at..].to_owned()
     }
 
-    fn upload(storage: &Storage, key: &str, file: &[u8]) {
+    fn upload(staging: &Staging, key: &str, file: &[u8]) {
+        staging.objects().insert(key.to_owned(), file.to_vec());
+    }
+
+    fn upload_to(storage: &Storage, key: &str, file: &[u8]) {
         storage
             .objects
             .lock()
@@ -269,11 +295,11 @@ mod tests {
     #[sqlx::test]
     async fn a_good_upload_is_stored_as_sjr_and_the_upload_removed(db: PgPool) {
         let key = setup(&db).await;
-        let storage = Storage::for_tests();
+        let (storage, staging) = (Storage::for_tests(), Staging::for_tests());
         let upload_key = submit(&db, &key, &maze_run("a")).await;
-        upload(&storage, &upload_key, MAZE);
+        upload(&staging, &upload_key, MAZE);
 
-        let processed = process_uploads(&db, &storage).await.unwrap();
+        let processed = process_uploads(&db, &storage, &staging).await.unwrap();
 
         assert_eq!(
             processed,
@@ -288,6 +314,7 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(replay_events, 1);
+        assert!(staging.objects().is_empty(), "the upload is removed");
         let stored = keys(&storage);
         assert_eq!(stored.len(), 1);
         assert!(
@@ -315,12 +342,12 @@ mod tests {
     #[sqlx::test]
     async fn a_replay_of_a_map_named_with_capitals_matches_its_lowercased_run(db: PgPool) {
         let key = setup(&db).await;
-        let storage = Storage::for_tests();
+        let (storage, staging) = (Storage::for_tests(), Staging::for_tests());
         let upload_key = submit(&db, &key, &maze_run("a")).await;
         let file = replay_of_map(MAZE, "bhop_maze", "bhop_Maze");
-        upload(&storage, &upload_key, &file);
+        upload(&staging, &upload_key, &file);
 
-        let processed = process_uploads(&db, &storage).await.unwrap();
+        let processed = process_uploads(&db, &storage, &staging).await.unwrap();
 
         assert_eq!(processed.stored, 1, "{processed:?}");
         let stored = keys(&storage);
@@ -345,8 +372,10 @@ mod tests {
         let key = setup(&db).await;
         let state = crate::app::AppState::for_tests(db.clone());
         let upload_key = submit(&db, &key, &maze_run("a")).await;
-        upload(&state.storage, &upload_key, MAZE);
-        process_uploads(&db, &state.storage).await.unwrap();
+        upload(&state.staging, &upload_key, MAZE);
+        process_uploads(&db, &state.storage, &state.staging)
+            .await
+            .unwrap();
         let run_id: i64 = sqlx::query_scalar("SELECT id FROM runs")
             .fetch_one(&db)
             .await
@@ -362,31 +391,79 @@ mod tests {
         assert_eq!(first.status, 200);
         assert_eq!(&first.body[..], MAZE, "rebuilt byte for byte");
         assert_eq!(first.headers["content-length"], MAZE.len().to_string());
-        let kept: String = sqlx::query_scalar("SELECT shavit_key FROM replays")
-            .fetch_one(&db)
-            .await
-            .unwrap();
+        let (sjr_key, kept): (String, String) =
+            sqlx::query_as("SELECT stored_key, shavit_key FROM replays")
+                .fetch_one(&db)
+                .await
+                .unwrap();
         assert!(
             kept.starts_with("replays/") && kept.ends_with(".replay"),
             "{kept}"
         );
+        assert_ne!(
+            kept.trim_end_matches(".replay"),
+            sjr_key.trim_end_matches(".sjr"),
+            "the SJR's public key doesn't give the kept file's away"
+        );
 
         // Without the SJR, only the kept file can answer.
-        let sjr_key = kept.replace(".replay", ".sjr");
         let sjr_file = state.storage.objects.lock().unwrap().remove(&sjr_key);
-        assert!(sjr_file.is_some(), "the kept file sits next to its SJR");
+        assert!(sjr_file.is_some());
         let second = download().await;
         assert_eq!(second.status, 200);
         assert_eq!(&second.body[..], MAZE);
     }
 
     #[sqlx::test]
+    async fn shavit_files_kept_under_a_guessable_key_are_deleted_and_rebuilt(db: PgPool) {
+        let key = setup(&db).await;
+        let state = crate::app::AppState::for_tests(db.clone());
+        let upload_key = submit(&db, &key, &maze_run("a")).await;
+        upload(&state.staging, &upload_key, MAZE);
+        process_uploads(&db, &state.storage, &state.staging)
+            .await
+            .unwrap();
+        // As the first download kept it before kept files got their own random part.
+        let sjr_key: String = sqlx::query_scalar("SELECT stored_key FROM replays")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        let derived = sjr_key.replace(".sjr", ".replay");
+        upload_to(&state.storage, &derived, MAZE);
+        sqlx::query("UPDATE replays SET shavit_key = $1")
+            .bind(&derived)
+            .execute(&db)
+            .await
+            .unwrap();
+
+        let forget = || forget_derived_shavit_files(&db, &state.storage);
+        assert_eq!(forget().await.unwrap(), 1);
+        assert!(!keys(&state.storage).contains(&derived), "deleted");
+        assert_eq!(forget().await.unwrap(), 0, "nothing left the next time");
+
+        let run_id: i64 = sqlx::query_scalar("SELECT id FROM runs")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        let request = axum::http::Request::get(format!("/v1/replays/{run_id}"))
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let rebuilt = test_client::send_to(state.clone(), request).await;
+        assert_eq!(&rebuilt.body[..], MAZE);
+        let kept: String = sqlx::query_scalar("SELECT shavit_key FROM replays")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_ne!(kept, derived);
+    }
+
+    #[sqlx::test]
     async fn an_invalidated_runs_replay_can_be_watched_but_not_downloaded(db: PgPool) {
         let key = setup(&db).await;
-        let storage = Storage::for_tests();
+        let (storage, staging) = (Storage::for_tests(), Staging::for_tests());
         let upload_key = submit(&db, &key, &maze_run("a")).await;
-        upload(&storage, &upload_key, MAZE);
-        process_uploads(&db, &storage).await.unwrap();
+        upload(&staging, &upload_key, MAZE);
+        process_uploads(&db, &storage, &staging).await.unwrap();
         let run_id: i64 = sqlx::query_scalar("SELECT id FROM runs")
             .fetch_one(&db)
             .await
@@ -416,16 +493,20 @@ mod tests {
     #[sqlx::test]
     async fn an_upload_that_isnt_the_runs_replay_is_refused_and_may_be_sent_again(db: PgPool) {
         let key = setup(&db).await;
-        let storage = Storage::for_tests();
+        let (storage, staging) = (Storage::for_tests(), Staging::for_tests());
         let mut slower = maze_run("a");
         slower["time"] = json!(slower["time"].as_f64().unwrap() + 1.0);
         let upload_key = submit(&db, &key, &slower).await;
-        upload(&storage, &upload_key, MAZE);
+        upload(&staging, &upload_key, MAZE);
 
-        let processed = process_uploads(&db, &storage).await.unwrap();
+        let processed = process_uploads(&db, &storage, &staging).await.unwrap();
 
         assert_eq!(processed.refused, 1);
-        assert!(keys(&storage).is_empty(), "the bad upload is deleted");
+        assert!(staging.objects().is_empty(), "the bad upload is deleted");
+        assert!(
+            keys(&storage).is_empty(),
+            "nothing reaches the public bucket"
+        );
         let reason: String = sqlx::query_scalar("SELECT refused_reason FROM replays")
             .fetch_one(&db)
             .await
@@ -440,8 +521,8 @@ mod tests {
             .expect("the resend says why the upload was refused");
         assert_eq!(refusal.reason, reason);
 
-        upload(&storage, &upload_key, b"not a replay");
-        process_uploads(&db, &storage).await.unwrap();
+        upload(&staging, &upload_key, b"not a replay");
+        process_uploads(&db, &storage, &staging).await.unwrap();
         let reason: String = sqlx::query_scalar("SELECT refused_reason FROM replays")
             .fetch_one(&db)
             .await
@@ -453,9 +534,34 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn a_replay_whose_time_is_nan_is_refused(db: PgPool) {
+        let key = setup(&db).await;
+        let (storage, staging) = (Storage::for_tests(), Staging::for_tests());
+        let upload_key = submit(&db, &key, &maze_run("a")).await;
+        let time = header::parse(MAZE).unwrap().time.to_le_bytes();
+        let at = MAZE
+            .windows(time.len())
+            .position(|window| window == time)
+            .expect("the header holds the time");
+        let mut file = MAZE.to_vec();
+        file[at..at + time.len()].copy_from_slice(&f32::NAN.to_le_bytes());
+        assert!(header::parse(&file).unwrap().time.is_nan());
+        upload(&staging, &upload_key, &file);
+
+        assert_eq!(
+            process_uploads(&db, &storage, &staging)
+                .await
+                .unwrap()
+                .refused,
+            1
+        );
+        assert_eq!(keys(&storage), [""; 0], "nothing is stored");
+    }
+
+    #[sqlx::test]
     async fn the_player_map_and_track_must_match(db: PgPool) {
         let key = setup(&db).await;
-        let storage = Storage::for_tests();
+        let (storage, staging) = (Storage::for_tests(), Staging::for_tests());
         let mut other_player = maze_run("a");
         other_player["player"]["steamid64"] = json!("76561197960287930");
         let mut other_map = maze_run("b");
@@ -470,8 +576,14 @@ mod tests {
             (bonus, "track"),
         ] {
             let upload_key = submit(&db, &key, &run).await;
-            upload(&storage, &upload_key, MAZE);
-            assert_eq!(process_uploads(&db, &storage).await.unwrap().refused, 1);
+            upload(&staging, &upload_key, MAZE);
+            assert_eq!(
+                process_uploads(&db, &storage, &staging)
+                    .await
+                    .unwrap()
+                    .refused,
+                1
+            );
             let reason: String =
                 sqlx::query_scalar("SELECT refused_reason FROM replays WHERE upload_key = $1")
                     .bind(&upload_key)
@@ -488,15 +600,15 @@ mod tests {
     #[sqlx::test]
     async fn unrequested_files_and_repeats_after_storing_are_discarded(db: PgPool) {
         let key = setup(&db).await;
-        let storage = Storage::for_tests();
+        let (storage, staging) = (Storage::for_tests(), Staging::for_tests());
         let upload_key = submit(&db, &key, &maze_run("a")).await;
-        upload(&storage, &upload_key, MAZE);
-        process_uploads(&db, &storage).await.unwrap();
+        upload(&staging, &upload_key, MAZE);
+        process_uploads(&db, &storage, &staging).await.unwrap();
         let stored = keys(&storage);
 
-        upload(&storage, &upload_key, MAZE);
-        upload(&storage, &format!("{UPLOAD_PREFIX}999-guess.replay"), MAZE);
-        let processed = process_uploads(&db, &storage).await.unwrap();
+        upload(&staging, &upload_key, MAZE);
+        upload(&staging, &format!("{UPLOAD_PREFIX}999-guess.replay"), MAZE);
+        let processed = process_uploads(&db, &storage, &staging).await.unwrap();
 
         assert_eq!(
             processed,

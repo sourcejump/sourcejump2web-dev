@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n               (SELECT count(*) FROM legacy_personal_bests l\n                WHERE l.map_id = lm.id\n                  AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)\n               ) AS \"players!\",\n               (SELECT count(*) FROM legacy_runs l\n                WHERE l.map_id = lm.id\n                  AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)\n               ) AS \"runs!\",\n               (SELECT count(*) FROM (\n                    SELECT l.player_steamid64 FROM legacy_personal_bests l\n                    WHERE l.map_id = lm.id\n                      AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)\n                    UNION\n                    SELECT pb.player_steamid64 FROM personal_bests pb\n                    JOIN maps m ON m.id = pb.map_id\n                    WHERE m.name = $1 AND pb.style = $2 AND pb.track = $3\n                ) both_kinds) AS \"all_players!\",\n               (SELECT max(l.finished_at) FROM legacy_runs l\n                WHERE l.map_id = lm.id\n                  AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)\n               ) AS last_run_at\n           FROM legacy_maps lm WHERE lm.name = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "players!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "runs!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "all_players!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_run_at",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "7c5f569b9effc4618396bd3e861a27b3cea2208e6d9b40ca91cb25e1fec50882"
+}

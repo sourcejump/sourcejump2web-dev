@@ -1,0 +1,182 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH RECURSIVE every_board AS (\n            -- Each style and track with a personal best on the map, one index probe apiece.\n            (SELECT style, track FROM personal_bests WHERE map_id = $1 ORDER BY map_id, style, track LIMIT 1)\n            UNION ALL\n            SELECT next.style, next.track\n            FROM every_board b\n            CROSS JOIN LATERAL (\n                SELECT style, track FROM personal_bests\n                WHERE map_id = $1 AND (style, track) > (b.style, b.track)\n                ORDER BY map_id, style, track LIMIT 1\n            ) next\n        ), boards AS (\n            SELECT $2::text AS style, $3::smallint AS track WHERE $2::text IS NOT NULL\n            UNION ALL\n            SELECT style, track FROM every_board WHERE $2::text IS NULL\n        ), page AS (\n            SELECT pb.style, pb.track, pb.player_steamid64, pb.time, pb.finished_at, pb.run_id,\n                   rank() OVER board AS page_rank, min(pb.time) OVER board AS first_time\n            FROM boards b\n            CROSS JOIN LATERAL (\n                SELECT * FROM personal_bests pb\n                WHERE pb.map_id = $1 AND pb.style = b.style AND pb.track = b.track\n                  AND ($4::float8 IS NULL\n                       OR (pb.time, pb.finished_at, pb.run_id) > ($4, $5::timestamptz, $6::bigint))\n                ORDER BY pb.time, pb.finished_at, pb.run_id\n                LIMIT $7\n            ) pb\n            WINDOW board AS (PARTITION BY pb.style, pb.track ORDER BY pb.time)\n        ), ahead AS MATERIALIZED (\n            -- Materialized so each board counts once, not once per entry.\n            SELECT b.style, b.track,\n                   (SELECT count(*) FROM personal_bests x\n                    WHERE x.map_id = $1 AND x.style = b.style AND x.track = b.track\n                      AND x.time < b.first_time) AS faster_than_first,\n                   -- Without a cursor the comparison is null, so nothing comes before the page.\n                   (SELECT count(*) FROM personal_bests x\n                    WHERE x.map_id = $1 AND x.style = b.style AND x.track = b.track\n                      AND (x.time, x.finished_at, x.run_id) <= ($4, $5, $6)) AS before_page\n            FROM (SELECT DISTINCT style, track, first_time FROM page) b\n        )\n        SELECT p.style, p.track, p.time, p.run_id, p.finished_at,\n               CASE WHEN p.time = p.first_time THEN a.faster_than_first + 1\n                    ELSE a.before_page + p.page_rank END AS \"rank!\",\n               r.jumps, r.strafes, r.sync, personal_best_points($1, p.style, p.track, p.time) AS \"points!\",\n               rp.stored_key IS NOT NULL AS \"stored!\",\n               pl.steamid64::text AS \"steamid64!\", pl.name, pl.avatar_url, pl.country_code\n        FROM page p\n        JOIN ahead a ON a.style = p.style AND a.track = p.track\n        JOIN runs r ON r.id = p.run_id\n        JOIN players pl ON pl.steamid64 = p.player_steamid64\n        LEFT JOIN replays rp ON rp.run_id = p.run_id\n        ORDER BY p.style, p.track, p.time, p.finished_at, p.run_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "style",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "track",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "track"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "time",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "run_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "run_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "finished_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "finished_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "rank!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "jumps",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "jumps"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "strafes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "strafes"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "sync",
+        "type_info": "Float4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "sync"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "points!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "stored!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 11,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 12,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "country_code"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int2",
+        "Float8",
+        "Timestamptz",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "4075ea3370538e687c71b3c907833752a77f04445567af621a78b96cc2fadb20"
+}

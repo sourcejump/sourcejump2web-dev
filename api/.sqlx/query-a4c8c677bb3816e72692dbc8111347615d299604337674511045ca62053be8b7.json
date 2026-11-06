@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH shown AS (\n            SELECT s.player_steamid64, s.points, s.completed, p.name, p.avatar_url, p.country_code\n            FROM legacy_standings s JOIN legacy_players p ON p.steamid64 = s.player_steamid64\n            WHERE (NOT $1 OR s.points > 0) AND NOT EXISTS (\n                SELECT 1 FROM records_bans b WHERE b.player_steamid64 = s.player_steamid64\n            )\n        ), ranked AS (\n            SELECT shown.*,\n                   CASE WHEN $1 THEN rank() OVER (ORDER BY points DESC)\n                        ELSE rank() OVER (ORDER BY completed DESC) END AS rank,\n                   row_number() OVER (ORDER BY CASE WHEN $1 THEN points ELSE completed END DESC,\n                                               lower(name), player_steamid64) AS position\n            FROM shown\n        ), page AS (\n            SELECT * FROM ranked WHERE position > $2 ORDER BY position LIMIT $3\n        )\n        SELECT (SELECT count(*) FROM ranked) AS \"total!\", page.rank AS \"rank?\",\n               round(page.points)::int8 AS \"points?\", page.completed::int8 AS \"completed?\",\n               page.player_steamid64::text AS \"steamid64?\", page.name AS \"name?\",\n               page.avatar_url AS \"avatar_url?\", page.country_code AS \"country_code?\"\n        FROM (SELECT 1) one LEFT JOIN page ON true\n        ORDER BY page.position\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "rank?",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "points?",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "completed?",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "steamid64?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "legacy_players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "avatar_url?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "legacy_players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "country_code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "legacy_players",
+            "name": "country_code"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "a4c8c677bb3816e72692dbc8111347615d299604337674511045ca62053be8b7"
+}

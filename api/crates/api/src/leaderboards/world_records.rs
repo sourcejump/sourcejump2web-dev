@@ -1,11 +1,12 @@
 //! Stored world records: `world_record_holders` (who holds each board's record now) and `runs.was_record`
-//! (whether a run was a record when it was set), kept current so profiles, the points leaderboards and
-//! Activity read them instead of comparing every personal best or run with its board.
+//! (whether a run was a record when it was set), kept current so profiles, the points leaderboards, Activity,
+//! WR history and the Discord feeds read them instead of comparing every personal best or run with its board.
+//! The pre-2.0 record history (`legacy.rs`) works its own out, as legacy runs have no stored flag.
 //!
 //! Both change only when a board's runs or personal bests do, so the two places that change those call
 //! `refresh` for the boards they touched: the ingest, for every valid run it stores, and run invalidation
 //! and restoring. A run arriving late, with an earlier finish time, can take the record-when-set from runs
-//! after it, so the whole board is redone, not just the new run.
+//! after it, so its board is redone from that run on, not just the run itself.
 //!
 //! Concurrency: each refresh reads the board from what's committed, under the board's map row lock. The ingest
 //! already holds it (`maps::record_run` updates the row); invalidation takes it with `lock_maps` before
@@ -49,16 +50,18 @@ pub async fn refresh(conn: &mut PgConnection, run_ids: &[i64]) -> Result<u64, sq
     .rows_affected();
     let added = sqlx::query!(
         r#"
-        WITH boards AS (SELECT DISTINCT map_id, style, track FROM runs WHERE id = ANY($1))
+        WITH boards AS (SELECT DISTINCT map_id, style, track FROM runs WHERE id = ANY($1)),
+        -- Each board's best time, from the `personal_bests_board` index: its holders are those who have it.
+        bests AS (
+            SELECT b.*, (SELECT min(pb.time) FROM personal_bests pb
+                         WHERE pb.map_id = b.map_id AND pb.style = b.style AND pb.track = b.track) AS time
+            FROM boards b
+        )
         INSERT INTO world_record_holders (player_steamid64, map_id, style, track)
         SELECT pb.player_steamid64, pb.map_id, pb.style, pb.track
-        FROM personal_bests pb
-        JOIN boards b ON b.map_id = pb.map_id AND b.style = pb.style AND b.track = pb.track
-        WHERE NOT EXISTS (
-            SELECT 1 FROM personal_bests faster
-            WHERE faster.map_id = pb.map_id AND faster.style = pb.style AND faster.track = pb.track
-              AND faster.time < pb.time
-        )
+        FROM bests b
+        JOIN personal_bests pb ON pb.map_id = b.map_id AND pb.style = b.style AND pb.track = b.track
+                              AND pb.time = b.time
         ON CONFLICT DO NOTHING
         "#,
         run_ids
@@ -66,22 +69,36 @@ pub async fn refresh(conn: &mut PgConnection, run_ids: &[i64]) -> Result<u64, sq
     .execute(&mut *conn)
     .await?
     .rows_affected();
-    // The board's best before each run, over valid runs alone; an invalid run is never a record.
+    // Only these runs and later ones on their boards can change, "later" in WR history's order: finish time,
+    // then ID. The board's best before the earliest of them is the latest record before it, which the
+    // `runs_board_records` index finds at once (migration 0049), so a run arriving now reads itself alone
+    // rather than its whole board (external audit, 2026-11-06). An invalid run is never a record.
     let flagged = sqlx::query!(
         r#"
-        WITH boards AS (SELECT DISTINCT map_id, style, track FROM runs WHERE id = ANY($1)),
-        earlier AS (
+        WITH starts AS (
+            SELECT DISTINCT ON (map_id, style, track) map_id, style, track, finished_at, id
+            FROM runs WHERE id = ANY($1)
+            ORDER BY map_id, style, track, finished_at, id
+        ), bests AS (
+            SELECT s.*, (SELECT r.time FROM runs r
+                         WHERE r.map_id = s.map_id AND r.style = s.style AND r.track = s.track AND r.was_record
+                           AND (r.finished_at, r.id) < (s.finished_at, s.id)
+                         ORDER BY r.finished_at DESC, r.id DESC LIMIT 1) AS best
+            FROM starts s
+        ), placed AS (
             SELECT r.id,
-                   r.invalidated_at IS NULL AND r.time < coalesce(
+                   -- LEAST skips NULLs: no record before the start, or no valid run between it and this one.
+                   r.invalidated_at IS NULL AND r.time < coalesce(LEAST(b.best,
                        min(r.time) FILTER (WHERE r.invalidated_at IS NULL) OVER (
                            PARTITION BY r.map_id, r.style, r.track ORDER BY r.finished_at, r.id
-                           ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),
+                           ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)),
                        'infinity') AS was_record
             FROM runs r
-            JOIN boards b ON b.map_id = r.map_id AND b.style = r.style AND b.track = r.track
+            JOIN bests b ON b.map_id = r.map_id AND b.style = r.style AND b.track = r.track
+                        AND (r.finished_at, r.id) >= (b.finished_at, b.id)
         )
-        UPDATE runs r SET was_record = earlier.was_record FROM earlier
-        WHERE r.id = earlier.id AND r.was_record <> earlier.was_record
+        UPDATE runs r SET was_record = placed.was_record FROM placed
+        WHERE r.id = placed.id AND r.was_record <> placed.was_record
         "#,
         run_ids
     )
@@ -95,9 +112,10 @@ pub async fn refresh(conn: &mut PgConnection, run_ids: &[i64]) -> Result<u64, sq
 /// rows changed: 0 when the stored records were already right.
 pub async fn rebuild(db: &PgPool) -> Result<u64, sqlx::Error> {
     let mut tx = db.begin().await?;
-    // One run per board names it.
-    let run_ids =
-        sqlx::query_scalar!(r#"SELECT min(id) AS "id!" FROM runs GROUP BY map_id, style, track"#)
+    // Each board's earliest run names it, so every run on it is redone.
+    let run_ids = sqlx::query_scalar!(
+        r#"SELECT DISTINCT ON (map_id, style, track) id FROM runs ORDER BY map_id, style, track, finished_at, id"#
+    )
             .fetch_all(&mut *tx)
             .await?;
     let changed = refresh(&mut tx, &run_ids).await?;
@@ -168,6 +186,13 @@ pub(crate) mod tests {
         send("c1", 28.0, "76561197960287940", "alice", 400).await;
         assert_eq!(records_when_set(&db).await, ["b1", "c1"]);
         assert_eq!(holders(&db).await, ["gabe", "ricochet"]);
+
+        // One that lands in the middle: the best before it is c1's 28, the latest record before it.
+        send("d1", 27.0, "76561197960287941", "bob", 250).await;
+        assert_eq!(records_when_set(&db).await, ["b1", "c1", "d1"]);
+        // Slower than c1 and in the middle too: not a record, and nothing after it moves.
+        send("e1", 29.0, "76561197960287942", "eve", 350).await;
+        assert_eq!(records_when_set(&db).await, ["b1", "c1", "d1"]);
         assert_current(&db).await;
     }
 }

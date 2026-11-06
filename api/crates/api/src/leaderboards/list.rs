@@ -13,7 +13,7 @@ use crate::{
     app::AppState,
     error::{ApiError, ErrorBody},
     maps::{check_page, default_style},
-    players::{PlayerRef, restrictions::Restriction},
+    players::PlayerRef,
 };
 
 const DEFAULT_LIMIT: i64 = 50;
@@ -150,8 +150,9 @@ async fn current(
             SELECT s.player_steamid64, s.points, s.completed,
                    CASE WHEN $3 THEN rank() OVER (ORDER BY s.points DESC)
                         ELSE rank() OVER (ORDER BY s.completed DESC) END AS rank,
+                   -- Down to the SteamID, so equal points and names keep one order from page to page.
                    row_number() OVER (ORDER BY CASE WHEN $3 THEN s.points ELSE s.completed END DESC,
-                                               lower(p.name)) AS position
+                                               lower(p.name), s.player_steamid64) AS position
             FROM standings s JOIN players p ON p.steamid64 = s.player_steamid64
             WHERE s.style = $1 AND s.bonus = $2 AND (NOT $3 OR s.points > 0)
         ), page AS (
@@ -209,19 +210,17 @@ async fn legacy(db: &sqlx::PgPool, page: Page) -> Result<(i64, Vec<ListedStandin
             SELECT s.player_steamid64, s.points, s.completed, p.name, p.avatar_url, p.country_code
             FROM legacy_standings s JOIN legacy_players p ON p.steamid64 = s.player_steamid64
             WHERE (NOT $1 OR s.points > 0) AND NOT EXISTS (
-                SELECT 1 FROM bans
-                WHERE bans.player_steamid64 = s.player_steamid64 AND bans.restrictions & $2 <> 0
-                  AND bans.lifted_at IS NULL AND (bans.ends_at IS NULL OR bans.ends_at > now())
+                SELECT 1 FROM records_bans b WHERE b.player_steamid64 = s.player_steamid64
             )
         ), ranked AS (
             SELECT shown.*,
                    CASE WHEN $1 THEN rank() OVER (ORDER BY points DESC)
                         ELSE rank() OVER (ORDER BY completed DESC) END AS rank,
                    row_number() OVER (ORDER BY CASE WHEN $1 THEN points ELSE completed END DESC,
-                                               lower(name)) AS position
+                                               lower(name), player_steamid64) AS position
             FROM shown
         ), page AS (
-            SELECT * FROM ranked WHERE position > $3 ORDER BY position LIMIT $4
+            SELECT * FROM ranked WHERE position > $2 ORDER BY position LIMIT $3
         )
         SELECT (SELECT count(*) FROM ranked) AS "total!", page.rank AS "rank?",
                round(page.points)::int8 AS "points?", page.completed::int8 AS "completed?",
@@ -231,7 +230,6 @@ async fn legacy(db: &sqlx::PgPool, page: Page) -> Result<(i64, Vec<ListedStandin
         ORDER BY page.position
         "#,
         page.by_points,
-        Restriction::NoRecords.bit(),
         page.offset,
         page.limit
     )
@@ -316,6 +314,38 @@ mod tests {
         assert_eq!(
             test_client::get(&db, "/v1/leaderboards/best").await.status,
             400
+        );
+    }
+
+    #[sqlx::test]
+    async fn players_tied_on_completions_and_name_keep_one_order_across_pages(db: PgPool) {
+        let key = setup(&db).await;
+        for (id, steamid64) in [
+            ("a", "76561197960287932"),
+            ("b", "76561197960287931"),
+            ("c", "76561197960287933"),
+        ] {
+            let mut body = run(id, 30.0);
+            body["player"] = json!({ "steamid64": steamid64, "name": "same" });
+            test_client::post(&db, "/v1/runs", Some(&key), &body).await;
+        }
+        let mut seen = Vec::new();
+        for offset in 0..3 {
+            let page: LeaderboardList = test_client::get(
+                &db,
+                &format!("/v1/leaderboards/completed?limit=1&offset={offset}"),
+            )
+            .await
+            .json();
+            seen.push(page.standings[0].player.steamid64.clone());
+        }
+        assert_eq!(
+            seen,
+            [
+                "76561197960287931",
+                "76561197960287932",
+                "76561197960287933"
+            ]
         );
     }
 }

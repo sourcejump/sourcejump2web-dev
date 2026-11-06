@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n               SELECT 1 FROM bans b\n               WHERE b.restrictions & $1 <> 0\n                 AND NOT EXISTS (SELECT 1 FROM records_bans r WHERE r.player_steamid64 = b.player_steamid64)\n                 AND NOT EXISTS (SELECT 1 FROM legacy_standings s WHERE s.player_steamid64 = b.player_steamid64)\n                 AND EXISTS (SELECT 1 FROM legacy_runs l WHERE l.player_steamid64 = b.player_steamid64)\n           ) AS \"stale!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "stale!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c403d508a312a2a20268ccb565541a1bd94891e898c2e0f4c6551bd5f24dd315"
+}

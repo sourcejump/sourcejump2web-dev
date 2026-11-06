@@ -141,7 +141,8 @@ pub fn require_same_origin(headers: &HeaderMap, public_url: &Url) -> Result<(), 
     }
 }
 
-fn generate() -> String {
+/// A random token, as hex.
+pub(super) fn generate() -> String {
     let mut bytes = [0u8; TOKEN_BYTES];
     getrandom::fill(&mut bytes).expect("the operating system's random source failed");
     bytes

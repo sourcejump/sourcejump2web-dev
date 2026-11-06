@@ -92,7 +92,9 @@ async fn map_records(
                name AS "name!", time AS "time!", run_id AS "run_id!", finished_at AS "finished_at!",
                stored AS "has_replay!", points AS "points!"
         FROM (
-            SELECT pb.style, pb.track, pb.time, pb.run_id, pb.points, p.steamid64, p.name, r.finished_at,
+            SELECT pb.style, pb.track, pb.time, pb.run_id,
+                   personal_best_points(pb.map_id, pb.style, pb.track, pb.time) AS points,
+                   p.steamid64, p.name, r.finished_at,
                    rp.stored_key IS NOT NULL AS stored,
                    rank() OVER (PARTITION BY pb.style, pb.track ORDER BY pb.time) AS rank
             FROM personal_bests pb

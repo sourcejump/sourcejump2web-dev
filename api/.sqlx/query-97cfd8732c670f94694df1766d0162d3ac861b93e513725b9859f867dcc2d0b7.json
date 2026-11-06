@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE replays SET shavit_key = NULL WHERE run_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "97cfd8732c670f94694df1766d0162d3ac861b93e513725b9859f867dcc2d0b7"
+}

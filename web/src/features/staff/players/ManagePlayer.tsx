@@ -67,7 +67,14 @@ export async function ManagePlayer({ steamid }: { steamid: string }) {
         <Section
           title="Bans"
           hint="Not shown publicly. Reasons are for staff only."
-          action={!own && <BanPlayer player={player} validRuns={valid_runs} />}
+          action={
+            !own && (
+              <BanPlayer
+                player={player}
+                validRuns={mayInvalidate ? valid_runs : 0}
+              />
+            )
+          }
         >
           {bans.length === 0 ? (
             <p className="text-text-muted text-sm">Never banned.</p>

@@ -24,7 +24,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     app::AppState,
-    storage::{Storage, random_key_part},
+    storage::{Staging, random_key_part},
 };
 
 // Plugins upload between runs, usually within minutes. A server that misses the window resends the run
@@ -162,9 +162,9 @@ pub async fn requested(
     }))
 }
 
-pub fn upload_link(storage: &Storage, requested: Requested, now: DateTime<Utc>) -> ReplayUpload {
+pub fn upload_link(staging: &Staging, requested: Requested, now: DateTime<Utc>) -> ReplayUpload {
     ReplayUpload {
-        upload_url: storage.presign_put(&requested.upload_key, UPLOAD_LINK_LIFETIME),
+        upload_url: staging.presign_put(&requested.upload_key, UPLOAD_LINK_LIFETIME),
         expires_at: now
             + TimeDelta::from_std(UPLOAD_LINK_LIFETIME).expect("one hour fits in a TimeDelta"),
         last_refusal: requested.last_refusal,

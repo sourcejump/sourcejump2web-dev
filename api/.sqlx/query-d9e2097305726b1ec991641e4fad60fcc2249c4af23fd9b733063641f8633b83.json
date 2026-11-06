@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (SELECT count(*) FROM legacy_personal_bests l\n                   WHERE l.map_id = lm.id AND NOT EXISTS (\n                       SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64\n                   )) AS \"players!\"\n           FROM legacy_maps lm WHERE lm.name = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "players!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d9e2097305726b1ec991641e4fad60fcc2249c4af23fd9b733063641f8633b83"
+}

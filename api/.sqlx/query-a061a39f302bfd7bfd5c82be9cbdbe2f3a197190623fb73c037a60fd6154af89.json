@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT r.id, r.time, r.finished_at AS \"finished_at!\",\n               r.player_steamid64::text AS \"steamid64!\", coalesce(p.name, lp.name) AS \"name!\",\n               coalesce(p.avatar_url, lp.avatar_url) AS avatar_url,\n               coalesce(p.country_code, lp.country_code) AS country_code\n        FROM (\n            SELECT l.id, l.player_steamid64, l.time, l.finished_at,\n                   min(l.time) OVER (\n                       ORDER BY l.finished_at, l.id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING\n                   ) AS best_before\n            FROM legacy_runs l\n            JOIN legacy_maps lm ON lm.id = l.map_id\n            WHERE lm.name = $1 AND l.finished_at IS NOT NULL AND NOT EXISTS (\n                SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64\n            )\n        ) r\n        JOIN legacy_players lp ON lp.steamid64 = r.player_steamid64\n        LEFT JOIN players p ON p.steamid64 = r.player_steamid64\n        WHERE r.best_before IS NULL OR r.time < r.best_before\n        ORDER BY r.finished_at, r.id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "legacy_runs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "time",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "legacy_runs",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "finished_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "legacy_runs",
+            "name": "finished_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "a061a39f302bfd7bfd5c82be9cbdbe2f3a197190623fb73c037a60fd6154af89"
+}
