@@ -217,8 +217,10 @@ async fn standings_of(
         Standing,
         r#"
         SELECT s.style, s.bonus, round(s.points)::int8 AS "points!",
+               -- Ranked on the points shown, as the leaderboards are; the raw comparison keeps to the index.
                1 + (SELECT count(*) FROM standings o
-                    WHERE o.style = s.style AND o.bonus = s.bonus AND o.points > s.points) AS "rank!"
+                    WHERE o.style = s.style AND o.bonus = s.bonus AND o.points > s.points
+                      AND round(o.points) > round(s.points)) AS "rank!"
         FROM standings s
         WHERE s.player_steamid64 = $1 AND s.points > 0
         "#,

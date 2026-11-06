@@ -1,14 +1,14 @@
 "use client";
 // Sends the player to Steam to sign in, and back to this page afterwards.
-import { usePathname } from "next/navigation";
 import { ButtonAnchor } from "@/ui/Button";
+import { useReturnTo } from "./useReturnTo";
 
 export function SignInButton() {
-  const pathname = usePathname();
+  const returnTo = useReturnTo();
   return (
     // A full page load, not a client navigation: the API redirects to Steam.
     <ButtonAnchor
-      href={`/v1/auth/steam?return_to=${encodeURIComponent(pathname)}`}
+      href={`/v1/auth/steam?return_to=${encodeURIComponent(returnTo)}`}
       size="sm"
     >
       Sign in with Steam

@@ -10,42 +10,24 @@ import {
 const ranges = ["month", "year", "all"] as const satisfies TotalsRange[];
 
 export async function DailyTotals({ kind }: { kind: DailyTotalsData["kind"] }) {
-  const data: DailyTotalsData =
-    kind === "players"
-      ? {
-          kind,
-          ranges: Object.fromEntries(
-            await Promise.all(
-              ranges.map(async (range) => [
-                range,
-                (
-                  await api
-                    .GET("/v1/daily-totals/players", {
-                      params: { query: { range } },
-                    })
-                    .catch(() => undefined)
-                )?.data,
-              ]),
-            ),
-          ),
-        }
-      : {
-          kind,
-          ranges: Object.fromEntries(
-            await Promise.all(
-              ranges.map(async (range) => [
-                range,
-                (
-                  await api
-                    .GET("/v1/daily-totals/runs", {
-                      params: { query: { range } },
-                    })
-                    .catch(() => undefined)
-                )?.data,
-              ]),
-            ),
-          ),
-        };
+  // Both endpoints take the same range and return their own totals type, so one fetch serves either kind.
+  const data: DailyTotalsData = {
+    kind,
+    ranges: Object.fromEntries(
+      await Promise.all(
+        ranges.map(async (range) => [
+          range,
+          (
+            await api
+              .GET(`/v1/daily-totals/${kind}`, {
+                params: { query: { range } },
+              })
+              .catch(() => undefined)
+          )?.data,
+        ]),
+      ),
+    ),
+  };
   // Players are a running total, which reads best over all time; runs are counted per day, best seen by
   // the month.
   return (

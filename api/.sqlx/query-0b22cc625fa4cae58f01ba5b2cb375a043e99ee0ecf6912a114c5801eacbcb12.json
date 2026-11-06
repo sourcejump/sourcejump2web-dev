@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT style AS \"style!\", track AS \"track!\", rank AS \"rank!\", steamid64::text AS \"steamid64!\",\n               name AS \"name!\", time AS \"time!\", run_id AS \"run_id!\", finished_at AS \"finished_at!\",\n               stored AS \"has_replay!\", points AS \"points!\"\n        FROM (\n            SELECT pb.style, pb.track, pb.time, pb.run_id, pb.points, p.steamid64, p.name, r.finished_at,\n                   rp.stored_key IS NOT NULL AS stored,\n                   rank() OVER (PARTITION BY pb.style, pb.track ORDER BY pb.time) AS rank\n            FROM personal_bests pb\n            JOIN maps m ON m.id = pb.map_id\n            JOIN players p ON p.steamid64 = pb.player_steamid64\n            JOIN runs r ON r.id = pb.run_id\n            LEFT JOIN replays rp ON rp.run_id = pb.run_id\n            WHERE m.name = $1\n        ) ranked\n        WHERE rank <= $2\n        ORDER BY style, track, rank, finished_at\n        ",
+  "query": "\n        SELECT style AS \"style!\", track AS \"track!\", rank AS \"rank!\", steamid64::text AS \"steamid64!\",\n               name AS \"name!\", time AS \"time!\", run_id AS \"run_id!\", finished_at AS \"finished_at!\",\n               stored AS \"has_replay!\", points AS \"points!\"\n        FROM (\n            SELECT pb.style, pb.track, pb.time, pb.run_id,\n                   personal_best_points(pb.map_id, pb.style, pb.track, pb.time) AS points,\n                   p.steamid64, p.name, r.finished_at,\n                   rp.stored_key IS NOT NULL AS stored,\n                   rank() OVER (PARTITION BY pb.style, pb.track ORDER BY pb.time) AS rank\n            FROM personal_bests pb\n            JOIN maps m ON m.id = pb.map_id\n            JOIN players p ON p.steamid64 = pb.player_steamid64\n            JOIN runs r ON r.id = pb.run_id\n            LEFT JOIN replays rp ON rp.run_id = pb.run_id\n            WHERE m.name = $1\n        ) ranked\n        WHERE rank <= $2\n        ORDER BY style, track, rank, finished_at\n        ",
   "describe": {
     "columns": [
       {
@@ -91,12 +91,7 @@
         "ordinal": 9,
         "name": "points!",
         "type_info": "Float8",
-        "origin": {
-          "Table": {
-            "table": "personal_bests",
-            "name": "points"
-          }
-        }
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -115,8 +110,8 @@
       false,
       false,
       null,
-      false
+      null
     ]
   },
-  "hash": "4ff782faf8d722d94b1863be1fcc7b2aac94c11e4d44a4efecde4c7edb510138"
+  "hash": "0b22cc625fa4cae58f01ba5b2cb375a043e99ee0ecf6912a114c5801eacbcb12"
 }

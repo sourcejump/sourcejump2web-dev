@@ -59,7 +59,13 @@ pub(super) async fn post(
     links: &Links,
     events: &[&RecordEvent],
 ) -> Result<(), FeedError> {
-    let run_ids: Vec<i64> = events.iter().map(|e| e.run_id).collect();
+    // The same run can be reported more than once in a page, by a restore, and not always next to itself.
+    let mut run_ids: Vec<i64> = Vec::with_capacity(events.len());
+    for event in events {
+        if !run_ids.contains(&event.run_id) {
+            run_ids.push(event.run_id);
+        }
+    }
     let posted = sqlx::query_scalar!(
         "SELECT run_id FROM discord_feed_posts WHERE feed = $1 AND run_id = ANY($2)",
         feed.name,
@@ -74,8 +80,6 @@ pub(super) async fn post(
             && feed.takes_tier(r.tier)
             && (feed.records == Records::PersonalBests || r.fastest_yet)
     });
-    // The same run can be reported twice in a page, by a restore.
-    records.dedup_by_key(|r| r.run_id);
     for record in &mut records {
         record.rank = events
             .iter()

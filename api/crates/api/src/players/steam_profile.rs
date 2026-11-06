@@ -14,6 +14,9 @@ use crate::steam::Steam;
 
 /// How long a fetched profile is fresh. Older copies are refreshed when the profile is viewed.
 const FRESH_FOR: Duration = Duration::days(1);
+/// After a failed fetch, how long until a view tries again. Without it every view of the profile would queue
+/// another request to Steam, which is most likely refusing them already.
+const RETRY_AFTER: Duration = Duration::hours(1);
 /// Steam rate-limits community pages per IP without saying how hard, so fetches keep at least this gap.
 const MIN_GAP: StdDuration = StdDuration::from_secs(2);
 /// At most this many refreshes wait their turn; more are dropped, and a later view asks again. With `MIN_GAP`,
@@ -114,6 +117,14 @@ pub async fn refresh(db: &PgPool, steam: &Steam, steamid64: SteamId64) -> Result
         Ok(profile) => profile,
         Err(error) => {
             tracing::warn!(%steamid64, %error, "couldn't fetch a Steam profile");
+            // Our copy stays as it was, dated so that it goes stale again in `RETRY_AFTER`.
+            sqlx::query!(
+                "UPDATE players SET steam_profile_fetched_at = $2 WHERE steamid64 = $1",
+                steamid64.get(),
+                Utc::now() - (FRESH_FOR - RETRY_AFTER)
+            )
+            .execute(db)
+            .await?;
             return Ok(());
         }
     };
@@ -207,6 +218,35 @@ mod tests {
         );
         lock_queue(&steam).remove(&first);
         assert!(queue(&steam, first), "a finished refresh frees its place");
+    }
+
+    #[sqlx::test]
+    async fn a_failed_fetch_waits_before_trying_again(db: PgPool) {
+        let steamid64 = SteamId64::parse_any("76561197960287930").unwrap();
+        sqlx::query(
+            "INSERT INTO players (steamid64, name, name_seen_at) VALUES ($1, 'nova', '-infinity')",
+        )
+        .bind(steamid64.get())
+        .execute(&db)
+        .await
+        .unwrap();
+        // Nothing listens on the discard port, so the fetch fails.
+        let steam = Steam::with_base(&url::Url::parse("http://127.0.0.1:9/").unwrap());
+        refresh(&db, &steam, steamid64).await.unwrap();
+
+        let (name, fetched_at): (String, chrono::DateTime<Utc>) = sqlx::query_as(
+            "SELECT name, steam_profile_fetched_at FROM players WHERE steamid64 = $1",
+        )
+        .bind(steamid64.get())
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert_eq!(name, "nova", "the profile stays as it was");
+        let stale_in = fetched_at + FRESH_FOR - Utc::now();
+        assert!(
+            stale_in > RETRY_AFTER - Duration::minutes(1) && stale_in <= RETRY_AFTER,
+            "goes stale again in an hour, not at once: {stale_in}"
+        );
     }
 
     #[test]

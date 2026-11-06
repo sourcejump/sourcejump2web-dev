@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE players SET steam_profile_fetched_at = $2 WHERE steamid64 = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "680303252210b55b90e1635f5f25b70f6b46148430944029b47b60a9d1a02311"
+}

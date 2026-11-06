@@ -1,5 +1,6 @@
 // The Activity page's runs: the filter menus, read from and written to the address, and the first page of runs.
 import { api } from "@/api/client";
+import { tierParam } from "@/features/maps/tierParam";
 import { currentStyles } from "@/features/ruleset/styles";
 import { ChoiceBar } from "@/ui/ChoiceBar";
 import { ChoiceMenu } from "@/ui/ChoiceMenu";
@@ -33,7 +34,7 @@ export async function RecentRuns({ params }: { params: RecentRunsParams }) {
   const filters: Filters = {
     style: styles.keys.find((key) => key === params.style),
     track: tracks.find((t) => t.key === params.track)?.key ?? "all",
-    tier: Math.floor(Number(params.tier)) || undefined,
+    tier: tierParam(params.tier),
     records: params.show === "records",
   };
   const query = {

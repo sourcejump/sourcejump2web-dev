@@ -30,6 +30,13 @@ const STAGED_READ_TIMEOUT: Duration = Duration::from_mins(5);
 #[cfg(not(test))]
 const PUT_TIMEOUT: Duration = Duration::from_mins(10);
 
+/// Reading a whole object (`get`), which is only done for a stored replay (SJR) a download rebuilds its shavit
+/// file from. An SJR is a compressed replay of at most 128 MB, so at worst a little over that: two minutes and a
+/// bit at a slow 1 MB/s from storage to the API's host. Five minutes leaves room without letting a stuck read
+/// hold a rebuild slot for long.
+#[cfg(not(test))]
+const GET_TIMEOUT: Duration = Duration::from_mins(5);
+
 /// Passing a file on (`get_stream`): the body is read from storage only as fast as the client downloads it,
 /// so this bounds the slowest download allowed. Half an hour lets a 128 MB replay through at 75 KB/s; a
 /// download slower than that is cut off, and the client can start it again.
@@ -242,7 +249,7 @@ impl Storage {
                 .get_object(Some(&self.credentials), object_key)
                 .sign(REQUEST_LIFETIME)
                 .into();
-            let response = self.http.get(url).send().await?;
+            let response = self.http.get(url).timeout(GET_TIMEOUT).send().await?;
             check(response.status())?;
             Ok(response.bytes().await?.to_vec())
         }

@@ -188,7 +188,8 @@ async fn current(
 ) -> Result<Vec<Row>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"
-        (SELECT true AS "by_points!", rank() OVER (ORDER BY s.points DESC) AS "rank!",
+        -- Ranked on the points shown, so players listed with equal points share a place.
+        (SELECT true AS "by_points!", rank() OVER (ORDER BY round(s.points) DESC) AS "rank!",
                 round(s.points)::int8 AS "points!", s.completed::int8 AS "completed!",
                 p.steamid64::text AS "steamid64!", p.name AS "name!", p.avatar_url, p.country_code
          FROM standings s JOIN players p ON p.steamid64 = s.player_steamid64
@@ -236,7 +237,7 @@ async fn legacy(db: &sqlx::PgPool, limit: i64) -> Result<Vec<Row>, sqlx::Error> 
             FROM legacy_standings s JOIN legacy_players p ON p.steamid64 = s.player_steamid64
             WHERE NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = s.player_steamid64)
         )
-        (SELECT true AS "by_points!", rank() OVER (ORDER BY points DESC) AS "rank!",
+        (SELECT true AS "by_points!", rank() OVER (ORDER BY round(points) DESC) AS "rank!",
                 round(points)::int8 AS "points!", completed::int8 AS "completed!",
                 player_steamid64::text AS "steamid64!", name AS "name!", avatar_url, country_code
          FROM shown WHERE points > 0 ORDER BY points DESC, lower(name), player_steamid64 LIMIT $1)
@@ -399,6 +400,43 @@ mod tests {
                 .status,
             400
         );
+    }
+
+    #[sqlx::test]
+    async fn players_shown_with_equal_points_share_a_rank(db: PgPool) {
+        setup(&db).await;
+        // 10.4 and 9.6 both show as 10; 8.6 shows as 9.
+        sqlx::raw_sql(
+            "INSERT INTO players (steamid64, name, name_seen_at) VALUES
+                 (76561197960287940, 'alice', now()), (76561197960287941, 'bob', now()),
+                 (76561197960287942, 'carol', now());
+             INSERT INTO standings (style, bonus, player_steamid64, points, completed) VALUES
+                 ('normal', false, 76561197960287940, 10.4, 1), ('normal', false, 76561197960287941, 9.6, 1),
+                 ('normal', false, 76561197960287942, 8.6, 1);",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        let (top, _) = lists(&db, "style=normal").await;
+        assert_eq!(
+            top,
+            [
+                row("alice", 1, 10, 1),
+                row("bob", 1, 10, 1),
+                row("carol", 3, 9, 1)
+            ]
+        );
+        let full: serde_json::Value = test_client::get(&db, "/v1/leaderboards/points?style=normal")
+            .await
+            .json();
+        let ranks: Vec<_> = full["standings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| s["rank"].as_i64().unwrap())
+            .collect();
+        assert_eq!(ranks, [1, 1, 3]);
     }
 
     /// Two legacy maps, one tiered, and three players: gabe, alice, and a cheat whose records ban ends at

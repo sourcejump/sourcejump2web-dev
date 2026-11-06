@@ -23,9 +23,7 @@ import {
   TableRow,
 } from "@/ui/Table";
 import { managesPlayers } from "./PlayerHeader";
-
-/** SteamID64, SteamID2 or SteamID3, for offering staff a player SourceJump hasn't seen. */
-const STEAMID = /^(\d{17}|STEAM_[0-5]:[01]:\d+|\[U:1:\d+\])$/i;
+import { STEAMID } from "./steamId";
 
 export async function PlayerSearch({
   q,

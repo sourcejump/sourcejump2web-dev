@@ -1,8 +1,7 @@
 // Sorts the files staff drop on the bulk upload into one entry per map: a file `sj-pack` already packed
 // (`{map}.viewer.br`), or a map to pack in the page (`{map}.bsp`, `{map}.bsp.bz2`), and the files it can't use.
 
-/** SourceJump's map names (the API's `MapName`), on a lowercased name. */
-const MAP_NAME = /^[a-z0-9_.-]{1,64}$/;
+import { MAP_NAME } from "../../maps/mapName";
 
 /** The packer's limit on a map before packing (`viewer_pack::MAX_MAP_BYTES`). */
 export const MAX_MAP_BYTES = 1024 * 1024 * 1024;

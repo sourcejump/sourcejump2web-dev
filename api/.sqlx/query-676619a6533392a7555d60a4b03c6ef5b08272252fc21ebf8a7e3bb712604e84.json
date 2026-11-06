@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT m.id, m.name, m.description, m.created_at, m.last_run_at,\n               (SELECT count(DISTINCT player_steamid64) FROM personal_bests WHERE map_id = m.id) AS \"players!\",\n               (SELECT count(*) FROM runs WHERE map_id = m.id AND invalidated_at IS NULL) AS \"runs!\"\n        FROM maps m WHERE m.name = $1\n        ",
+  "query": "\n        SELECT m.id, m.name, m.description, m.created_at, m.last_run_at, m.players,\n               (SELECT count(*) FROM runs WHERE map_id = m.id AND invalidated_at IS NULL) AS \"runs!\"\n        FROM maps m WHERE m.name = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -60,9 +60,14 @@
       },
       {
         "ordinal": 5,
-        "name": "players!",
-        "type_info": "Int8",
-        "origin": "Expression"
+        "name": "players",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "players"
+          }
+        }
       },
       {
         "ordinal": 6,
@@ -82,9 +87,9 @@
       true,
       false,
       true,
-      null,
+      false,
       null
     ]
   },
-  "hash": "3a62050e9a4d325749b88479bae86b0b0af4dddf404de2c621cae866130950aa"
+  "hash": "676619a6533392a7555d60a4b03c6ef5b08272252fc21ebf8a7e3bb712604e84"
 }

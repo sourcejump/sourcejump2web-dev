@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        (SELECT true AS \"by_points!\", rank() OVER (ORDER BY s.points DESC) AS \"rank!\",\n                round(s.points)::int8 AS \"points!\", s.completed::int8 AS \"completed!\",\n                p.steamid64::text AS \"steamid64!\", p.name AS \"name!\", p.avatar_url, p.country_code\n         FROM standings s JOIN players p ON p.steamid64 = s.player_steamid64\n         WHERE s.style = $1 AND s.bonus = $2 AND s.points > 0\n         ORDER BY s.points DESC, lower(p.name), s.player_steamid64 LIMIT $3)\n        UNION ALL\n        (SELECT false, rank() OVER (ORDER BY s.completed DESC), round(s.points)::int8, s.completed::int8,\n                p.steamid64::text, p.name, p.avatar_url, p.country_code\n         FROM standings s JOIN players p ON p.steamid64 = s.player_steamid64\n         WHERE s.style = $1 AND s.bonus = $2\n         ORDER BY s.completed DESC, lower(p.name), s.player_steamid64 LIMIT $3)\n        ",
+  "query": "\n        -- Ranked on the points shown, so players listed with equal points share a place.\n        (SELECT true AS \"by_points!\", rank() OVER (ORDER BY round(s.points) DESC) AS \"rank!\",\n                round(s.points)::int8 AS \"points!\", s.completed::int8 AS \"completed!\",\n                p.steamid64::text AS \"steamid64!\", p.name AS \"name!\", p.avatar_url, p.country_code\n         FROM standings s JOIN players p ON p.steamid64 = s.player_steamid64\n         WHERE s.style = $1 AND s.bonus = $2 AND s.points > 0\n         ORDER BY s.points DESC, lower(p.name), s.player_steamid64 LIMIT $3)\n        UNION ALL\n        (SELECT false, rank() OVER (ORDER BY s.completed DESC), round(s.points)::int8, s.completed::int8,\n                p.steamid64::text, p.name, p.avatar_url, p.country_code\n         FROM standings s JOIN players p ON p.steamid64 = s.player_steamid64\n         WHERE s.style = $1 AND s.bonus = $2\n         ORDER BY s.completed DESC, lower(p.name), s.player_steamid64 LIMIT $3)\n        ",
   "describe": {
     "columns": [
       {
@@ -70,5 +70,5 @@
       null
     ]
   },
-  "hash": "e41c78228d558089041cffc5849468b7cfbfd5660bb63f72a33b401139d9db76"
+  "hash": "a06eaf69d650cbbc8a390a52719822fa5fb36aaefd2f0954a33e0cf9ca7858c7"
 }

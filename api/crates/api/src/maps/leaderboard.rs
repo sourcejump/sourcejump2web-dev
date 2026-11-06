@@ -170,7 +170,7 @@ pub(super) async fn entries(
             UNION ALL
             SELECT style, track FROM every_board WHERE $2::text IS NULL
         ), page AS (
-            SELECT pb.style, pb.track, pb.player_steamid64, pb.time, pb.finished_at, pb.run_id, pb.points,
+            SELECT pb.style, pb.track, pb.player_steamid64, pb.time, pb.finished_at, pb.run_id,
                    rank() OVER board AS page_rank, min(pb.time) OVER board AS first_time
             FROM boards b
             CROSS JOIN LATERAL (
@@ -197,7 +197,8 @@ pub(super) async fn entries(
         SELECT p.style, p.track, p.time, p.run_id, p.finished_at,
                CASE WHEN p.time = p.first_time THEN a.faster_than_first + 1
                     ELSE a.before_page + p.page_rank END AS "rank!",
-               r.jumps, r.strafes, r.sync, p.points, rp.stored_key IS NOT NULL AS "stored!",
+               r.jumps, r.strafes, r.sync, personal_best_points($1, p.style, p.track, p.time) AS "points!",
+               rp.stored_key IS NOT NULL AS "stored!",
                pl.steamid64::text AS "steamid64!", pl.name, pl.avatar_url, pl.country_code
         FROM page p
         JOIN ahead a ON a.style = p.style AND a.track = p.track
@@ -450,7 +451,9 @@ async fn view_page(
         WITH board AS (
             SELECT DISTINCT ON (player) * FROM (
                 SELECT false AS legacy, pb.player_steamid64 AS player, pb.time, r.finished_at,
-                       pb.run_id AS id, r.jumps, r.strafes, r.sync, pb.points, rp.stored_key IS NOT NULL AS stored
+                       pb.run_id AS id, r.jumps, r.strafes, r.sync,
+                       personal_best_points(pb.map_id, pb.style, pb.track, pb.time) AS points,
+                       rp.stored_key IS NOT NULL AS stored
                 FROM personal_bests pb
                 JOIN runs r ON r.id = pb.run_id
                 LEFT JOIN replays rp ON rp.run_id = pb.run_id

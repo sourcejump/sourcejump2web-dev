@@ -22,7 +22,7 @@ Each environment has a file `deploy/environments/<env>.env` with `SSH_TARGET` (a
 - Logs: `journalctl -u sourcejump-api -u sourcejump-web` on the server.
 - Issue or revoke a server's API key: `ssh <target> 'set -a; . /etc/sourcejump/api.env; /opt/sourcejump/api/sourcejump-api keys issue "<server name>"'` (or `keys revoke <prefix>`). The key is printed once.
 - Discord record feeds (`record_events/discord.rs`): put the feeds JSON at `/etc/sourcejump/discord-feeds.json` (owned by `sourcejump`, mode 600: its webhook URLs are secrets) and set `SJ_DISCORD_FEEDS` to that path in `api.env`. Each entry is `{"name", "records"?: "world_records" | "personal_bests", "style"?, "min_tier"?, "max_tier"?, "untiered"?, "bonuses"?, "webhook"}`; the lead keeps the current file. Without it nothing is posted. A feed's first start posts only records from then on. The tier icons next to map names are `web/public/tiers/` (`scripts/tier-icons.py`).
-- Rollback: check out the previous commit and deploy it. Migrations are additive, so the older binary still runs on the newer schema; binaries from 2026-11-05 on start despite migrations they don't know. Before that, they refused: restore the backup instead.
+- Rollback: check out the previous commit and deploy it. Migrations are additive, so the older binary still runs on the newer schema; binaries from 2026-11-05 on start despite migrations they don't know. Before that, they refused: restore the backup instead. Migration 0051 dropped a column that older binaries read, so rolling back past it means restoring the backup taken before it.
 - Sample data on staging: `ssh <target> 'runuser -u sourcejump -- psql sourcejump' < api/seed/dev.sql`. Never on production.
 
 ## Gotchas
