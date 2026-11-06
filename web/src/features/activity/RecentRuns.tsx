@@ -153,7 +153,6 @@ export async function RecentRuns({ params }: { params: RecentRunsParams }) {
           first={first}
           query={{ ...query, limit: CHUNK }}
           address={href({})}
-          page={page}
           pageSize={PAGE_SIZE}
           styleNames={Object.fromEntries(
             styles.keys.map((key) => [key, styles.name(key)]),

@@ -10,7 +10,7 @@ const PARAM = "page";
 
 const cell =
   "inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-sm tabular-nums transition-colors duration-(--duration-fast)";
-const link = "text-text-muted hover:bg-surface-raised hover:text-text";
+const link = "text-text-muted hover:bg-text/6 hover:text-text";
 const number = new Intl.NumberFormat("en");
 
 /**
@@ -116,7 +116,7 @@ export function Pager({
         </label>
         <button
           type="submit"
-          className="bg-surface-raised text-text-muted ring-border hover:bg-surface-overlay hover:text-text h-8 rounded-md px-3 text-sm font-bold ring-1 transition-colors duration-(--duration-fast) ring-inset"
+          className="border-border bg-bg text-text-muted hover:border-border-strong hover:text-text h-8 rounded-md border px-3 text-sm font-medium transition-colors duration-(--duration-fast)"
         >
           Go
         </button>

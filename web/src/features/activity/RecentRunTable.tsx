@@ -50,7 +50,6 @@ export function RecentRunTable({
   first,
   query,
   address,
-  page: firstPage,
   pageSize,
   styleNames,
   showStyle,
@@ -61,7 +60,6 @@ export function RecentRunTable({
   query: Query;
   /** The page's address with these filters, which the page number is added to. */
   address: string;
-  page: number;
   pageSize: number;
   styleNames: Record<string, string>;
   /** With every style shown, each run names its own. */
@@ -78,6 +76,7 @@ export function RecentRunTable({
     cursor: first.next_cursor ?? null,
   });
   const inFlight = useRef<Promise<boolean> | null>(null);
+  const turns = useRef(0);
   const board = useRef<HTMLDivElement>(null);
   const rows = useRef<HTMLDivElement>(null);
   // Held at the first page's height, so a short last page doesn't pull the page controls up.
@@ -85,9 +84,13 @@ export function RecentRunTable({
   const tierCount = first.tier_count;
 
   // The address holds the page, so a reload, a shared link and the back button all land on it.
-  const asked = Number(useSearchParams().get("page") ?? firstPage);
+  // No `page` means page 1, never the page the table first opened on.
+  const asked = Math.max(
+    1,
+    Math.floor(Number(useSearchParams().get("page") ?? 1)) || 1,
+  );
   const pageCount = Math.max(1, Math.ceil(runs.length / pageSize));
-  const page = Math.min(Math.max(1, Math.floor(asked) || 1), pageCount);
+  const page = Math.min(asked, pageCount);
   const shown = runs.slice((page - 1) * pageSize, page * pageSize);
 
   const pageHref = useCallback(
@@ -122,23 +125,35 @@ export function RecentRunTable({
     return inFlight.current;
   }, [query]);
 
-  // Keeps a few pages loaded past the one shown, so Next never waits.
+  // Keeps a few pages loaded past the one asked for, so Next never waits. An address past what's loaded, as
+  // after going back to a far page, walks forward to it the same way.
   useEffect(() => {
-    if (cursor && !failed && runs.length < (page + 4) * pageSize)
+    if (cursor && !failed && runs.length < (asked + 4) * pageSize)
       void loadMore();
-  }, [cursor, failed, runs.length, page, pageSize, loadMore]);
+  }, [cursor, failed, runs.length, asked, pageSize, loadMore]);
+
+  // Past the last run, the address is corrected to the last page rather than showing one page and naming another.
+  useEffect(() => {
+    if (!cursor && asked > pageCount)
+      window.history.replaceState(null, "", pageHref(pageCount));
+  }, [cursor, asked, pageCount, pageHref]);
 
   async function go(target: number) {
+    const turn = ++turns.current;
     // A typed page past what's loaded walks forward to it, or to the last page if the runs end first.
     while (latest.current.runs.length < target * pageSize) {
       setWaiting(true);
       if (!(await loadMore())) break;
     }
+    // A later click wins over one still loading.
+    if (turn !== turns.current) return;
     setWaiting(false);
     setTurned(true);
     const count = Math.max(1, Math.ceil(latest.current.runs.length / pageSize));
+    const next = pageHref(Math.min(target, count));
     setMinHeight((held) => held ?? rows.current?.offsetHeight);
-    window.history.pushState(null, "", pageHref(Math.min(target, count)));
+    if (next !== window.location.pathname + window.location.search)
+      window.history.pushState(null, "", next);
     // Keep the table's top in view when a page is turned from the bottom of a long page.
     const top = board.current?.getBoundingClientRect().top ?? 0;
     if (top < 0) board.current?.scrollIntoView({ block: "start" });
