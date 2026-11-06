@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE maps m SET players = (SELECT count(DISTINCT player_steamid64) FROM personal_bests WHERE map_id = m.id)\n        WHERE m.id IN (SELECT map_id FROM runs WHERE id = ANY($1))\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a4ff9bcbe365dc4c9dc4a7a3ea774ee7eba59b26e92defb2aa2f749d2c6af482"
+}

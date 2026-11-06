@@ -288,6 +288,9 @@ FROM runs WHERE invalidated_at IS NULL
 ORDER BY player_steamid64, map_id, style, track, time, id
 ON CONFLICT DO NOTHING;
 
+-- Written above without the API, so each map's player count is recounted here (`maps::count_players`).
+UPDATE maps m SET players = (SELECT count(DISTINCT player_steamid64) FROM personal_bests WHERE map_id = m.id);
+
 -- Sample bans, added once: sample_42 (whose runs were invalidated above) from records and posting until
 -- lifted, and zephyr's lifted ban from posting. Each ban's log entry is written with it, as the API does.
 WITH logged AS (

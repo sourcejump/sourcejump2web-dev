@@ -18,7 +18,7 @@ use crate::{
     app::AppState,
     error::{ApiError, ErrorBody},
     maps::{default_style, played_count},
-    players::{PlayerRef, restrictions::Restriction},
+    players::PlayerRef,
 };
 use standings::PointsFormula;
 
@@ -157,9 +157,13 @@ async fn out_of(
 ) -> Result<i64, sqlx::Error> {
     match (view, track) {
         (LeaderboardView::Legacy, _) => {
-            sqlx::query_scalar!(r#"SELECT count(DISTINCT map_id) AS "count!" FROM legacy_runs"#)
-                .fetch_one(db)
-                .await
+            // One index probe per map beats a distinct over every legacy run.
+            sqlx::query_scalar!(
+                r#"SELECT count(*) AS "count!" FROM legacy_maps m
+                   WHERE EXISTS (SELECT 1 FROM legacy_runs r WHERE r.map_id = m.id)"#
+            )
+            .fetch_one(db)
+            .await
         }
         (LeaderboardView::Current, LeaderboardTrack::Main) => played_count(db).await,
         (LeaderboardView::Current, LeaderboardTrack::Bonuses) => bonus_count(db).await,
@@ -189,13 +193,13 @@ async fn current(
                 p.steamid64::text AS "steamid64!", p.name AS "name!", p.avatar_url, p.country_code
          FROM standings s JOIN players p ON p.steamid64 = s.player_steamid64
          WHERE s.style = $1 AND s.bonus = $2 AND s.points > 0
-         ORDER BY s.points DESC, lower(p.name) LIMIT $3)
+         ORDER BY s.points DESC, lower(p.name), s.player_steamid64 LIMIT $3)
         UNION ALL
         (SELECT false, rank() OVER (ORDER BY s.completed DESC), round(s.points)::int8, s.completed::int8,
                 p.steamid64::text, p.name, p.avatar_url, p.country_code
          FROM standings s JOIN players p ON p.steamid64 = s.player_steamid64
          WHERE s.style = $1 AND s.bonus = $2
-         ORDER BY s.completed DESC, lower(p.name) LIMIT $3)
+         ORDER BY s.completed DESC, lower(p.name), s.player_steamid64 LIMIT $3)
         "#,
         style,
         track == LeaderboardTrack::Bonuses,
@@ -230,23 +234,18 @@ async fn legacy(db: &sqlx::PgPool, limit: i64) -> Result<Vec<Row>, sqlx::Error> 
         WITH shown AS (
             SELECT s.player_steamid64, s.points, s.completed, p.name, p.avatar_url, p.country_code
             FROM legacy_standings s JOIN legacy_players p ON p.steamid64 = s.player_steamid64
-            WHERE NOT EXISTS (
-                SELECT 1 FROM bans
-                WHERE bans.player_steamid64 = s.player_steamid64 AND bans.restrictions & $2 <> 0
-                  AND bans.lifted_at IS NULL AND (bans.ends_at IS NULL OR bans.ends_at > now())
-            )
+            WHERE NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = s.player_steamid64)
         )
         (SELECT true AS "by_points!", rank() OVER (ORDER BY points DESC) AS "rank!",
                 round(points)::int8 AS "points!", completed::int8 AS "completed!",
                 player_steamid64::text AS "steamid64!", name AS "name!", avatar_url, country_code
-         FROM shown WHERE points > 0 ORDER BY points DESC, lower(name) LIMIT $1)
+         FROM shown WHERE points > 0 ORDER BY points DESC, lower(name), player_steamid64 LIMIT $1)
         UNION ALL
         (SELECT false, rank() OVER (ORDER BY completed DESC), round(points)::int8, completed::int8,
                 player_steamid64::text, name, avatar_url, country_code
-         FROM shown ORDER BY completed DESC, lower(name) LIMIT $1)
+         FROM shown ORDER BY completed DESC, lower(name), player_steamid64 LIMIT $1)
         "#,
         limit,
-        Restriction::NoRecords.bit()
     )
     .fetch_all(db)
     .await?;
@@ -359,6 +358,7 @@ mod tests {
         // plus arcane T1 at the WR, 50. Bonuses count apart: arcane's T2 bonus is worth 25.
         let (top, _) = lists(&db, "").await;
         assert_eq!(top, [row("ricochet", 1, 218, 2), row("gabe", 2, 200, 1)]);
+        standings::tests::assert_totals_current(&db).await;
         let (top, completed) = lists(&db, "track=bonuses").await;
         assert_eq!(top, [row("ricochet", 1, 25, 1)]);
         assert_eq!(completed, top);
@@ -367,6 +367,7 @@ mod tests {
         submit(&db, &key, "e", "bhop_arcane", 0, 18.0, false).await;
         let (top, _) = lists(&db, "").await;
         assert_eq!(top, [row("gabe", 1, 250, 2), row("ricochet", 2, 210, 2)]);
+        standings::tests::assert_totals_current(&db).await;
 
         // Taking that run off the boards gives the points back.
         let run_id: i64 = sqlx::query_scalar("SELECT id FROM runs WHERE server_run_id = 'e'")
@@ -379,11 +380,12 @@ mod tests {
         let (top, completed) = lists(&db, "").await;
         assert_eq!(top, [row("ricochet", 1, 218, 2), row("gabe", 2, 200, 1)]);
         assert_eq!(completed[1], row("gabe", 2, 200, 1));
+        standings::tests::assert_totals_current(&db).await;
 
         // A recount from scratch agrees with the recounts as they happened.
-        standings::refresh_all(&mut db.acquire().await.unwrap())
-            .await
-            .unwrap();
+        let mut tx = db.begin().await.unwrap();
+        standings::refresh_all(&mut tx).await.unwrap();
+        tx.commit().await.unwrap();
         assert_eq!(lists(&db, "").await.0, top);
         assert_eq!(
             test_client::get(&db, "/v1/leaderboards?limit=0")
@@ -399,10 +401,12 @@ mod tests {
         );
     }
 
-    #[sqlx::test]
-    async fn the_legacy_view_leaves_banned_players_out(db: PgPool) {
-        setup(&db).await;
-        sqlx::raw_sql(
+    /// Two legacy maps, one tiered, and three players: gabe, alice, and a cheat whose records ban ends at
+    /// `cheat_ban_ends` (SQL).
+    async fn legacy_board_with_a_cheat(db: &PgPool, cheat_ban_ends: &str) {
+        setup(db).await;
+        // Only ever this test file's own SQL in `cheat_ban_ends`.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
             "INSERT INTO legacy_maps (id, name, tier, points) VALUES (1, 'bhop_badges', 2, 0), (2, 'bhop_old', NULL, 0);
              INSERT INTO legacy_players (steamid64, name) VALUES
                  (76561197960287930, 'gabe'), (76561197960287940, 'alice'), (76561197960287941, 'cheat');
@@ -418,12 +422,17 @@ mod tests {
                  INSERT INTO staff_log (action, target, reason) VALUES ('ban_player', '76561197960287941', 'x')
                  RETURNING id
              )
-             INSERT INTO bans (player_steamid64, restrictions, reason, log_id)
-             SELECT 76561197960287941, 1, 'x', id FROM entry;",
-        )
-        .execute(&db)
+             INSERT INTO bans (player_steamid64, restrictions, reason, ends_at, log_id)
+             SELECT 76561197960287941, 1, 'x', {cheat_ban_ends}, id FROM entry;",
+        )))
+        .execute(db)
         .await
         .unwrap();
+    }
+
+    #[sqlx::test]
+    async fn the_legacy_view_leaves_banned_players_out(db: PgPool) {
+        legacy_board_with_a_cheat(&db, "NULL").await;
         standings::refresh_legacy(&mut db.acquire().await.unwrap())
             .await
             .unwrap();
@@ -433,5 +442,32 @@ mod tests {
         let (top, completed) = lists(&db, "view=legacy").await;
         assert_eq!(top, [row("alice", 1, 100, 2), row("gabe", 2, 69, 1)]);
         assert_eq!(completed, top);
+    }
+
+    #[sqlx::test]
+    async fn a_timed_ban_that_ends_puts_the_player_back_on_the_legacy_view(db: PgPool) {
+        legacy_board_with_a_cheat(&db, "now() + interval '1 second'").await;
+        standings::refresh_legacy(&mut db.acquire().await.unwrap())
+            .await
+            .unwrap();
+        assert!(!standings::refresh_legacy_if_bans_ended(&db).await.unwrap());
+        assert_eq!(lists(&db, "view=legacy").await.0.len(), 2);
+
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        assert!(standings::refresh_legacy_if_bans_ended(&db).await.unwrap());
+        // Their 20 s is the record again: all of 100, and alice's 25 s drops to 50 + 50 × (20/25)^4 = 70.5.
+        let (top, _) = lists(&db, "view=legacy").await;
+        assert_eq!(
+            top,
+            [
+                row("cheat", 1, 100, 1),
+                row("alice", 2, 70, 2),
+                row("gabe", 3, 58, 1)
+            ]
+        );
+        assert!(
+            !standings::refresh_legacy_if_bans_ended(&db).await.unwrap(),
+            "counted once"
+        );
     }
 }

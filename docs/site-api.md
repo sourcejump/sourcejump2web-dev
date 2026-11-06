@@ -2,10 +2,10 @@
 What the endpoints behind the website do: sign-in, players, maps, the server list and community posts; the staff tools are in `staff-api.md`. Rules for every client (errors, retries, SteamIDs) and game servers' endpoints: `api.md`.
 
 ## Sign-in and sessions
-Players sign in with Steam (OpenID 2.0). These endpoints answer browsers with redirects and cookies, via the site's origin (Caddy in production, a Next.js rewrite in development).
-- Steam's answer is trusted only after Steam confirms it (`check_authentication`). Only signed fields are read, the return URL must be our callback, the nonce must be under 5 minutes old, and each nonce works once (`openid_nonces`). A refused sign-in goes to `/sign-in/failed`; cancelling on Steam goes back where the player was.
+Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirects, cookies) via the site's origin (Caddy in production, Next.js locally).
+- Steam must confirm its answer (`check_authentication`). Only signed fields are read, the return URL must be our callback, a nonce works once, under 5 minutes old (`openid_nonces`). The callback URL must carry the value `/v1/auth/steam` put in the `sj_sign_in` cookie, tying sign-in to its browser. Refused: `/sign-in/failed`; cancelled: back where they were.
 - `return_to` must be a path on our site; anything else becomes `/`.
-- A session is 32 random bytes in the `sj_session` cookie (`HttpOnly; Secure; SameSite=Lax`). Only the SHA-256 is stored. It lasts 30 days from last use; the expiry moves at most once a day.
+- A session is 32 random bytes in the `sj_session` cookie (`HttpOnly; Secure; SameSite=Lax`). Only the SHA-256 is stored. It lasts 30 days from last use (expiry moves at most daily).
 - Sign-out also requires our `Origin` header. A missing session answers `401` without `WWW-Authenticate`.
 - `SJ_PUBLIC_URL` is where players reach the site; redirects and the origin check use it.
 
@@ -42,7 +42,7 @@ Players sign in with Steam (OpenID 2.0). These endpoints answer browsers with re
 ## Server list
 - `GET /v1/servers` shows only addresses in `server_listings`, kept by staff (lead, 2026-10-20), heard from within the `servers` policy's `listed_hours` (24); `online` means within `online_minutes` (25). Without the policy the list is empty. *Connected*: the latest heartbeat had a still-valid key. Compliance and versions aren't public. `whitelist` (staff-set: only approved players join) puts it under the Whitelist tab.
 - Listed servers' heartbeats also go to `server_heartbeat_log` (players, 30 days) and `server_activity_daily` (per-server UTC-day totals, 400 days). `…/activity?range=day|week|month` buckets the log (20 min, 2 h, 8 h); `year` reads the daily totals. Per bucket: servers heard from, and their average players summed.
-- Staff with `manage_servers` see every server on `/servers`: unlisted ones dimmed, toggles to list or unlist and to mark whitelist, and a dialog with its last report (versions, plugins, compliance, reported IP, key), loaded in the browser so the page stays cacheable. The CLI's `servers seen`, `servers list <ip:port>` and `servers unlist <ip:port>` do the same.
+- Staff with `manage_servers` see every server on `/servers`: unlisted ones dimmed, toggles to list or unlist and to mark whitelist, and a dialog with its last report (versions, plugins, compliance, reported IP, key), loaded in the browser, never in the server render. The CLI's `servers seen`, `servers list <ip:port>` and `servers unlist <ip:port>` do the same.
 
 ## Community posts
 - Articles (Markdown) and YouTube videos (a link with an optional note; the site links out and embeds nothing, lead 2026-10-20). Players with `post_community` post and change or remove their own; `manage_posts` edits anyone's, with a `reason` and logged (`edit_post`, fields changed) when it's someone else's and changes something. Every write needs a session and our `Origin`.

@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"count!\" FROM legacy_maps m\n                   WHERE EXISTS (SELECT 1 FROM legacy_runs r WHERE r.map_id = m.id)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "07baebf297e50075ed39f8adf4019c2a08cd219ba0591f7a97a746dc84b8d1a2"
+}

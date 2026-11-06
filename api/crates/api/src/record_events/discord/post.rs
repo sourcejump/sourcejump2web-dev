@@ -38,6 +38,9 @@ struct Record {
     previous_time: Option<f64>,
     /// The run's place on its board when the feed read it.
     rank: Option<i64>,
+    /// A world record when set: faster than every earlier run on its board (`leaderboards/world_records.rs`).
+    /// A tie isn't.
+    fastest_yet: bool,
     sync: f32,
     strafes: i32,
     jumps: i32,
@@ -65,7 +68,12 @@ pub(super) async fn post(
     .fetch_all(&mut *conn)
     .await?;
     let mut records = records(conn, feed.records, &run_ids).await?;
-    records.retain(|r| !posted.contains(&r.run_id) && feed.takes_tier(r.tier));
+    // Rank 1 alone would take a run that ties the record, which the site doesn't count as one.
+    records.retain(|r| {
+        !posted.contains(&r.run_id)
+            && feed.takes_tier(r.tier)
+            && (feed.records == Records::PersonalBests || r.fastest_yet)
+    });
     // The same run can be reported twice in a page, by a restore.
     records.dedup_by_key(|r| r.run_id);
     for record in &mut records {
@@ -108,18 +116,18 @@ async fn records(
     let tiers_published = tier_count(&mut *conn).await?.is_some();
     let rows = sqlx::query!(
         r#"
-        SELECT r.id, m.name AS map, r.style, r.track, r.time, r.sync, r.strafes, r.jumps, r.finished_at,
+        SELECT r.id, m.name AS map, r.style, r.track, r.time, r.sync, r.strafes, r.jumps, r.finished_at, r.was_record,
                r.player_steamid64::text AS "steamid64!", p.name AS player, s.name AS server_name,
                (SELECT st->>'name' FROM rulesets, jsonb_array_elements(document->'styles') st
                 WHERE st->>'key' = r.style ORDER BY version DESC LIMIT 1) AS style_name,
                (SELECT min(o.time) FROM runs o
                 WHERE o.map_id = r.map_id AND o.style = r.style AND o.track = r.track
-                  AND o.invalidated_at IS NULL AND o.id <> r.id AND o.finished_at <= r.finished_at)
+                  AND o.invalidated_at IS NULL AND (o.finished_at, o.id) < (r.finished_at, r.id))
                  AS previous_record,
                (SELECT min(o.time) FROM runs o
                 WHERE o.map_id = r.map_id AND o.style = r.style AND o.track = r.track
                   AND o.player_steamid64 = r.player_steamid64
-                  AND o.invalidated_at IS NULL AND o.id <> r.id AND o.finished_at <= r.finished_at)
+                  AND o.invalidated_at IS NULL AND (o.finished_at, o.id) < (r.finished_at, r.id))
                  AS previous_personal_best,
                (SELECT tier FROM map_tiers WHERE map_id = r.map_id AND track = r.track
                 ORDER BY assigned_at DESC LIMIT 1) AS tier,
@@ -154,6 +162,7 @@ async fn records(
                 Records::PersonalBests => row.previous_personal_best,
             },
             rank: None,
+            fastest_yet: row.was_record,
             sync: row.sync,
             strafes: row.strafes,
             jumps: row.jumps,

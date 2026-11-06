@@ -1,7 +1,8 @@
 //! Signing in with Steam and out again, and `GET /v1/me` for the signed-in player.
 //!
 //! These endpoints are for browsers: they answer with redirects and cookies, not JSON. The website links to
-//! `/v1/auth/steam`, Steam sends the player back to the callback, and the callback sets the session cookie.
+//! `/v1/auth/steam`, which sets the sign-in cookie that binds the sign-in to this browser; Steam sends the
+//! player back to the callback, and the callback sets the session cookie.
 
 pub mod openid;
 pub mod sessions;
@@ -12,7 +13,7 @@ use axum::{
     http::HeaderMap,
     response::Redirect,
 };
-use axum_extra::extract::cookie::CookieJar;
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
@@ -28,6 +29,27 @@ use sessions::SignedIn;
 
 /// The website's page for a sign-in that didn't complete.
 const FAILED_PAGE: &str = "/sign-in/failed";
+
+/// Holds the value the callback URL must carry, from the start of a sign-in to its callback. It lasts until
+/// the browser closes, or the callback uses it up; it needs no shorter life, since only a Steam answer at
+/// most five minutes old is accepted with it.
+const SIGN_IN_COOKIE: &str = "sj_sign_in";
+
+/// Sent only to the callback. Lax, not Strict: Steam's redirect back is a cross-site navigation.
+fn sign_in_cookie(value: String) -> Cookie<'static> {
+    Cookie::build((SIGN_IN_COOKIE, value))
+        .http_only(true)
+        .secure(true)
+        .same_site(SameSite::Lax)
+        .path(openid::CALLBACK_PATH)
+        .build()
+}
+
+fn sign_in_removal_cookie() -> Cookie<'static> {
+    Cookie::build((SIGN_IN_COOKIE, ""))
+        .path(openid::CALLBACK_PATH)
+        .build()
+}
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct ReturnQuery {
@@ -64,9 +86,19 @@ pub fn routes() -> OpenApiRouter<AppState> {
     params(ReturnQuery),
     responses((status = SEE_OTHER, description = "To Steam's sign-in page")),
 )]
-async fn start(State(state): State<AppState>, Query(query): Query<ReturnQuery>) -> Redirect {
+async fn start(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Query(query): Query<ReturnQuery>,
+) -> (CookieJar, Redirect) {
     let return_to = ReturnTo::new(query.return_to.as_deref());
-    Redirect::to(openid::login_url(&state.steam, &state.public_url, &return_to).as_str())
+    // A sign-in started in another tab since replaces this value, so only the latest one completes.
+    let browser = sessions::generate();
+    let login_url = openid::login_url(&state.steam, &state.public_url, &return_to, &browser);
+    (
+        jar.add(sign_in_cookie(browser)),
+        Redirect::to(login_url.as_str()),
+    )
 }
 
 /// Where Steam sends the browser back. Starts a session if Steam confirms the sign-in.
@@ -84,11 +116,17 @@ async fn callback(
     jar: CookieJar,
     Query(params): Query<Vec<(String, String)>>,
 ) -> Result<(CookieJar, Redirect), ApiError> {
+    let browser = jar
+        .get(SIGN_IN_COOKIE)
+        .map(|cookie| cookie.value().to_owned());
+    // Used up either way: a sign-in that failed starts again from the beginning.
+    let jar = jar.remove(sign_in_removal_cookie());
     let verified = match openid::verify(
         &state.db,
         &state.steam,
         &state.public_url,
         &params,
+        browser.as_deref(),
         Utc::now(),
     )
     .await
@@ -218,19 +256,38 @@ mod tests {
         }
     }
 
-    async fn sign_in(state: &AppState) -> TestResponse {
+    /// Steam's answer to the callback, from a browser whose sign-in cookie holds `browser`.
+    fn callback(state: &AppState, browser: Option<&str>) -> Request<Body> {
         let params = openid::tests::assertion(&state.steam, Utc::now());
         let query = url::form_urlencoded::Serializer::new(String::new())
             .extend_pairs(&params)
             .finish();
-        let request = Request::get(format!("/v1/auth/steam/callback?{query}"))
-            .body(Body::empty())
-            .unwrap();
+        let request = Request::get(format!("/v1/auth/steam/callback?{query}"));
+        match browser {
+            Some(value) => request.header(header::COOKIE, format!("sj_sign_in={value}")),
+            None => request,
+        }
+        .body(Body::empty())
+        .unwrap()
+    }
+
+    async fn sign_in(state: &AppState) -> TestResponse {
+        let request = callback(state, Some(openid::tests::BROWSER));
         test_client::send_to(state.clone(), request).await
     }
 
+    /// The `Set-Cookie` header for `name`, if the response has one.
+    fn set_cookie<'a>(response: &'a TestResponse, name: &str) -> Option<&'a str> {
+        response
+            .headers
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .map(|value| value.to_str().unwrap())
+            .find(|value| value.starts_with(&format!("{name}=")))
+    }
+
     fn session_from(response: &TestResponse) -> String {
-        let set_cookie = response.headers[header::SET_COOKIE].to_str().unwrap();
+        let set_cookie = set_cookie(response, "sj_session").expect("a session cookie");
         assert!(set_cookie.contains("HttpOnly") && set_cookie.contains("Secure"));
         assert!(set_cookie.contains("SameSite=Lax"));
         set_cookie
@@ -258,6 +315,9 @@ mod tests {
         assert_eq!(response.status, 303);
         assert_eq!(response.headers[header::LOCATION], "/maps/bhop_forest");
 
+        let used_up = set_cookie(&response, "sj_sign_in").expect("the sign-in cookie is removed");
+        assert!(used_up.starts_with("sj_sign_in=;"), "{used_up}");
+
         let me = me_with(&state, &session_from(&response)).await;
         assert_eq!(me.status, 200);
         let me: Me = me.json();
@@ -276,6 +336,10 @@ mod tests {
             test_client::send_to(
                 state.clone(),
                 Request::get(format!("/v1/auth/steam/callback?{query}"))
+                    .header(
+                        header::COOKIE,
+                        format!("sj_sign_in={}", openid::tests::BROWSER),
+                    )
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -284,7 +348,18 @@ mod tests {
         assert_eq!(send().await.headers[header::LOCATION], "/maps/bhop_forest");
         let replay = send().await;
         assert_eq!(replay.headers[header::LOCATION], FAILED_PAGE);
-        assert!(replay.headers.get(header::SET_COOKIE).is_none());
+        assert!(set_cookie(&replay, "sj_session").is_none());
+    }
+
+    #[sqlx::test]
+    async fn a_sign_in_brought_back_by_another_browser_is_refused(db: PgPool) {
+        // Someone starts a sign-in to their own account and sends the link Steam gives back to someone else.
+        let state = state(&db, fake_steam(true).await);
+        for browser in [None, Some("fedcba9876543210")] {
+            let response = test_client::send_to(state.clone(), callback(&state, browser)).await;
+            assert_eq!(response.headers[header::LOCATION], FAILED_PAGE);
+            assert!(set_cookie(&response, "sj_session").is_none(), "{browser:?}");
+        }
     }
 
     #[sqlx::test]
@@ -293,7 +368,7 @@ mod tests {
 
         let response = sign_in(&state).await;
         assert_eq!(response.headers[header::LOCATION], FAILED_PAGE);
-        assert!(response.headers.get(header::SET_COOKIE).is_none());
+        assert!(set_cookie(&response, "sj_session").is_none());
     }
 
     #[sqlx::test]
@@ -339,8 +414,25 @@ mod tests {
             location.starts_with("http://127.0.0.1:9/openid/login?"),
             "{location}"
         );
+        let browser = set_cookie(&response, "sj_sign_in").expect("a sign-in cookie");
         assert!(
-            location.contains("callback%3Freturn_to%3D%252F&"),
+            browser.contains("HttpOnly")
+                && browser.contains("Secure")
+                && browser.contains("SameSite=Lax")
+                && browser.contains("Path=/v1/auth/steam/callback"),
+            "{browser}"
+        );
+        let value = browser
+            .split(';')
+            .next()
+            .unwrap()
+            .strip_prefix("sj_sign_in=")
+            .unwrap();
+        assert_eq!(value.len(), 64);
+        assert!(
+            location.contains(&format!(
+                "callback%3Freturn_to%3D%252F%26browser%3D{value}&"
+            )),
             "{location}"
         );
     }

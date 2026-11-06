@@ -18,7 +18,7 @@ export function BanPlayer({
   validRuns,
 }: {
   player: Schemas["PlayerRef"];
-  /** Their valid runs, for the option to invalidate them. */
+  /** Their valid runs, for the option to invalidate them; 0 when the staff member can't invalidate runs. */
   validRuns: number;
 }) {
   const [open, setOpen] = useState(false);

@@ -124,7 +124,7 @@ async fn heartbeat(
     State(state): State<AppState>,
     ClientAddress(ip): ClientAddress,
     ClientCountry(country_code): ClientCountry,
-    OptionalKey(lookup): OptionalKey,
+    PresentedKey(presented): PresentedKey,
     JsonBody(mut report): JsonBody<HeartbeatRequest>,
 ) -> Result<Json<HeartbeatResponse>, ApiError> {
     if !state.heartbeat_limit.allow(ip, Instant::now()) {
@@ -136,6 +136,11 @@ async fn heartbeat(
         return Err(ApiError::Invalid("port can't be 0".to_owned()));
     }
     report.hostname = clean_hostname(&report.hostname);
+    // Looked up only now: anyone can send heartbeats, so the limit is checked before any database work.
+    let lookup = match presented {
+        None => None,
+        Some(presented) => Some(keys::look_up(&state.db, &presented).await?),
+    };
     let (key, server_id) = match lookup {
         None => (KeyStatus::None, None),
         Some(KeyLookup::Unknown) => (KeyStatus::Unknown, None),
@@ -239,20 +244,17 @@ async fn prune(db: &PgPool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-/// The key lookup when the request sent a key, or `None` when it sent none. Never rejects.
-struct OptionalKey(Option<KeyLookup>);
+/// The key the request sent, not yet looked up, or `None` when it sent none. Never rejects.
+struct PresentedKey(Option<String>);
 
-impl FromRequestParts<AppState> for OptionalKey {
+impl FromRequestParts<AppState> for PresentedKey {
     type Rejection = ApiError;
 
-    async fn from_request_parts(
+    fn from_request_parts(
         parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        match keys::bearer(parts) {
-            None => Ok(Self(None)),
-            Some(presented) => Ok(Self(Some(keys::look_up(&state.db, presented).await?))),
-        }
+        _state: &AppState,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> {
+        std::future::ready(Ok(Self(keys::bearer(parts).map(str::to_owned))))
     }
 }
 
@@ -337,6 +339,22 @@ pub(crate) mod tests {
         while state.heartbeat_limit.allow(ip, std::time::Instant::now()) {}
         assert_eq!(send("203.0.113.7").await, 429);
         assert_eq!(send("203.0.113.8").await, 200);
+    }
+
+    #[sqlx::test]
+    async fn the_limit_is_checked_before_the_key_is_looked_up(db: PgPool) {
+        let state = crate::app::AppState::for_tests(db.clone());
+        let ip = "203.0.113.7".parse().unwrap();
+        while state.heartbeat_limit.allow(ip, std::time::Instant::now()) {}
+        // With the database gone, any query would answer 500: a 429 shows none was made.
+        db.close().await;
+        let request = Request::post("/v1/servers/heartbeat")
+            .header("content-type", "application/json")
+            .header("x-forwarded-for", "203.0.113.7")
+            .header("authorization", "Bearer sj_not_a_real_key")
+            .body(Body::from(report(27015).to_string()))
+            .unwrap();
+        assert_eq!(test_client::send_to(state, request).await.status, 429);
     }
 
     #[sqlx::test]

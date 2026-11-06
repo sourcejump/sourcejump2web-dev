@@ -1,7 +1,7 @@
-// The current ruleset, fetched from `GET /v1/ruleset` on every request.
-import { connection } from "next/server";
+// The current ruleset, as `GET /v1/ruleset` serves it.
 import type { ReactNode } from "react";
-import { api, type Schemas } from "@/api/client";
+import type { Schemas } from "@/api/client";
+import { currentRuleset } from "./currentRuleset";
 
 const publishedDate = new Intl.DateTimeFormat("en", {
   dateStyle: "medium",
@@ -9,20 +9,18 @@ const publishedDate = new Intl.DateTimeFormat("en", {
 });
 
 export async function RulesetView() {
-  // Rendered at request time: the API isn't reachable while the site is built, and rulesets change.
-  await connection();
-  const result = await api.GET("/v1/ruleset").catch(() => undefined);
+  const ruleset = await currentRuleset().catch(() => undefined);
 
-  if (!result?.data) {
+  if (!ruleset) {
     return (
       <p>
-        {result?.response.status === 404
+        {ruleset === null
           ? "No ruleset has been published yet."
           : "The ruleset couldn't be loaded. Try again in a moment."}
       </p>
     );
   }
-  return <RulesetDetails ruleset={result.data} />;
+  return <RulesetDetails ruleset={ruleset} />;
 }
 
 function RulesetDetails({ ruleset }: { ruleset: Schemas["Ruleset"] }) {

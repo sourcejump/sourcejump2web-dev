@@ -1,7 +1,8 @@
 "use client";
 // The Servers page's list. Everyone gets the listed servers rendered on the server; staff who hold
 // manage_servers then get every server from the browser, unlisted ones included, with their tools. A
-// Public / Whitelist switch shows whitelist servers apart, filtered here so the page stays cacheable.
+// Public / Whitelist switch shows whitelist servers apart, filtered here so the page's
+// server render is the same whichever is picked. Nothing caches that render yet; it is built per request.
 import { useSearchParams } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
 import type { Schemas } from "@/api/client";

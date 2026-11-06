@@ -1496,7 +1496,7 @@ export interface components {
              * @description When it ends by itself; null or left out: until lifted.
              */
             ends_at?: string | null;
-            /** @description Also invalidate every valid run they have. Needs `no_records`. */
+            /** @description Also invalidate every valid run they have. Needs `no_records`, and the `invalidate_runs` privilege. */
             invalidate_runs?: boolean;
             /** @description Why, for staff only. 1 to 500 characters. */
             reason: string;
@@ -6727,7 +6727,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Needs manage_bans, from SourceJump's pages */
+            /** @description Needs manage_bans (and invalidate_runs to invalidate), from SourceJump's pages */
             403: {
                 headers: {
                     [name: string]: unknown;

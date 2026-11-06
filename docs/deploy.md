@@ -22,7 +22,7 @@ Each environment has a file `deploy/environments/<env>.env` with `SSH_TARGET` (a
 - Logs: `journalctl -u sourcejump-api -u sourcejump-web` on the server.
 - Issue or revoke a server's API key: `ssh <target> 'set -a; . /etc/sourcejump/api.env; /opt/sourcejump/api/sourcejump-api keys issue "<server name>"'` (or `keys revoke <prefix>`). The key is printed once.
 - Discord record feeds (`record_events/discord.rs`): put the feeds JSON at `/etc/sourcejump/discord-feeds.json` (owned by `sourcejump`, mode 600: its webhook URLs are secrets) and set `SJ_DISCORD_FEEDS` to that path in `api.env`. Each entry is `{"name", "records"?: "world_records" | "personal_bests", "style"?, "min_tier"?, "max_tier"?, "untiered"?, "bonuses"?, "webhook"}`; the lead keeps the current file. Without it nothing is posted. A feed's first start posts only records from then on. The tier icons next to map names are `web/public/tiers/` (`scripts/tier-icons.py`).
-- Rollback: check out the previous commit and deploy it. Migrations are additive, so the older binary still runs on the newer schema; binaries from 2026-11-05 on start despite migrations they don't know. Before that, they refused: restore the backup instead.
+- Rollback: check out the previous commit and deploy it. Migrations are additive, so the older binary still runs on the newer schema; binaries from 2026-11-05 on start despite migrations they don't know. Before that, they refused: restore the backup instead. Migration 0051 dropped a column that older binaries read, so rolling back past it means restoring the backup taken before it.
 - Sample data on staging: `ssh <target> 'runuser -u sourcejump -- psql sourcejump' < api/seed/dev.sql`. Never on production.
 
 ## Gotchas
@@ -32,12 +32,12 @@ Each environment has a file `deploy/environments/<env>.env` with `SSH_TARGET` (a
 - `/opt` is read-only to the services except the web app's `.next/cache`.
 
 ## Object storage: Cloudflare R2 (ADR 0007)
-Two buckets from the beta on. `sourcejump` is public by design: keys carry a random part, so only the API says where a file is (`docs/api.md`). `sourcejump-staging` is private: staff uploads wait there until the API checks them, so it never gets a custom domain or r2.dev access. Set up once, in the Cloudflare dashboard:
+Two buckets from the beta on. `sourcejump` is public by design: keys carry a random part, so only the API says where a file is (`docs/api.md`). `sourcejump-staging` is private: staff and game server uploads (viewer files, replays) wait there until the API checks them, so it never gets a custom domain or r2.dev access. Set up once, in the Cloudflare dashboard:
 1. R2 > Create buckets `sourcejump` and `sourcejump-staging`. Then Manage API tokens > Create: permission Object Read & Write, applied to those two buckets only. Note the access key ID and secret; they're shown once.
 2. Bucket > Settings > Custom Domains > Add `files.sourcejump.net`. Not r2.dev, which is rate-limited and uncached.
 3. Bucket > Settings > CORS Policy > JSON, for the replay viewer (`docs/replay-viewer.md`); add sourcejump.net at the switch:
    `[{"AllowedOrigins": ["https://beta.sourcejump.net"], "AllowedMethods": ["GET", "HEAD"], "AllowedHeaders": ["*"], "ExposeHeaders": ["Content-Range", "Content-Length"], "MaxAgeSeconds": 86400}]`
-   For `sourcejump-staging`, staff pages upload straight to it:
+   For `sourcejump-staging`, staff pages upload straight to it (game servers upload replays there too, without CORS):
    `[{"AllowedOrigins": ["https://beta.sourcejump.net"], "AllowedMethods": ["PUT"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 86400}]`
    and under Object lifecycle rules, delete objects 1 day after upload, so abandoned uploads go.
 4. Caching > Cache Rules: for hostname `files.sourcejump.net`, eligible for cache. By default Cloudflare caches only some file types, not `.sjr`, `.bsp` or `.vpk`; the files' own `Cache-Control` sets how long.

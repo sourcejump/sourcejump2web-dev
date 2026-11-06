@@ -943,6 +943,48 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
+    async fn staff_set_and_clear_a_maps_description(db: PgPool) {
+        let token = session(&db, STAFF, &[Privilege::ManageMaps, Privilege::ManageZones]).await;
+        let path = "/v1/staff/maps/bhop_fresh/description";
+        let put = |description: Value| {
+            send(
+                &db,
+                "PUT",
+                path,
+                &token,
+                Some(json!({ "description": description })),
+            )
+        };
+        assert_eq!(put(json!("Short and fast")).await.status, 404);
+        let zones = json!({ "based_on": null, "zones": zone_set(1000.0), "note": "First" });
+        send(
+            &db,
+            "POST",
+            "/v1/staff/maps/bhop_fresh/zones",
+            &token,
+            Some(zones),
+        )
+        .await;
+
+        assert_eq!(put(json!("  Short and fast ")).await.status, 204);
+        assert_eq!(put(json!("Short and fast")).await.status, 422, "unchanged");
+        assert_eq!(put(json!("a".repeat(1001))).await.status, 422, "too long");
+        let public: Value = test_client::get(&db, "/v1/maps/bhop_fresh").await.json();
+        assert_eq!(public["description"], "Short and fast", "trimmed");
+
+        assert_eq!(put(json!(" ")).await.status, 204, "blank clears it");
+        let public: Value = test_client::get(&db, "/v1/maps/bhop_fresh").await.json();
+        assert_eq!(public["description"], Value::Null);
+        let logged = sqlx::query_scalar!(
+            r#"SELECT count(*) AS "count!" FROM staff_log WHERE action = 'set_map_description'"#
+        )
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert_eq!(logged, 2);
+    }
+
+    #[sqlx::test]
     async fn staff_set_when_a_map_was_released_and_who_made_it(db: PgPool) {
         let token = session(&db, STAFF, &[Privilege::ManageMaps, Privilege::ManageZones]).await;
         let path = "/v1/staff/maps/bhop_fresh/release";
@@ -1126,6 +1168,23 @@ pub(crate) mod tests {
             .status,
             403
         );
+        // The description and the release are map details, like tiers: `manage_maps`, not `manage_zones`.
+        for (path, body) in [
+            (
+                "/v1/staff/maps/bhop_a/description",
+                json!({ "description": "Hijacked" }),
+            ),
+            (
+                "/v1/staff/maps/bhop_a/release",
+                json!({ "released": { "year": 2012 }, "mapper": null }),
+            ),
+        ] {
+            assert_eq!(
+                send(&db, "PUT", path, &zones_only, Some(body)).await.status,
+                403,
+                "{path}"
+            );
+        }
 
         let maps_only = session(&db, STAFF, &[Privilege::ManageMaps]).await;
         let body = json!({ "based_on": null, "zones": zone_set(1000.0), "note": "Sneaky" });

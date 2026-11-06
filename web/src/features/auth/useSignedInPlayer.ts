@@ -1,6 +1,7 @@
 "use client";
 // The signed-in player, asked from the browser. Public pages show per-player buttons and staff tools through
-// this, so their server render is the same for everyone and can be cached. The API checks every change again.
+// this, so their server render is the same for everyone (nothing caches it yet; it is built per request). The API
+// checks every change again.
 import { useEffect, useState } from "react";
 import { api, type Schemas } from "@/api/client";
 
