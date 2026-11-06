@@ -30,7 +30,7 @@ export function ServerRow({
   const dim = classNames(
     "transition-opacity duration-(--duration-base)",
     // Only a server that's down is dimmed; staff marks like Unlisted are badges.
-    !server.online && "opacity-60",
+    !server.online && "opacity-45",
   );
   const connected = "Runs on this server count on SourceJump";
   return (
@@ -39,10 +39,16 @@ export function ServerRow({
         className={classNames(
           "border-border bg-surface-raised relative flex h-28 shrink-0 items-end justify-between gap-3 overflow-hidden border-b p-3",
           "sm:h-18 sm:w-32 sm:rounded-sm sm:border sm:p-0",
-          dim,
+          !server.online && "grayscale",
         )}
       >
         <MapPicture image={server.map_image} eager={eager} />
+        {/* The picture greys out under a full-strength label rather than fading, so a down server reads at a glance. */}
+        {!server.online && (
+          <span className="bg-bg/70 absolute inset-0 flex items-center justify-center text-sm font-bold">
+            Offline
+          </span>
+        )}
         <span className="relative min-w-0 sm:hidden">
           <OnPicture>
             <MapName server={server} />
