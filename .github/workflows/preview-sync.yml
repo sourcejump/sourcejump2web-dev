@@ -1,0 +1,67 @@
+# sourcejump2web-dev only (not upstream). Keeps main in step with sourcejump/sourcejump, then brings each u/*
+# preview branch up to date with main and rebuilds the ones that changed.
+#
+# main is upstream plus the commit that adds this preview tooling, so upstream is merged in, not
+# fast-forwarded. The tooling files only exist here, so the merge doesn't conflict. Pushes use a write deploy
+# key and not GITHUB_TOKEN: that token can't push commits that change workflow files, and upstream's
+# commits sometimes do.
+name: Preview sync
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: preview-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    environment: mirror
+    env:
+      GH_TOKEN: ${{ github.token }}
+      UPSTREAM: ${{ vars.UPSTREAM_REPO || 'https://github.com/sourcejump/sourcejump.git' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          ssh-key: ${{ secrets.MIRROR_DEPLOY_KEY }}
+      - name: Merge upstream into main
+        id: main
+        run: |
+          set -euo pipefail
+          git config user.name "sourcejump2web-dev sync"
+          git config user.email "actions@users.noreply.github.com"
+          git remote add upstream "$UPSTREAM"
+          git fetch --quiet upstream main
+          before=$(git rev-parse HEAD)
+          git merge --no-edit upstream/main
+          if [ "$(git rev-parse HEAD)" = "$before" ]; then
+            echo "main is up to date"
+            echo "changed=no" >> "$GITHUB_OUTPUT"
+          else
+            git push origin main
+            echo "changed=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update preview branches
+        if: steps.main.outputs.changed == 'yes'
+        run: |
+          set -uo pipefail
+          git fetch --quiet origin '+refs/heads/u/*:refs/remotes/origin/u/*'
+          for ref in $(git for-each-ref --format='%(refname:strip=3)' 'refs/remotes/origin/u/'); do
+            branch="u/$ref"
+            git checkout --quiet -B "$branch" "origin/$branch"
+            if git merge --no-edit main >/dev/null 2>&1; then
+              if [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/$branch")" ]; then
+                git push --quiet origin "$branch"
+                gh workflow run preview-build.yml --ref main -f branch="$branch"
+                echo "- $branch: updated" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            else
+              git merge --abort
+              echo "- $branch: conflicts with main, left as is" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done

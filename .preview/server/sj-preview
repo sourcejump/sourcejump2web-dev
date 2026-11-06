@@ -1,0 +1,92 @@
+#!/bin/bash
+# Preview server entry point, run as the forced command of the CI deploy key (authorized_keys):
+#   deploy <name>   site tarball on stdin; (re)starts the container serving <name>-sj.okwhiteli.st
+#   remove <name>   stops it and deletes its files
+# Each preview is a rootless podman container: read-only, resource-limited, no capabilities, published on
+# loopback only. Caddy finds a preview's port in ports.map. The tarball holds contributor code, so it is only
+# ever run inside the container.
+set -euo pipefail
+
+ROOT=/srv/sj-preview
+MAP="$ROOT/ports.map"
+# Optional overrides: SJP_API_URL, SJP_IMAGE, SJP_MEMORY, SJP_CPUS, SJP_MAX_MB.
+[ -r /etc/sj-preview.env ] && . /etc/sj-preview.env
+API_URL="${SJP_API_URL:-https://beta.sourcejump.net}"
+# glibc, matching the GitHub runner the site is built on (native modules such as sharp).
+IMAGE="${SJP_IMAGE:-docker.io/library/node:24-bookworm-slim}"
+MEMORY="${SJP_MEMORY:-512m}"
+CPUS="${SJP_CPUS:-1}"
+MAX_BYTES=$(( ${SJP_MAX_MB:-300} * 1024 * 1024 ))
+FIRST_PORT=4100
+
+die() { echo "sj-preview: $*" >&2; exit 1; }
+
+read -r action name extra <<< "${SSH_ORIGINAL_COMMAND:-${*:-}}" || true
+[ -z "${extra:-}" ] || die "usage: deploy|remove <name>"
+[[ "${name:-}" =~ ^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$ ]] || die "bad name"
+
+mkdir -p "$ROOT/sites" "$ROOT/tmp"
+touch "$MAP"
+exec 9> "$ROOT/lock"
+flock 9
+
+port_of() { awk -v n="$1" '$1 == n { print $2 }' "$MAP"; }
+reload_caddy() { sudo -n /usr/bin/systemctl reload caddy; }
+
+case "$action" in
+deploy)
+  tmp=$(mktemp -p "$ROOT/tmp")
+  trap 'rm -f "$tmp"; rm -rf "$ROOT/sites/$name.new"' EXIT
+  head -c $(( MAX_BYTES + 1 )) > "$tmp"
+  [ "$(stat -c %s "$tmp")" -le "$MAX_BYTES" ] || die "site is over ${SJP_MAX_MB:-300} MB"
+
+  new="$ROOT/sites/$name.new"
+  rm -rf "$new" && mkdir -p "$new"
+  tar -xzf "$tmp" -C "$new" --no-same-owner --no-same-permissions
+  [ -f "$new/server.js" ] || die "no server.js in the tarball"
+  # Mount point for the writable cache; the rest of the site is mounted read-only.
+  mkdir -p "$new/.next/cache"
+
+  podman rm -f "sjp-$name" >/dev/null 2>&1 || true
+  rm -rf "$ROOT/sites/$name"
+  mv "$new" "$ROOT/sites/$name"
+
+  port=$(port_of "$name")
+  if [ -z "$port" ]; then
+    last=$(awk 'BEGIN { m = 0 } $2 > m { m = $2 } END { print m }' "$MAP")
+    port=$(( last >= FIRST_PORT ? last + 1 : FIRST_PORT ))
+    echo "$name $port" >> "$MAP"
+    new_port=yes
+  fi
+
+  podman run -d --name "sjp-$name" --restart=always \
+    --read-only --tmpfs /tmp:size=64m --tmpfs /app/.next/cache:size=256m \
+    --memory "$MEMORY" --cpus "$CPUS" --pids-limit 256 \
+    --cap-drop ALL --security-opt no-new-privileges --user node \
+    -p "127.0.0.1:$port:3000" \
+    -v "$ROOT/sites/$name:/app:ro" -w /app \
+    -e NODE_ENV=production -e PORT=3000 -e HOSTNAME=0.0.0.0 -e SJ_API_URL="$API_URL" \
+    "$IMAGE" node server.js >/dev/null
+
+  [ "${new_port:-}" = yes ] && reload_caddy
+
+  for _ in $(seq 30); do
+    if curl -fsS -o /dev/null "http://127.0.0.1:$port/"; then echo "live: $name on port $port"; exit 0; fi
+    sleep 1
+  done
+  podman logs --tail 40 "sjp-$name" >&2 || true
+  die "started but not answering on port $port"
+  ;;
+remove)
+  podman rm -f "sjp-$name" >/dev/null 2>&1 || true
+  rm -rf "$ROOT/sites/$name"
+  if [ -n "$(port_of "$name")" ]; then
+    awk -v n="$name" '$1 != n' "$MAP" > "$MAP.tmp" && cat "$MAP.tmp" > "$MAP" && rm -f "$MAP.tmp"
+    reload_caddy
+  fi
+  echo "removed: $name"
+  ;;
+*)
+  die "usage: deploy|remove <name>"
+  ;;
+esac

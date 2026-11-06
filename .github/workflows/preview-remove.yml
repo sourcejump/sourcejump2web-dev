@@ -1,0 +1,26 @@
+# sourcejump2web-dev only (not upstream). Takes a preview offline when its u/* branch is deleted. GitHub runs
+# delete-triggered workflows from the default branch, so this file always comes from main.
+name: Preview remove
+on:
+  delete:
+permissions:
+  contents: read
+jobs:
+  remove:
+    if: github.event.ref_type == 'branch' && startsWith(github.event.ref, 'u/')
+    runs-on: ubuntu-24.04
+    environment: preview-deploy
+    steps:
+      - name: Remove from the preview server
+        env:
+          BRANCH: ${{ github.event.ref }}
+          SSH_KEY: ${{ secrets.PREVIEW_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.PREVIEW_SSH_KNOWN_HOSTS }}
+          TARGET: ${{ secrets.PREVIEW_SSH_TARGET }}
+        run: |
+          name="${BRANCH#u/}"
+          printf '%s' "$name" | grep -Eq '^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$' || { echo "bad name"; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -o BatchMode=yes "$TARGET" "remove $name" < /dev/null

@@ -1,0 +1,86 @@
+# sourcejump2web-dev only (not upstream). Builds one u/* branch's website and ships it to the preview server.
+#
+# Started by preview-intake, preview-sync or by hand, always with --ref main, so this file comes from main and
+# not from the branch being built. The build job runs contributor code, so it gets no secrets, no write token
+# and no dependency cache: a poisoned cache would carry into later builds. Only the deploy job holds the SSH
+# key, through the `preview-deploy` environment, which is limited to main. It ships the built files and never
+# runs them.
+name: Preview build
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Preview branch to build (u/<name>)"
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: preview-build-${{ inputs.branch }}
+  cancel-in-progress: true
+env:
+  # Where previews read data from: upstream's public beta API (GET only, enforced by the preview server's Caddy).
+  SJ_API_URL: ${{ vars.PREVIEW_API_URL || 'https://beta.sourcejump.net' }}
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    outputs:
+      name: ${{ steps.name.outputs.name }}
+    steps:
+      - id: name
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          case "$BRANCH" in
+            u/*) name="${BRANCH#u/}" ;;
+            *) echo "not a preview branch: $BRANCH"; exit 1 ;;
+          esac
+          if ! printf '%s' "$name" | grep -Eq '^[a-z0-9]([a-z0-9-]{0,37}[a-z0-9])?$'; then
+            echo "bad preview name: $name"; exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Build
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+      - name: Package
+        # Same layout as upstream's deploy/deploy.sh: the standalone server with static assets next to it.
+        run: |
+          rm -rf web/.next/standalone/.next/static
+          cp -r web/.next/static web/.next/standalone/.next/static
+          if [ -d web/public ]; then cp -r web/public web/.next/standalone/; fi
+          tar -C web/.next/standalone --exclude .next/cache -czf site.tar.gz .
+          ls -lh site.tar.gz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: site
+          path: site.tar.gz
+          retention-days: 3
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: preview-deploy
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: site
+      - name: Ship to the preview server
+        env:
+          NAME: ${{ needs.build.outputs.name }}
+          SSH_KEY: ${{ secrets.PREVIEW_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.PREVIEW_SSH_KNOWN_HOSTS }}
+          TARGET: ${{ secrets.PREVIEW_SSH_TARGET }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # The server's authorized_keys pins this key to the sj-preview command, which reads only this line.
+          ssh -o BatchMode=yes "$TARGET" "deploy $NAME" < site.tar.gz
