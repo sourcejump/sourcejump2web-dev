@@ -2,7 +2,7 @@
 // a page.
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Form from "next/form";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { classNames } from "./classNames";
 import { Link } from "./Link";
 
@@ -34,6 +34,7 @@ export function Pager({
   noun?: string;
   href: (page: number) => string;
 }) {
+  const box = useId();
   if (pageCount <= 1 && !more) return null;
   const last = more ? pageCount + 1 : pageCount;
   const shown = [
@@ -102,21 +103,23 @@ export function Pager({
         {[...base.searchParams].map(([name, value]) => (
           <input key={name} type="hidden" name={name} value={value} />
         ))}
-        <label className="text-text-subtle flex items-center gap-2 text-sm">
+        <label htmlFor={box} className="text-text-subtle text-sm">
           Go to
-          <input
-            type="number"
-            name={PARAM}
-            min={1}
-            max={more ? undefined : pageCount}
-            placeholder={String(page)}
-            required
-            className="border-border bg-bg text-text placeholder:text-text-subtle hover:border-border-strong focus:border-accent h-8 w-16 [appearance:textfield] rounded-md border px-2 text-center text-sm tabular-nums transition-colors duration-(--duration-fast) outline-none [&::-webkit-inner-spin-button]:appearance-none"
-          />
         </label>
+        <input
+          id={box}
+          type="number"
+          name={PARAM}
+          min={1}
+          max={more ? undefined : pageCount}
+          placeholder={String(page)}
+          required
+          className="peer border-border bg-bg text-text placeholder:text-text-subtle hover:border-border-strong focus:border-accent h-8 w-16 [appearance:textfield] rounded-md border px-2 text-center text-sm tabular-nums transition-colors duration-(--duration-fast) outline-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        {/* Lights up once the box holds a page it can go to; empty or out of range, it stays dim. */}
         <button
           type="submit"
-          className="border-border bg-bg text-text-muted hover:border-border-strong hover:text-text h-8 rounded-md border px-3 text-sm font-medium transition-colors duration-(--duration-fast)"
+          className="border-border bg-bg text-text-subtle peer-valid:border-accent/40 peer-valid:bg-accent-soft peer-valid:text-accent peer-valid:hover:bg-accent/20 h-8 rounded-md border px-3 text-sm font-bold transition-colors duration-(--duration-fast)"
         >
           Go
         </button>
