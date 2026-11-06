@@ -1,6 +1,5 @@
 // Editing a community post, for its author and staff.
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { WritePost } from "@/features/community/WritePost";
 import { Page } from "@/ui/Page";
 
@@ -15,11 +14,9 @@ export default function EditPostPage({
   return (
     <Page className="gap-6" width="narrow">
       <h1 className="text-3xl font-bold">Edit post</h1>
-      <Suspense>
-        {params.then(({ post }) => (
-          <WritePost path={decodeURIComponent(post)} />
-        ))}
-      </Suspense>
+      {params.then(({ post }) => (
+        <WritePost path={decodeURIComponent(post)} />
+      ))}
     </Page>
   );
 }

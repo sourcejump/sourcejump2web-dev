@@ -1,5 +1,4 @@
 // Home page: the site's header, what bunnyhopping is, how to start, and the latest records and servers.
-import { Suspense } from "react";
 import { BhopIntro } from "@/features/home/BhopIntro";
 import { GetStarted } from "@/features/home/GetStarted";
 import { HomeHeader } from "@/features/home/HomeHeader";
@@ -12,9 +11,7 @@ export default function HomePage() {
       <HomeHeader />
       <BhopIntro />
       <GetStarted />
-      <Suspense>
-        <LiveNow />
-      </Suspense>
+      <LiveNow />
     </Page>
   );
 }

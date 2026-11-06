@@ -1,6 +1,5 @@
 // A player's Manage view, for staff, under their header. Kept out of search engines, as the staff area is.
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { ManagePlayer } from "@/features/staff/players/ManagePlayer";
 import { PageView } from "@/ui/Page";
 
@@ -14,11 +13,9 @@ export default function ManagePlayerPage({
 }: PageProps<"/players/[steamid]/manage">) {
   return (
     <PageView>
-      <Suspense>
-        {params.then(({ steamid }) => (
-          <ManagePlayer steamid={decodeURIComponent(steamid)} />
-        ))}
-      </Suspense>
+      {params.then(({ steamid }) => (
+        <ManagePlayer steamid={decodeURIComponent(steamid)} />
+      ))}
     </PageView>
   );
 }
