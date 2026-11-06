@@ -35,3 +35,13 @@
     background: var(--color-accent-soft);
   }
 }
+
+/* Red barrier stripes that fade out towards the left, for the edge of something that's down (a server offline). */
+@utility hazard-stripes {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in oklab, var(--color-danger) 22%, transparent) 0 6px,
+    transparent 6px 14px
+  );
+  mask-image: linear-gradient(to left, black, transparent);
+}

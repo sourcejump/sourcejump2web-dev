@@ -1,5 +1,5 @@
 // One server on the Servers page: a card on phones, a compact row wider. Staff rows add badges and tools.
-import { Check, ImageOff } from "lucide-react";
+import { Check, ImageOff, Power } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Schemas } from "@/api/client";
 import { formatAgo } from "@/features/runs/time";
@@ -35,9 +35,11 @@ export function ServerRow({
   const connected = "Runs on this server count on SourceJump";
   return (
     <ServerRowFrame className="relative flex flex-col sm:h-full sm:flex-row sm:items-center sm:gap-3 sm:p-3">
-      {/* A red wash over the whole cell, so a down server stands out from the rest of the list. */}
+      {/* A red wash, edge and fading barrier stripes over the whole cell, so a down server stands out. */}
       {!server.online && (
-        <span className="bg-danger/10 pointer-events-none absolute inset-0" />
+        <span className="bg-danger/6 ring-danger/40 pointer-events-none absolute inset-0 z-10 ring-1 ring-inset">
+          <span className="hazard-stripes absolute inset-y-0 right-0 w-1/3" />
+        </span>
       )}
       <span
         className={classNames(
@@ -185,23 +187,30 @@ function Players({
   stacked?: boolean;
 }) {
   if (!server.online) {
-    return (
-      <span
-        className={classNames(
-          "text-text-muted text-sm whitespace-nowrap",
-          stacked && "flex flex-col items-center text-center text-xs",
-        )}
-      >
-        <span
-          className={classNames("text-danger font-bold", stacked && "text-sm")}
-        >
-          Offline
+    const ago = (
+      <time dateTime={server.last_seen_at}>
+        {formatAgo(server.seen_minutes_ago)}
+      </time>
+    );
+    const offline = (
+      <span className="text-danger flex items-center gap-1.5 font-bold tracking-wide uppercase">
+        <Power aria-hidden className="size-4" />
+        Offline
+      </span>
+    );
+    return stacked ? (
+      <span className="flex flex-col items-center gap-1 text-center">
+        <span className="text-sm whitespace-nowrap">{offline}</span>
+        {/* Two short lines rather than one long one, so the column stays narrow next to the name and badges. */}
+        <span className="text-text-muted flex flex-col text-xs whitespace-nowrap">
+          <span>Last seen</span>
+          {ago}
         </span>
-        {stacked ? " " : " · "}
-        <span className="sr-only">last seen </span>
-        <time dateTime={server.last_seen_at}>
-          {formatAgo(server.seen_minutes_ago)}
-        </time>
+      </span>
+    ) : (
+      <span className="flex items-center gap-1.5 text-sm whitespace-nowrap">
+        {offline}
+        <span className="text-text-muted">· {ago}</span>
       </span>
     );
   }
