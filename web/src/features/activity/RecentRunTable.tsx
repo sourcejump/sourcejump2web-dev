@@ -71,6 +71,7 @@ export function RecentRunTable({
   const [cursor, setCursor] = useState(first.next_cursor ?? null);
   const [failed, setFailed] = useState(false);
   const [waiting, setWaiting] = useState(false);
+  const [turned, setTurned] = useState(false);
   // The latest runs and cursor for the loops below, which outlive the render that started them.
   const latest = useRef({
     runs: first.runs,
@@ -134,6 +135,7 @@ export function RecentRunTable({
       if (!(await loadMore())) break;
     }
     setWaiting(false);
+    setTurned(true);
     const count = Math.max(1, Math.ceil(latest.current.runs.length / pageSize));
     setMinHeight((held) => held ?? rows.current?.offsetHeight);
     window.history.pushState(null, "", pageHref(Math.min(target, count)));
@@ -207,12 +209,12 @@ export function RecentRunTable({
               </TableHeaderCell>
             </tr>
           </TableHead>
-          {/* Keyed by page, so a turned page's rows fade in like the first. */}
-          <TableBody key={page}>
+          <TableBody>
             {shown.map((run, row) => (
               <TableRow
                 key={run.run_id}
-                className="motion-enter"
+                // Only the first rows rise into place; a turned page swaps in at once.
+                className={turned ? undefined : "motion-enter"}
                 style={
                   {
                     "--motion-delay": `${Math.min(row, 12) * 20}ms`,
@@ -321,6 +323,12 @@ export function RecentRunTable({
             page={page}
             pageCount={pageCount}
             more={cursor != null}
+            // Known once the last runs have loaded; the API doesn't count them.
+            total={cursor == null ? runs.length : undefined}
+            noun={
+              (query.records ? "world record" : "run") +
+              (runs.length === 1 ? "" : "s")
+            }
             href={pageHref}
           />
         </div>

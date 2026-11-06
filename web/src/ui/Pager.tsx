@@ -10,7 +10,8 @@ const PARAM = "page";
 
 const cell =
   "inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-sm tabular-nums transition-colors duration-(--duration-fast)";
-const link = "text-text-muted hover:bg-text/8 hover:text-text";
+const link = "text-text-muted hover:bg-surface-raised hover:text-text";
+const number = new Intl.NumberFormat("en");
 
 /**
  * Renders nothing when everything fits on one page. Pages count from 1 and sit in the address as `?page=`, so
@@ -21,11 +22,16 @@ export function Pager({
   page,
   pageCount,
   more = false,
+  total,
+  noun,
   href,
 }: {
   page: number;
   pageCount: number;
   more?: boolean;
+  /** How many items there are in all, shown before the page with `noun`: "3,599 runs". */
+  total?: number;
+  noun?: string;
   href: (page: number) => string;
 }) {
   if (pageCount <= 1 && !more) return null;
@@ -50,7 +56,9 @@ export function Pager({
         aria-current={p === page ? "page" : undefined}
         className={classNames(
           cell,
-          p === page ? "bg-accent-soft text-accent font-bold" : link,
+          p === page
+            ? "bg-accent-soft text-accent ring-accent/30 font-bold ring-1 ring-inset"
+            : link,
         )}
       >
         {p}
@@ -66,8 +74,9 @@ export function Pager({
       className="flex flex-wrap items-center gap-x-4 gap-y-2"
     >
       <span className="text-text-subtle mr-auto text-sm tabular-nums">
-        Page {page}
-        {!more && ` of ${pageCount}`}
+        {total != null && `${number.format(total)} ${noun} · `}
+        {total != null ? "page" : "Page"} {number.format(page)}
+        {!more && ` of ${number.format(pageCount)}`}
       </span>
       <span className="flex items-center gap-1">
         <Arrow
@@ -102,9 +111,15 @@ export function Pager({
             max={more ? undefined : pageCount}
             placeholder={String(page)}
             required
-            className="border-border bg-bg text-text placeholder:text-text-subtle focus:border-accent h-8 w-14 [appearance:textfield] rounded-md border px-2 text-center text-sm tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="border-border bg-bg text-text placeholder:text-text-subtle hover:border-border-strong focus:border-accent h-8 w-16 [appearance:textfield] rounded-md border px-2 text-center text-sm tabular-nums transition-colors duration-(--duration-fast) outline-none [&::-webkit-inner-spin-button]:appearance-none"
           />
         </label>
+        <button
+          type="submit"
+          className="bg-surface-raised text-text-muted ring-border hover:bg-surface-overlay hover:text-text h-8 rounded-md px-3 text-sm font-bold ring-1 transition-colors duration-(--duration-fast) ring-inset"
+        >
+          Go
+        </button>
       </Form>
     </nav>
   );
@@ -121,7 +136,7 @@ function Arrow({
 }) {
   if (!href)
     return (
-      <span aria-hidden className={classNames(cell, "text-text-subtle/50")}>
+      <span aria-hidden className={classNames(cell, "text-text-subtle/40")}>
         {children}
       </span>
     );

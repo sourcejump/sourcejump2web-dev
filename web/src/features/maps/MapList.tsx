@@ -348,6 +348,8 @@ export async function MapList({ params }: { params: MapListParams }) {
           <Pager
             page={page}
             pageCount={Math.ceil(list.total / PAGE_SIZE)}
+            total={list.total}
+            noun={list.total === 1 ? "map" : "maps"}
             href={(p) => href({ page: p })}
           />
         </>
