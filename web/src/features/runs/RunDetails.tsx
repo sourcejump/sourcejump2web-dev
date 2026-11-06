@@ -130,9 +130,7 @@ function RunTime({ run, board }: { run: Schemas["RunDetail"]; board: string }) {
             {formatTime(run.time)}
           </span>
           {gap > 0 && (
-            <span className="text-text-subtle tabular-nums">
-              {formatGap(gap)}
-            </span>
+            <span className="text-danger tabular-nums">{formatGap(gap)}</span>
           )}
           {/* Badges sit centred on the time; the gap above stays on its baseline, read as part of the time. */}
           {run.rank === 1 && (

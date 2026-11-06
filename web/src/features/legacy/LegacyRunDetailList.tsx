@@ -37,7 +37,7 @@ export function LegacyRunDetailList({
             <LegacyBadge />
             {/* Behind the pre-2.0 record, put before the time as for 2.0 runs. */}
             {gap > 0 && (
-              <span className="text-text-subtle text-xs font-normal">
+              <span className="text-danger text-xs font-normal">
                 {formatGap(gap)}
               </span>
             )}

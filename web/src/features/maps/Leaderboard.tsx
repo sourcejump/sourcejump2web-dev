@@ -168,7 +168,9 @@ export function Leaderboard({
                 {!entry.legacy && entry.time === record ? (
                   <Badge tone="accent">WR</Badge>
                 ) : entry.time === fastest || fastest == null ? null : (
-                  formatGap(entry.time - fastest)
+                  <span className="text-danger">
+                    {formatGap(entry.time - fastest)}
+                  </span>
                 )}
               </TableCell>
               <TableCell numeric className="text-text-muted">
