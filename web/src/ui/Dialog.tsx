@@ -15,12 +15,15 @@ export function Dialog({
   title,
   children,
   footer,
+  size = "md",
 }: {
   open: boolean;
   onClose: () => void;
   title: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
+  /** `lg` for a large view such as a replay. */
+  size?: "md" | "lg";
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const closingQuietly = useRef(false);
@@ -62,7 +65,7 @@ export function Dialog({
       }}
       aria-labelledby={titleId}
       // The element sits wherever its opener is, such as a table cell, and would inherit that text layout.
-      className="border-border-strong bg-surface text-text shadow-dialog backdrop:bg-bg/75 open:motion-enter m-auto w-[min(100%-2rem,36rem)] rounded-lg border p-0 text-left text-base font-normal whitespace-normal"
+      className={`border-border-strong bg-surface text-text shadow-dialog backdrop:bg-bg/75 open:motion-enter m-auto rounded-lg border p-0 text-left text-base font-normal whitespace-normal ${size === "lg" ? "w-[min(100%-2rem,64rem)]" : "w-[min(100%-2rem,36rem)]"}`}
     >
       <div className="border-border flex items-center justify-between gap-4 border-b px-5 py-3">
         <h2 id={titleId} className="text-lg font-bold">

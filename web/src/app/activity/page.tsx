@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function ActivityPage({ searchParams }: PageProps<"/activity">) {
   return (
-    <Page className="gap-6">
+    <Page width="medium" className="gap-6">
       <h1 className="text-3xl font-bold">Activity</h1>
       <Suspense>
         <DailyTotals kind="runs" />

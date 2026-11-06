@@ -3,6 +3,7 @@
 // loads older runs a page at a time.
 import { useState, type CSSProperties } from "react";
 import { api, type Schemas } from "@/api/client";
+import { ReplayLink } from "@/features/replays/ReplayLink";
 import { RunLink } from "@/features/runs/RunLink";
 import {
   formatAge,
@@ -144,7 +145,8 @@ export function RecentRunTable({
               </TableCell>
               <TableCell numeric>
                 <span className="inline-flex flex-col items-end gap-0.5">
-                  <span className="flex items-baseline gap-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <ReplayLink runId={run.run_id} />
                     <RunLink
                       runId={run.run_id}
                       className="hover:text-accent font-bold underline-offset-4 hover:underline"
