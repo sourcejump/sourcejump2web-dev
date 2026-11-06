@@ -42,14 +42,6 @@ export function ServerRow({
     >
       <span
         className={classNames(
-          "absolute inset-y-0 left-0 z-10 w-1",
-          server.online ? "bg-success" : "bg-danger",
-        )}
-      >
-        <span className="sr-only">{server.online ? "Online" : "Offline"}</span>
-      </span>
-      <span
-        className={classNames(
           "border-border bg-surface-raised relative flex h-28 shrink-0 items-end justify-between gap-3 overflow-hidden border-b p-3",
           "sm:h-18 sm:w-32 sm:rounded-sm sm:border sm:p-0",
           dim,
@@ -75,6 +67,17 @@ export function ServerRow({
       >
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span className="flex min-w-0 items-center gap-2">
+            {/* A dot rather than an edge strip, which would sit on the board's border or the line between columns. */}
+            <span
+              className={classNames(
+                "size-2 shrink-0 rounded-full",
+                server.online ? "bg-success" : "bg-danger",
+              )}
+            >
+              <span className="sr-only">
+                {server.online ? "Online" : "Offline"}
+              </span>
+            </span>
             {/* Only a known country: Flag's placeholder speaks of Steam, which a server has nothing to do with. */}
             {server.country_code && <Flag code={server.country_code} />}
             <span className="min-w-0 font-bold break-words sm:truncate">
