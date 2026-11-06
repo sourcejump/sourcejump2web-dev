@@ -89,12 +89,14 @@ export function RecentRunTable({
           <tr>
             <TableHeaderCell>Player</TableHeaderCell>
             <TableHeaderCell>Map</TableHeaderCell>
-            <TableHeaderCell numeric>Time</TableHeaderCell>
-            {/* Both as narrow as their content, so the play button sits midway between the time and the place. */}
-            <TableHeaderCell className="w-px">
+            <TableHeaderCell numeric className="pr-2">
+              Time
+            </TableHeaderCell>
+            {/* Narrow padding keeps the play button close to the time and the place. */}
+            <TableHeaderCell className="w-px pr-0 pl-0">
               <span className="sr-only">Replay</span>
             </TableHeaderCell>
-            <TableHeaderCell numeric className="w-px">
+            <TableHeaderCell numeric className="w-px pl-2">
               Place
             </TableHeaderCell>
           </tr>
@@ -147,7 +149,7 @@ export function RecentRunTable({
                   )}
                 </span>
               </TableCell>
-              <TableCell numeric>
+              <TableCell numeric className="pr-2">
                 <span className="inline-flex flex-col items-end">
                   <span className="flex items-baseline gap-1.5">
                     <RunLink
@@ -184,10 +186,10 @@ export function RecentRunTable({
                   </time>
                 </span>
               </TableCell>
-              <TableCell className="text-center">
+              <TableCell className="pr-0 pl-0">
                 <ReplayLink runId={run.run_id} />
               </TableCell>
-              <TableCell numeric>
+              <TableCell numeric className="pl-2">
                 {run.world_record ? (
                   <Badge tone="accent">WR</Badge>
                 ) : run.placement != null ? (
