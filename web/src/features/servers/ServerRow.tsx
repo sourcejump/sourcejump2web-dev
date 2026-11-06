@@ -38,7 +38,7 @@ export function ServerRow({
       className={classNames(
         "relative flex flex-col sm:h-full sm:flex-row sm:items-center sm:gap-3 sm:p-3",
         // A step darker than the board, like a panel switched off; the red is kept for the OFFLINE label alone.
-        !server.online && "bg-bg/60",
+        !server.online ? "bg-bg/60" : "bg-surface sm:bg-transparent",
       )}
     >
       <span
@@ -245,8 +245,8 @@ export function ServerRowFrame({
   return (
     <div
       className={classNames(
-        // A cell of the Servers board, which draws the frame and the lines between rows.
-        "@container h-full overflow-hidden",
+        // A card on a phone; a cell of the Servers board from sm up, which then draws the lines between rows.
+        "border-border @container h-full overflow-hidden rounded-lg border sm:rounded-none sm:border-0",
         className,
       )}
     >

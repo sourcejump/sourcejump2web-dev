@@ -1,6 +1,7 @@
-// The Servers page as one board: its title and activity over time, then the listed servers running the
-// SourceJump plugin, online ones first. Staff with manage_servers also see unlisted servers there, and list or
-// unlist them in place.
+// The Servers page: activity over time, then the listed servers running the SourceJump plugin, online ones
+// first. Staff with manage_servers also see unlisted servers there, and list or unlist them in place. From sm
+// up this is one board; combining the chart and the list into one board read badly on a phone, so it keeps
+// them as two boards there.
 import { api } from "@/api/client";
 import { ServerActivity } from "./ServerActivity";
 import { ServerRows } from "./ServerRows";
@@ -17,7 +18,7 @@ export async function ServerList() {
   const servers = result?.data?.servers;
 
   return (
-    <div className="border-border bg-surface overflow-hidden rounded-lg border">
+    <div className="sm:border-border sm:bg-surface flex flex-col gap-4 sm:gap-0 sm:overflow-hidden sm:rounded-lg sm:border">
       <ServerActivity
         heading="Servers"
         activity={
@@ -34,7 +35,7 @@ export async function ServerList() {
       {servers ? (
         <ServerRows servers={servers} />
       ) : (
-        <p className="text-text-muted border-border border-t px-4 py-6">
+        <p className="text-text-muted border-border rounded-lg border p-5 sm:rounded-none sm:border-x-0 sm:border-t sm:border-b-0 sm:px-4 sm:py-6">
           Servers couldn&apos;t be loaded. Try again in a moment.
         </p>
       )}

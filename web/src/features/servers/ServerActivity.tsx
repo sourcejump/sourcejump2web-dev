@@ -1,7 +1,7 @@
 "use client";
-// The top of the Servers board: its title and players online across listed servers over the last day, week,
-// month or year. Hovering, tapping or arrow keys read a point: players and servers at that time. Every range
-// arrives with the page, so switching is instant.
+// The top of the Servers board from sm up, as its own card on a phone: players online across listed servers
+// over the last day, week, month or year. Hovering, tapping or arrow keys read a point: players and servers
+// at that time. Every range arrives with the page, so switching is instant.
 import { type ReactNode, useState } from "react";
 import type { Schemas } from "@/api/client";
 import { classNames } from "@/ui/classNames";
@@ -49,15 +49,18 @@ export function ServerActivity({
   // The longer ranges' buckets are averages, so "now" always comes from the day's.
   const now = activity.day?.points.at(-1) ?? points.at(-1);
   const hovered = active === null ? undefined : points[active];
-  const title = <h1 className="text-xl font-bold">{heading}</h1>;
-  // Without a chart to draw, the board still opens with its title.
+  // Hidden on a phone: the page's own heading covers it there, since the chart is its own card.
+  const title = (
+    <h1 className="hidden text-xl font-bold sm:block">{heading}</h1>
+  );
+  // Without a chart to draw, the board still opens with its title; a phone shows nothing at all.
   if (!current || !now || points.length < 2)
-    return <div className="px-4 py-4">{title}</div>;
+    return <div className="hidden px-4 py-4 sm:block">{title}</div>;
   const peak = Math.max(...points.map((point) => point.players));
 
   return (
-    <div className="flex flex-col gap-3 pt-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 max-sm:justify-center">
+    <div className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-5 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 max-sm:justify-center sm:px-4">
         <div className="flex min-w-0 flex-col gap-1 max-sm:items-center">
           {title}
           <p
@@ -110,7 +113,7 @@ export function ServerActivity({
       </div>
 
       {/* Darker than the board, so the trace reads as a screen rather than more flat fill. */}
-      <div className="bg-bg flex flex-col gap-1 px-4 pt-2 pb-3">
+      <div className="sm:bg-bg flex flex-col gap-1 sm:px-4 sm:pt-2 sm:pb-3">
         <LineChart
           size="sm"
           label={`Players online over the last ${rangeLabel(range)}. Use the arrow keys to read each point.`}

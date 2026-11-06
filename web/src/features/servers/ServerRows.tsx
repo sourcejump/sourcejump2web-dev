@@ -28,9 +28,13 @@ export function ServerRows({
     // A server listed before it was ever heard from has no mark to read, so it stays under Public.
     const marked = (server: Schemas["StaffServer"]) =>
       server.server?.whitelist ?? false;
-    const shown = staff.servers.filter(
-      (server) => marked(server) === whitelist,
-    );
+    const shown = staff.servers
+      .filter((server) => marked(server) === whitelist)
+      .sort(
+        (a, b) =>
+          Number(!(a.server?.online ?? true)) -
+          Number(!(b.server?.online ?? true)),
+      );
     return (
       <View
         whitelist={whitelist}
@@ -47,7 +51,9 @@ export function ServerRows({
   if (servers.length === 0) {
     return <Note>No listed server has been online in the last day.</Note>;
   }
-  const shown = servers.filter((server) => server.whitelist === whitelist);
+  const shown = servers
+    .filter((server) => server.whitelist === whitelist)
+    .sort((a, b) => Number(!a.online) - Number(!b.online));
   return (
     <View
       whitelist={whitelist}
@@ -77,9 +83,9 @@ function View({
   rows: { address: string; row: ReactNode }[];
 }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-4 sm:gap-0">
       {(hasWhitelist || whitelist) && (
-        <div className="border-border border-t px-4 py-2">
+        <div className="sm:border-border sm:border-t sm:px-4 sm:py-2">
           <ChoiceBar>
             <LinkTabs
               label="Servers"
@@ -118,11 +124,12 @@ function Rows({
   pairs: boolean;
 }) {
   return (
-    <div className="border-border @container border-t">
-      {/* Each cell draws the line below it; pulled down a pixel so the last row's line sits on the board's edge. */}
+    <div className="sm:border-border @container sm:border-t">
+      {/* From sm up each cell draws the line below it; pulled down a pixel so the last row's line sits on the
+          board's edge. A phone keeps the rows apart as separate cards instead. */}
       <ul
         className={classNames(
-          "-mb-px grid",
+          "grid gap-2 sm:-mb-px sm:gap-0",
           pairs && "lg:grid-cols-2 @lg:max-sm:grid-cols-2",
         )}
       >
@@ -130,7 +137,7 @@ function Rows({
           <li
             key={address}
             className={classNames(
-              "motion-enter border-border border-b",
+              "motion-enter sm:border-border sm:border-b",
               pairs && "lg:odd:border-r @lg:max-sm:odd:border-r",
             )}
             style={
@@ -149,7 +156,7 @@ function Rows({
 
 function Note({ children }: { children: ReactNode }) {
   return (
-    <p className="text-text-muted border-border border-t px-4 py-6">
+    <p className="text-text-muted border-border rounded-lg border p-5 sm:rounded-none sm:border-x-0 sm:border-t sm:border-b-0 sm:px-4 sm:py-6">
       {children}
     </p>
   );

@@ -10,7 +10,9 @@ export const metadata: Metadata = {
 
 export default function ServersPage() {
   return (
-    <Page>
+    <Page className="gap-6">
+      {/* The board shows this as its own heading from sm up; a phone keeps the two boards apart, so it needs one here. */}
+      <h1 className="text-3xl font-bold sm:hidden">Servers</h1>
       <ServerList />
     </Page>
   );
