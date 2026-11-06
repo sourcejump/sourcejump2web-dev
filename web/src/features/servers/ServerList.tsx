@@ -16,18 +16,12 @@ export async function ServerList() {
     ),
   ]);
   const servers = result?.data?.servers;
-  const online = servers?.filter((server) => server.online);
 
   return (
     <div className="sm:border-border sm:bg-surface flex flex-col gap-4 sm:gap-0 sm:overflow-hidden sm:rounded-lg sm:border">
       <ServerActivity
         heading="Servers"
-        live={
-          online && {
-            servers: online.length,
-            players: online.reduce((sum, server) => sum + server.players, 0),
-          }
-        }
+        servers={servers}
         activity={
           servers && servers.length > 0
             ? {

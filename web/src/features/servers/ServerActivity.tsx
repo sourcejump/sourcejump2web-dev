@@ -2,6 +2,7 @@
 // The top of the Servers board from sm up, as its own card on a phone: players online across listed servers
 // over the last day, week, month or year. Hovering, tapping or arrow keys read a point: players and servers
 // at that time. Every range arrives with the page, so switching is instant.
+import { useSearchParams } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import type { Schemas } from "@/api/client";
 import { classNames } from "@/ui/classNames";
@@ -36,21 +37,27 @@ const date = new Intl.DateTimeFormat("en", {
 
 export function ServerActivity({
   heading,
-  live,
+  servers,
   activity,
 }: {
   /** Sits in the chart's top row, so the page doesn't spend a line on its own title. */
   heading: string;
   /**
-   * Online servers and their players, counted from the list this viewer actually sees. Stands in for the
-   * chart's own "now" point, which comes from the last finished bucket and so can lag behind it by up to the
-   * bucket length.
+   * The listed servers, so the headline can count online servers and players from what this viewer actually
+   * sees below, on whichever of Public or Whitelist is open. Stands in for the chart's own "now" point, which
+   * comes from the last finished bucket and so can lag behind it by up to the bucket length.
    */
-  live?: { servers: number; players: number };
+  servers?: Schemas["ListedServer"][];
   activity: Partial<Record<Range, Schemas["ServerActivity"]>>;
 }) {
   const [range, setRange] = useState<Range>("day");
   const [active, setActive] = useState<number | null>(null);
+  const whitelist = useSearchParams().get("view") === "whitelist";
+  const shown = servers?.filter((s) => s.online && s.whitelist === whitelist);
+  const live = shown && {
+    servers: shown.length,
+    players: shown.reduce((sum, s) => sum + s.players, 0),
+  };
   const current = activity[range];
   const points = current?.points ?? [];
   // The longer ranges' buckets are averages, so "now" always comes from the day's.
