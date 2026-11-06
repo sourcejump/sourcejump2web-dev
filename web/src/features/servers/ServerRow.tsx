@@ -35,10 +35,10 @@ export function ServerRow({
   const connected = "Runs on this server count on SourceJump";
   return (
     <ServerRowFrame className="relative flex flex-col sm:h-full sm:flex-row sm:items-center sm:gap-3 sm:p-3">
-      {/* A red wash, edge and fading barrier stripes over the whole cell, so a down server stands out. */}
+      {/* A red wash and barrier stripes fading in from the right edge, so a down server stands out. */}
       {!server.online && (
-        <span className="bg-danger/6 ring-danger/40 pointer-events-none absolute inset-0 z-10 ring-1 ring-inset">
-          <span className="hazard-stripes absolute inset-y-0 right-0 w-1/3" />
+        <span className="bg-danger/6 pointer-events-none absolute inset-0 z-10">
+          <span className="hazard-stripes absolute inset-y-0 right-0 w-1/5" />
         </span>
       )}
       <span
