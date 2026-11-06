@@ -67,17 +67,6 @@ export function ServerRow({
       >
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span className="flex min-w-0 items-center gap-2">
-            {/* A dot rather than an edge strip, which would sit on the board's border or the line between columns. */}
-            <span
-              className={classNames(
-                "size-2 shrink-0 rounded-full",
-                server.online ? "bg-success" : "bg-danger",
-              )}
-            >
-              <span className="sr-only">
-                {server.online ? "Online" : "Offline"}
-              </span>
-            </span>
             {/* Only a known country: Flag's placeholder speaks of Steam, which a server has nothing to do with. */}
             {server.country_code && <Flag code={server.country_code} />}
             <span className="min-w-0 font-bold break-words sm:truncate">
