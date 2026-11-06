@@ -1,0 +1,104 @@
+# sourcejump2web-dev only (not upstream). Takes a contributor's pull request and merges it into their own
+# preview branch, u/<login>, then asks preview-build to put that branch live at <login>-sj.okwhiteli.st.
+#
+# Why pull_request_target: a PR from a fork only gets a token that can write (create branches, merge) under
+# this event. That token comes from the base branch's copy of this file, never the PR's, so a contributor can't
+# change what runs here. This job never checks out or runs PR code.
+#
+# Rules:
+# - A PR to main is moved to u/<login> (created from main the first time) and merged there.
+# - A PR to an existing u/* branch stays there, so people can build on each other's branches.
+# - PRs that touch .github/ or .preview/ are never merged: merged workflow files would run with this repo's
+#   permissions.
+# - Someone's first PR waits until a maintainer adds the `preview-ok` label. After that, having a u/<login>
+#   branch counts as approval. Delete the branch to take approval away.
+name: Preview intake
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled]
+    branches: [main, "u/**"]
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+concurrency:
+  group: preview-intake-${{ github.event.pull_request.user.login }}
+  cancel-in-progress: false
+jobs:
+  intake:
+    runs-on: ubuntu-24.04
+    if: github.event.pull_request.state == 'open'
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      LOGIN: ${{ github.event.pull_request.user.login }}
+      BASE: ${{ github.event.pull_request.base.ref }}
+      ASSOC: ${{ github.event.pull_request.author_association }}
+      LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+      SUFFIX: ${{ vars.PREVIEW_HOST_SUFFIX || '-sj.okwhiteli.st' }}
+    steps:
+      - name: Merge into the preview branch
+        run: |
+          set -euo pipefail
+          comment() { gh pr comment "$PR" --repo "$REPO" --body "$1"; }
+          branch_exists() { gh api "repos/$REPO/branches/$1" --silent 2>/dev/null; }
+
+          # GitHub logins are letters, digits and single hyphens, which already fit a DNS label. Lowercase
+          # because logins ignore case and hostnames do too.
+          name=$(printf '%s' "$LOGIN" | tr '[:upper:]' '[:lower:]')
+          case "$name" in *[!a-z0-9-]*|"") echo "unexpected login: $LOGIN"; exit 1;; esac
+
+          if [ "$BASE" = main ]; then
+            target="u/$name"
+          else
+            target="$BASE"
+          fi
+
+          # Never merge workflow or preview tooling changes.
+          blocked=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename' \
+            | grep -E '^\.(github|preview)/' || true)
+          if [ -n "$blocked" ]; then
+            comment "This PR changes files under \`.github/\` or \`.preview/\`, so it can't be merged into a preview branch automatically. Remove those changes, or ask a maintainer to merge it."
+            exit 0
+          fi
+
+          # Trust: maintainers, a preview-ok label, or a u/<login> branch (approved before).
+          trusted=no
+          case "$ASSOC" in OWNER|MEMBER|COLLABORATOR) trusted=yes;; esac
+          case " $LABELS " in *" preview-ok "*) trusted=yes;; esac
+          if branch_exists "u/$name"; then trusted=yes; fi
+          if [ "$trusted" != yes ]; then
+            if [ "${{ github.event.action }}" = opened ]; then
+              comment "Thanks! Your first preview needs a maintainer to add the \`preview-ok\` label. It merges and goes live after that."
+            fi
+            exit 0
+          fi
+
+          if ! branch_exists "$target"; then
+            if [ "$BASE" != main ]; then
+              comment "Branch \`$target\` doesn't exist any more. Open the PR against \`main\` instead."
+              exit 0
+            fi
+            main_sha=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
+            gh api -X POST "repos/$REPO/git/refs" -f ref="refs/heads/$target" -f sha="$main_sha" --silent
+          fi
+
+          if [ "$BASE" != "$target" ]; then
+            gh pr edit "$PR" --repo "$REPO" --base "$target"
+          fi
+
+          # GitHub recomputes mergeability after a base change, so the first attempt can fail briefly.
+          merged=no
+          for attempt in 1 2 3 4 5 6; do
+            if gh pr merge "$PR" --repo "$REPO" --merge; then merged=yes; break; fi
+            sleep 5
+          done
+          if [ "$merged" != yes ]; then
+            comment "Couldn't merge into \`$target\`, most likely because of a conflict. Update your branch from \`$target\` and push again."
+            exit 1
+          fi
+
+          gh workflow run preview-build.yml --repo "$REPO" --ref main -f branch="$target"
+          host="${target#u/}$SUFFIX"
+          comment "Merged into \`$target\`. It'll be live at https://$host in a few minutes."
