@@ -2,14 +2,22 @@
 import type { ComponentProps } from "react";
 import { classNames } from "./classNames";
 
-export function Table({ className, ...props }: ComponentProps<"table">) {
+export function Table({
+  flush = false,
+  className,
+  ...props
+}: {
+  /** No frame of its own. The parent supplies the surface, as on the activity board. */
+  flush?: boolean;
+} & ComponentProps<"table">) {
   return (
     // Wide tables scroll sideways on small screens instead of squeezing their columns. `relative` keeps
     // absolutely placed content, such as a visually hidden column name, inside the scrolling box. Never
     // vertically: rows rising into place (`motion-enter`) overflow for a moment, which flashed a scrollbar.
     <div
       className={classNames(
-        "border-border bg-surface relative overflow-x-auto overflow-y-hidden rounded-lg border",
+        "relative overflow-x-auto overflow-y-hidden",
+        !flush && "border-border bg-surface rounded-lg border",
         className,
       )}
     >

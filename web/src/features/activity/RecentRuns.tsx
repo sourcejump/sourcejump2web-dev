@@ -41,6 +41,7 @@ export async function RecentRuns({ params }: { params: RecentRunsParams }) {
     track: filters.track === "all" ? undefined : filters.track,
     min_tier: filters.tier,
     records: filters.records || undefined,
+    limit: 15,
   };
   const result = await api
     .GET("/v1/runs", { params: { query } })
@@ -61,62 +62,70 @@ export async function RecentRuns({ params }: { params: RecentRunsParams }) {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <ChoiceBar>
-        <ChoiceMenu
-          label="Show"
-          options={[
-            { value: "all", label: "All runs", href: href({ records: false }) },
-            {
-              value: "records",
-              label: "World records",
-              href: href({ records: true }),
-            },
-          ]}
-          value={filters.records ? "records" : "all"}
-        />
-        {styles.keys.length > 1 && (
+    <div className="flex flex-col">
+      <div className="border-border border-y px-4 py-2">
+        <ChoiceBar>
           <ChoiceMenu
-            label="Style"
+            label="Show"
             options={[
-              { value: "", label: "All", href: href({ style: undefined }) },
-              ...styles.keys.map((key) => ({
-                value: key,
-                label: styles.name(key),
-                href: href({ style: key }),
-              })),
+              {
+                value: "all",
+                label: "All runs",
+                href: href({ records: false }),
+              },
+              {
+                value: "records",
+                label: "World records",
+                href: href({ records: true }),
+              },
             ]}
-            value={filters.style ?? ""}
+            value={filters.records ? "records" : "all"}
           />
-        )}
-        <ChoiceMenu
-          label="Track"
-          options={tracks.map((t) => ({
-            value: t.key,
-            label: t.label,
-            href: href({ track: t.key }),
-          }))}
-          value={filters.track}
-        />
-        {/* Tiers are the community's to set; until a tier count is published there's nothing to filter by. */}
-        {tierCount != null && (
+          {styles.keys.length > 1 && (
+            <ChoiceMenu
+              label="Style"
+              options={[
+                { value: "", label: "All", href: href({ style: undefined }) },
+                ...styles.keys.map((key) => ({
+                  value: key,
+                  label: styles.name(key),
+                  href: href({ style: key }),
+                })),
+              ]}
+              value={filters.style ?? ""}
+            />
+          )}
           <ChoiceMenu
-            label="Lowest tier"
-            options={[
-              { value: "", label: "Any", href: href({ tier: undefined }) },
-              ...Array.from({ length: tierCount }, (_, i) => ({
-                value: String(i + 1),
-                label: `Tier ${i + 1}`,
-                href: href({ tier: i + 1 }),
-              })),
-            ]}
-            value={filters.tier ? String(filters.tier) : ""}
+            label="Track"
+            options={tracks.map((t) => ({
+              value: t.key,
+              label: t.label,
+              href: href({ track: t.key }),
+            }))}
+            value={filters.track}
           />
-        )}
-      </ChoiceBar>
+          {/* Tiers are the community's to set; until a tier count is published there's nothing to filter by. */}
+          {tierCount != null && (
+            <ChoiceMenu
+              label="Lowest tier"
+              options={[
+                { value: "", label: "Any", href: href({ tier: undefined }) },
+                ...Array.from({ length: tierCount }, (_, i) => ({
+                  value: String(i + 1),
+                  label: `Tier ${i + 1}`,
+                  href: href({ tier: i + 1 }),
+                })),
+              ]}
+              value={filters.tier ? String(filters.tier) : ""}
+            />
+          )}
+        </ChoiceBar>
+      </div>
 
       {!first ? (
-        <p>Runs couldn&apos;t be loaded. Try again in a moment.</p>
+        <p className="text-text-muted px-4 py-6">
+          Runs couldn&apos;t be loaded. Try again in a moment.
+        </p>
       ) : (
         // Keyed by the filters, so a new choice starts again from the newest runs and they all fade in.
         <RecentRunTable

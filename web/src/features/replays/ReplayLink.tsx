@@ -25,7 +25,7 @@ export function ReplayLink({ runId }: { runId: number }) {
       onClick={onClick}
       aria-label="Watch replay"
       title="Watch replay"
-      className="text-text-muted hover:bg-accent-soft hover:text-accent inline-flex size-6 shrink-0 items-center justify-center rounded-md transition-colors duration-(--duration-fast)"
+      className="text-text-muted hover:text-accent inline-flex size-6 shrink-0 items-center justify-center rounded-md transition-colors duration-(--duration-fast)"
     >
       <Play aria-hidden className="size-3.5 fill-current" />
     </a>

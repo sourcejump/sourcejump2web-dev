@@ -95,7 +95,7 @@ export function Menu({
         }}
         // A long list (the Maps page's sorts) scrolls inside the menu rather than running off a short screen.
         className={classNames(
-          "border-border-strong bg-surface-overlay text-text shadow-popover motion-pop m-0 mt-2 max-h-[min(28rem,70vh)] min-w-48 overflow-y-auto overscroll-contain rounded-md border p-1 text-sm",
+          "border-border-strong bg-surface-overlay text-text shadow-popover motion-pop m-0 mt-1 max-h-[min(28rem,70vh)] min-w-44 overflow-y-auto overscroll-contain rounded-lg border p-1 text-sm",
           matchTriggerWidth && "max-sm:min-w-[anchor-size(width)]",
         )}
       >
@@ -105,8 +105,9 @@ export function Menu({
   );
 }
 
+// The overlay is lighter than surface-raised, so hover lifts with a tint of the text color instead.
 const itemClasses =
-  "flex h-9 w-full items-center gap-2 rounded-sm px-3 text-left outline-none hover:bg-surface-raised focus-visible:bg-surface-raised [&_svg]:size-4 [&_svg]:text-text-muted";
+  "flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left outline-none transition-colors duration-(--duration-fast) hover:bg-text/8 focus-visible:bg-text/8 [&_svg]:size-4 [&_svg]:text-text-muted aria-checked:[&_svg]:text-accent";
 
 export function MenuItem({ className, ...props }: ComponentProps<"button">) {
   return (
@@ -132,5 +133,5 @@ export function MenuLink({ className, ...props }: ComponentProps<typeof Link>) {
 }
 
 export function MenuSeparator() {
-  return <div role="separator" className="bg-border-strong my-1 h-px" />;
+  return <div role="separator" className="bg-border-strong -mx-1 my-1 h-px" />;
 }
