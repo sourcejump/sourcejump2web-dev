@@ -120,8 +120,7 @@ pub async fn map_detail(
     let map = MapName::try_from(map).map_err(ApiError::Invalid)?;
     let found = sqlx::query!(
         r#"
-        SELECT m.id, m.name, m.description, m.created_at, m.last_run_at,
-               (SELECT count(DISTINCT player_steamid64) FROM personal_bests WHERE map_id = m.id) AS "players!",
+        SELECT m.id, m.name, m.description, m.created_at, m.last_run_at, m.players,
                (SELECT count(*) FROM runs WHERE map_id = m.id AND invalidated_at IS NULL) AS "runs!"
         FROM maps m WHERE m.name = $1
         "#,
@@ -153,7 +152,7 @@ pub async fn map_detail(
         mapper: release.mapper,
         created_at: Some(found.created_at),
         last_run_at: found.last_run_at,
-        players: found.players,
+        players: i64::from(found.players),
         runs: found.runs,
         tier_count,
         tracks,

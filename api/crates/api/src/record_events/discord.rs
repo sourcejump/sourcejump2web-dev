@@ -458,6 +458,25 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn a_run_restored_later_in_the_same_page_is_posted_once(db: PgPool) {
+        let key = setup(&db).await;
+        let (webhook, received) = fake_webhook().await;
+        let feeds = [feed("every best", Records::PersonalBests, &webhook)];
+        feed_once(&db, &feeds).await;
+        // Another player's run between the first and the restore keeps the two reports of `first` apart.
+        let first = submit(&db, &key, &run("a", 30.0)).await;
+        submit(&db, &key, &by("second", "76561197960287931", "b", 32.0)).await;
+        invalidate_run(&db, None, first, Some("test"))
+            .await
+            .unwrap();
+        restore_run(&db, None, first, Some("test")).await.unwrap();
+        feed_once(&db, &feeds).await;
+
+        let embeds = embeds(&received);
+        assert_eq!(embeds.len(), 2, "each run once: {embeds:?}");
+    }
+
+    #[sqlx::test]
     async fn a_personal_best_feed_posts_every_new_best_with_its_rank(db: PgPool) {
         let key = setup(&db).await;
         let (webhook, received) = fake_webhook().await;

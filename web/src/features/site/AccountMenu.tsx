@@ -1,23 +1,23 @@
 "use client";
 // The signed-in player's menu: their profile, the staff area for staff, and signing out.
 import { LogOut, ShieldCheck, User } from "lucide-react";
-import { usePathname } from "next/navigation";
 import type { Schemas } from "@/api/client";
 import { isStaff } from "@/features/staff/sections";
 import { Avatar } from "@/ui/Avatar";
 import { Menu, MenuItem, MenuLink, MenuSeparator } from "@/ui/Menu";
+import { useReturnTo } from "./useReturnTo";
 
 const SIGN_OUT_FORM = "sign-out";
 
 export function AccountMenu({ me }: { me: Schemas["Me"] }) {
-  const pathname = usePathname();
+  const returnTo = useReturnTo();
   return (
     <>
       {/* A plain form post, so signing out works before scripts load. The API checks it came from our pages. */}
       <form
         id={SIGN_OUT_FORM}
         method="post"
-        action={`/v1/auth/sign-out?return_to=${encodeURIComponent(pathname)}`}
+        action={`/v1/auth/sign-out?return_to=${encodeURIComponent(returnTo)}`}
         hidden
       />
       <Menu

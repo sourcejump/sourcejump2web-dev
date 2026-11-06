@@ -213,32 +213,3 @@ export class MovementAnalysis {
     );
   }
 }
-
-/**
- * Run bounds straight from the Shavit header. preframes is the number of frames
- * recorded before the timer started and postframes the number after it stopped,
- * so the timed run is exactly [preframes, tickCount - postframes].
- *
- * Verified against all 247 style-0 replays on the reference server: preframes +
- * frameCount + postframes equals the stored frame count in every one.
- */
-export function headerRunTicks(
-  preframes: number,
-  postframes: number,
-  tickCount: number,
-  time: number,
-  tickRate: number,
-): RunTicks | null {
-  if (!Number.isInteger(preframes) || !Number.isInteger(postframes))
-    return null;
-  if (preframes <= 0 || postframes < 0) return null;
-  const end = tickCount - postframes;
-  if (end > preframes && end <= tickCount - 1) return { start: preframes, end };
-  // Older replays without usable postframes: fall back to the recorded time.
-  if (time > 0 && tickRate > 0) {
-    const derived = preframes + Math.round(time * tickRate);
-    if (derived > preframes && derived <= tickCount - 1)
-      return { start: preframes, end: derived };
-  }
-  return null;
-}

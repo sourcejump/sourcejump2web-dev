@@ -148,7 +148,8 @@ async fn current(
         r#"
         WITH ranked AS (
             SELECT s.player_steamid64, s.points, s.completed,
-                   CASE WHEN $3 THEN rank() OVER (ORDER BY s.points DESC)
+                   -- Ranked on the points shown, so players listed with equal points share a place.
+                   CASE WHEN $3 THEN rank() OVER (ORDER BY round(s.points) DESC)
                         ELSE rank() OVER (ORDER BY s.completed DESC) END AS rank,
                    -- Down to the SteamID, so equal points and names keep one order from page to page.
                    row_number() OVER (ORDER BY CASE WHEN $3 THEN s.points ELSE s.completed END DESC,
@@ -214,7 +215,7 @@ async fn legacy(db: &sqlx::PgPool, page: Page) -> Result<(i64, Vec<ListedStandin
             )
         ), ranked AS (
             SELECT shown.*,
-                   CASE WHEN $1 THEN rank() OVER (ORDER BY points DESC)
+                   CASE WHEN $1 THEN rank() OVER (ORDER BY round(points) DESC)
                         ELSE rank() OVER (ORDER BY completed DESC) END AS rank,
                    row_number() OVER (ORDER BY CASE WHEN $1 THEN points ELSE completed END DESC,
                                                lower(name), player_steamid64) AS position

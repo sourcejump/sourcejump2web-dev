@@ -7,6 +7,7 @@ import type { CSSProperties } from "react";
 import { api, type Schemas } from "@/api/client";
 import { signedInPlayer } from "@/features/auth/signedInPlayer";
 import { currentStyles } from "@/features/ruleset/styles";
+import { STEAMID } from "@/features/players/steamId";
 import { formatSince, formatTime } from "@/features/runs/time";
 import { BulkUpload } from "@/features/staff/maps/BulkUpload";
 import { UnplayedMaps } from "@/features/staff/maps/UnplayedMaps";
@@ -24,6 +25,8 @@ import { TierBadge } from "@/ui/TierBadge";
 import { TierSpread } from "@/ui/TierSpread";
 import { managesMaps } from "./MapHeader";
 import { MapImage } from "./MapImage";
+import { MAP_NAME } from "./mapName";
+import { tierParam } from "./tierParam";
 
 const PAGE_SIZE = 50;
 /** In groups (players, name, tier, record), each starting below a line in the menu. */
@@ -44,10 +47,7 @@ const sorts = [
 type Sort = (typeof sorts)[number]["key"];
 /** Busiest maps first (lead, 2026-10-26). */
 const DEFAULT_SORT: Sort = "popular";
-/** The names SourceJump accepts, for offering staff a map it hasn't seen. */
-const MAP_NAME = /^[a-z0-9_.-]{1,64}$/;
-/** A SteamID typed into the search, in any form the API reads, or a Steam profile link holding one. */
-const STEAMID = /^(?:\d{17}|STEAM_[01]:[01]:\d+|\[U:1:\d+\])$/i;
+/** A Steam profile link, which the search also reads as the player it points to. */
 const PROFILE_LINK = /steamcommunity\.com\/profiles\/(\d{17})/;
 const completions = [
   { key: "all", label: "All maps" },
@@ -89,8 +89,7 @@ export async function MapList({ params }: { params: MapListParams }) {
     : player && (params.completed === "yes" || params.completed === "no")
       ? params.completed
       : "all";
-  const tier =
-    Number(params.tier) >= 1 ? Math.floor(Number(params.tier)) : undefined;
+  const tier = tierParam(params.tier);
   const [styles, me] = await Promise.all([currentStyles(), signedInPlayer()]);
   const staff = managesMaps(me?.privileges);
   const unplayed = staff && params.view === "unplayed";
