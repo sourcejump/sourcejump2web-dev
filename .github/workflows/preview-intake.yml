@@ -10,12 +10,11 @@
 # - A PR to an existing u/* branch stays there, so people can build on each other's branches.
 # - PRs that touch .github/ or .preview/ are never merged: merged workflow files would run with this repo's
 #   permissions.
-# - Someone's first PR waits until a maintainer adds the `preview-ok` label. After that, having a u/<login>
-#   branch counts as approval. Delete the branch to take approval away.
+# - Anyone can get a preview; delete a u/* branch to take its site down.
 name: Preview intake
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, labeled]
+    types: [opened, reopened, synchronize]
     branches: [main, "u/**"]
 permissions:
   contents: write
@@ -36,8 +35,6 @@ jobs:
       PR: ${{ github.event.pull_request.number }}
       LOGIN: ${{ github.event.pull_request.user.login }}
       BASE: ${{ github.event.pull_request.base.ref }}
-      ASSOC: ${{ github.event.pull_request.author_association }}
-      LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
       SUFFIX: ${{ vars.PREVIEW_HOST_SUFFIX || '-sj.okwhiteli.st' }}
     steps:
       - name: Merge into the preview branch
@@ -62,18 +59,6 @@ jobs:
             | grep -E '^\.(github|preview)/' || true)
           if [ -n "$blocked" ]; then
             comment "This PR changes files under \`.github/\` or \`.preview/\`, so it can't be merged into a preview branch automatically. Remove those changes, or ask a maintainer to merge it."
-            exit 0
-          fi
-
-          # Trust: maintainers, a preview-ok label, or a u/<login> branch (approved before).
-          trusted=no
-          case "$ASSOC" in OWNER|MEMBER|COLLABORATOR) trusted=yes;; esac
-          case " $LABELS " in *" preview-ok "*) trusted=yes;; esac
-          if branch_exists "u/$name"; then trusted=yes; fi
-          if [ "$trusted" != yes ]; then
-            if [ "${{ github.event.action }}" = opened ]; then
-              comment "Thanks! Your first preview needs a maintainer to add the \`preview-ok\` label. It merges and goes live after that."
-            fi
             exit 0
           fi
 
