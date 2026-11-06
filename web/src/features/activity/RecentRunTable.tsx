@@ -37,14 +37,26 @@ import {
 } from "@/ui/Table";
 import { TierBadge } from "@/ui/TierBadge";
 
-type Runs = Schemas["RecentRuns"];
+type Run = Schemas["RecentRun"];
 type Query = {
   style?: string;
   track?: "main" | "bonus";
   min_tier?: number;
   records?: boolean;
-  limit?: number;
+  /** Runs per request, a whole number of pages. */
+  limit: number;
 };
+
+/**
+ * Runs loaded so far, by chunk: chunk `k` starts `k * limit` runs from the newest. With `total`, the API takes
+ * offsets and any chunk can load. Without it (an API before `total`), chunks load in order from `cursor`.
+ */
+export interface RunChunks {
+  chunks: Record<number, Run[]>;
+  total: number | null;
+  cursor: string | null;
+  tierCount: number | null;
+}
 
 export function RecentRunTable({
   first,
@@ -54,9 +66,9 @@ export function RecentRunTable({
   styleNames,
   showStyle,
 }: {
-  /** The newest runs, enough to reach `page`. */
-  first: Runs;
-  /** The filters `first` was loaded with, for loading the runs after it. */
+  /** The chunk holding the page in the address, or every chunk up to it. */
+  first: RunChunks;
+  /** The filters `first` was loaded with, for loading the rest. */
   query: Query;
   /** The page's address with these filters, which the page number is added to. */
   address: string;
@@ -65,33 +77,38 @@ export function RecentRunTable({
   /** With every style shown, each run names its own. */
   showStyle: boolean;
 }) {
-  const [runs, setRuns] = useState(first.runs);
-  const [cursor, setCursor] = useState(first.next_cursor ?? null);
+  const [loaded, setLoaded] = useState(first);
   const [failed, setFailed] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [turned, setTurned] = useState(false);
-  // The latest runs and cursor for the loops below, which outlive the render that started them.
-  const latest = useRef({
-    runs: first.runs,
-    cursor: first.next_cursor ?? null,
-  });
-  const inFlight = useRef<Promise<boolean> | null>(null);
+  // The latest chunks for the loops below, which outlive the render that started them.
+  const latest = useRef(first);
+  const inFlight = useRef(new Map<number, Promise<boolean>>());
   const turns = useRef(0);
   const board = useRef<HTMLDivElement>(null);
   const rows = useRef<HTMLDivElement>(null);
   // Held at the first page's height, so a short last page doesn't pull the page controls up.
   const [minHeight, setMinHeight] = useState<number>();
-  const tierCount = first.tier_count;
+  const tierCount = first.tierCount;
+  const chunk = query.limit;
+  const pagesPerChunk = chunk / pageSize;
+  const chunkOf = (p: number) => Math.floor((p - 1) / pagesPerChunk);
 
-  // The address holds the page, so a reload, a shared link and the back button all land on it.
   // No `page` means page 1, never the page the table first opened on.
   const asked = Math.max(
     1,
     Math.floor(Number(useSearchParams().get("page") ?? 1)) || 1,
   );
-  const pageCount = Math.max(1, Math.ceil(runs.length / pageSize));
+  const more = loaded.total == null && loaded.cursor != null;
+  const pageCount = pagesIn(loaded, pageSize);
+  // Counted by the API, or once the last chunk has loaded without it.
+  const total = loaded.total ?? (loaded.cursor == null ? runsIn(loaded) : null);
   const page = Math.min(asked, pageCount);
-  const shown = runs.slice((page - 1) * pageSize, page * pageSize);
+  const shown =
+    loaded.chunks[chunkOf(page)]?.slice(
+      ((page - 1) % pagesPerChunk) * pageSize,
+      (((page - 1) % pagesPerChunk) + 1) * pageSize,
+    ) ?? [];
 
   const pageHref = useCallback(
     (p: number) =>
@@ -101,56 +118,95 @@ export function RecentRunTable({
     [address],
   );
 
-  /** Loads the next hundred runs, once however many ask; false when there are none or they failed. */
-  const loadMore = useCallback((): Promise<boolean> => {
-    if (inFlight.current) return inFlight.current;
-    const after = latest.current.cursor;
-    if (!after) return Promise.resolve(false);
-    inFlight.current = api
-      .GET("/v1/runs", { params: { query: { ...query, cursor: after } } })
-      .then((result) => result.data)
-      .catch(() => undefined)
-      .then((next) => {
-        inFlight.current = null;
-        setFailed(!next);
-        if (!next) return false;
-        latest.current = {
-          runs: [...latest.current.runs, ...next.runs],
-          cursor: next.next_cursor ?? null,
-        };
-        setRuns(latest.current.runs);
-        setCursor(latest.current.cursor);
-        return true;
-      });
-    return inFlight.current;
-  }, [query]);
+  /** Loads chunk `k`, once however many ask; false when it can't be loaded yet or failed. */
+  const load = useCallback(
+    (k: number): Promise<boolean> => {
+      const pending = inFlight.current.get(k);
+      if (pending) return pending;
+      const { chunks, total, cursor } = latest.current;
+      const byOffset = total != null;
+      if (!byOffset && (k !== Object.keys(chunks).length || !cursor))
+        return Promise.resolve(false);
+      const request = api
+        .GET("/v1/runs", {
+          params: {
+            query: byOffset
+              ? { ...query, offset: k * query.limit }
+              : { ...query, cursor: cursor ?? undefined },
+          },
+        })
+        .then((result) => result.data)
+        .catch(() => undefined)
+        .then((next) => {
+          inFlight.current.delete(k);
+          setFailed(!next);
+          if (!next) return false;
+          latest.current = {
+            ...latest.current,
+            chunks: { ...latest.current.chunks, [k]: next.runs },
+            // The count moves as runs come in, so the newest answer wins.
+            total: byOffset ? next.total : null,
+            cursor: byOffset ? null : (next.next_cursor ?? null),
+          };
+          setLoaded(latest.current);
+          return true;
+        });
+      inFlight.current.set(k, request);
+      return request;
+    },
+    [query],
+  );
 
-  // Keeps a few pages loaded past the one asked for, so Next never waits. An address past what's loaded, as
-  // after going back to a far page, walks forward to it the same way.
+  /** Loads chunk `k`, walking the chunks before it first on an API without offsets. */
+  const ensure = useCallback(
+    async (k: number): Promise<boolean> => {
+      while (!latest.current.chunks[k]) {
+        const { chunks, total } = latest.current;
+        if (!(await load(total != null ? k : Object.keys(chunks).length)))
+          return false;
+      }
+      return true;
+    },
+    [load],
+  );
+
+  // Loads the page asked for if it isn't yet, as after going back to a far page, and the chunks either side of
+  // it, so Next and Previous never wait.
+  const askedChunk = chunkOf(asked);
   useEffect(() => {
-    if (cursor && !failed && runs.length < (asked + 4) * pageSize)
-      void loadMore();
-  }, [cursor, failed, runs.length, asked, pageSize, loadMore]);
+    if (failed) return;
+    void ensure(askedChunk).then((ok) => {
+      if (!ok) return;
+      const { total } = latest.current;
+      if (total == null || (askedChunk + 1) * chunk < total)
+        void ensure(askedChunk + 1);
+      if (askedChunk > 0) void ensure(askedChunk - 1);
+    });
+  }, [askedChunk, failed, ensure, chunk]);
 
   // Past the last run, the address is corrected to the last page rather than showing one page and naming another.
   useEffect(() => {
-    if (!cursor && asked > pageCount)
+    if (!more && asked > pageCount)
       window.history.replaceState(null, "", pageHref(pageCount));
-  }, [cursor, asked, pageCount, pageHref]);
+  }, [more, asked, pageCount, pageHref]);
 
   async function go(target: number) {
     const turn = ++turns.current;
-    // A typed page past what's loaded walks forward to it, or to the last page if the runs end first.
-    while (latest.current.runs.length < target * pageSize) {
+    const known = latest.current.total;
+    const wanted =
+      known != null
+        ? Math.min(target, pagesIn(latest.current, pageSize))
+        : target;
+    if (!latest.current.chunks[chunkOf(wanted)]) {
       setWaiting(true);
-      if (!(await loadMore())) break;
+      // A typed page past what's loaded walks forward to it, or to the last page if the runs end first.
+      await ensure(chunkOf(wanted));
     }
     // A later click wins over one still loading.
     if (turn !== turns.current) return;
     setWaiting(false);
     setTurned(true);
-    const count = Math.max(1, Math.ceil(latest.current.runs.length / pageSize));
-    const next = pageHref(Math.min(target, count));
+    const next = pageHref(Math.min(wanted, pagesIn(latest.current, pageSize)));
     setMinHeight((held) => held ?? rows.current?.offsetHeight);
     if (next !== window.location.pathname + window.location.search)
       window.history.pushState(null, "", next);
@@ -186,7 +242,7 @@ export function RecentRunTable({
     if (typed >= 1) void go(typed);
   }
 
-  if (runs.length === 0) {
+  if (loaded.total === 0 || (pageCount === 1 && !more && shown.length === 0)) {
     return (
       <p className="text-text-muted px-4 py-6">
         {query.records
@@ -328,7 +384,7 @@ export function RecentRunTable({
           </TableBody>
         </Table>
       </div>
-      {(pageCount > 1 || cursor) && (
+      {(pageCount > 1 || more) && (
         <div
           onClickCapture={onPagerClick}
           onSubmitCapture={onPagerSubmit}
@@ -337,12 +393,11 @@ export function RecentRunTable({
           <Pager
             page={page}
             pageCount={pageCount}
-            more={cursor != null}
-            // Known once the last runs have loaded; the API doesn't count them.
-            total={cursor == null ? runs.length : undefined}
+            more={more}
+            total={total ?? undefined}
             noun={
               (query.records ? "world record" : "run") +
-              (runs.length === 1 ? "" : "s")
+              (total === 1 ? "" : "s")
             }
             href={pageHref}
           />
@@ -362,4 +417,15 @@ function mapHref(run: Schemas["RecentRun"]): string {
   const search = new URLSearchParams({ style: run.style });
   if (run.track > 0) search.set("track", String(run.track));
   return `/maps/${run.map}?${search}`;
+}
+
+function runsIn(loaded: RunChunks): number {
+  return Object.values(loaded.chunks).reduce(
+    (sum, runs) => sum + runs.length,
+    0,
+  );
+}
+
+function pagesIn(loaded: RunChunks, pageSize: number): number {
+  return Math.max(1, Math.ceil((loaded.total ?? runsIn(loaded)) / pageSize));
 }

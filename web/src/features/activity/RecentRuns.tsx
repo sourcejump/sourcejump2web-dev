@@ -1,9 +1,9 @@
 // The Activity page's runs: the filter menus, read from and written to the address, and the first page of runs.
-import { api, type Schemas } from "@/api/client";
+import { api } from "@/api/client";
 import { currentStyles } from "@/features/ruleset/styles";
 import { ChoiceBar } from "@/ui/ChoiceBar";
 import { ChoiceMenu } from "@/ui/ChoiceMenu";
-import { RecentRunTable } from "./RecentRunTable";
+import { RecentRunTable, type RunChunks } from "./RecentRunTable";
 
 const tracks = [
   { key: "all", label: "All" },
@@ -23,9 +23,9 @@ export interface RecentRunsParams {
 }
 
 const PAGE_SIZE = 15;
-/** Runs per request. A hundred cost the API about what fifteen do, so most pages turn without a request. */
-const CHUNK = 100;
-/** How far a typed page number may walk before giving up, at one request per hundred runs. */
+/** Runs per request, six pages: ninety cost the API about what fifteen do, so most pages turn without a request. */
+const CHUNK = 90;
+/** How far an address may walk an API without offsets before giving up, at one request per chunk. */
 const MAX_CHUNKS = 20;
 
 type RunsQuery = {
@@ -67,7 +67,7 @@ export async function RecentRuns({ params }: { params: RecentRunsParams }) {
       ? guessed
       : await loadRuns(query, page);
   const filters: Filters = { style, track, tier, records };
-  const tierCount = first?.tier_count ?? undefined;
+  const tierCount = first?.tierCount ?? undefined;
 
   // Only what differs from the defaults goes in the address, so the plain page stays /activity.
   const href = (choice: Partial<Filters>) => {
@@ -164,31 +164,49 @@ export async function RecentRuns({ params }: { params: RecentRunsParams }) {
   );
 }
 
-/** Runs from the newest, enough to reach `page`; undefined when the first request fails. */
+/** The chunk holding `page`; undefined when the first request fails. */
 async function loadRuns(
   query: RunsQuery,
   page: number,
-): Promise<Schemas["RecentRuns"] | undefined> {
-  const get = (cursor?: string) =>
+): Promise<RunChunks | undefined> {
+  const get = (from: { offset?: number; cursor?: string }) =>
     api
       .GET("/v1/runs", {
-        params: { query: { ...query, limit: CHUNK, cursor } },
+        params: { query: { ...query, limit: CHUNK, ...from } },
       })
       .then((result) => result.data)
       .catch(() => undefined);
-  const first = await get();
+  const wanted = Math.floor(((page - 1) * PAGE_SIZE) / CHUNK);
+  const first = await get({ offset: wanted * CHUNK });
   if (!first) return undefined;
-  const runs = [...first.runs];
-  let cursor = first.next_cursor;
+  const tierCount = first.tier_count ?? null;
+
+  // An API that counts its runs honours the offset, so this is the page's own chunk. One past the end is asked
+  // again for the last chunk.
+  if (typeof first.total === "number") {
+    const last = Math.max(0, Math.ceil(first.total / CHUNK) - 1);
+    const page = wanted > last ? await get({ offset: last * CHUNK }) : first;
+    if (!page) return undefined;
+    return {
+      chunks: { [Math.min(wanted, last)]: page.runs },
+      total: page.total,
+      cursor: null,
+      tierCount,
+    };
+  }
+
+  // One that doesn't (the beta before `total`) ignored the offset and sent the newest runs, so walk forward.
+  const chunks: Record<number, RunChunks["chunks"][number]> = { 0: first.runs };
+  let cursor = first.next_cursor ?? null;
   for (
     let chunk = 1;
-    cursor && runs.length < page * PAGE_SIZE && chunk < MAX_CHUNKS;
+    cursor && chunk <= wanted && chunk < MAX_CHUNKS;
     chunk++
   ) {
-    const next = await get(cursor);
+    const next = await get({ cursor });
     if (!next) break;
-    runs.push(...next.runs);
-    cursor = next.next_cursor;
+    chunks[chunk] = next.runs;
+    cursor = next.next_cursor ?? null;
   }
-  return { ...first, runs, next_cursor: cursor };
+  return { chunks, total: null, cursor, tierCount };
 }

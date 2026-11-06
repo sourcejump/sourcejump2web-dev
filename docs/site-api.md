@@ -34,7 +34,7 @@ Players sign in with Steam (OpenID 2.0). These endpoints answer browsers with re
 - Stored, not computed per visit (lead, 2026-10-26): `personal_bests.points`, `standings` (per style, main and bonuses apart) and `legacy_standings`, recounted by `leaderboards/standings.rs` where they change: a track when a personal best or its tier changes there (a new WR moves all points); everything on a points or tiers policy, or at startup if the formula changed; legacy on bans, lifts, imports. One advisory lock serializes recounts. So are world records (`leaderboards/world_records.rs`): holders and `runs.was_record`, per board.
 
 ## Activity
-- `GET /v1/runs?style=&track=main|bonus&min_tier=&records=&cursor=` (`runs/recent.rs`): valid runs newest first by `finished_at`, each with its board's tier, `placement` counted against the valid runs before it (null unless it beat the player's own best), `world_record` (as in WR history) and its `gap` to the record it faced. `min_tier` matches nothing until a tier count is published.
+- `GET /v1/runs?style=&track=main|bonus&min_tier=&records=&cursor=&offset=` (`runs/recent.rs`, with `total`): valid runs newest first by `finished_at`, each with its board's tier, `placement` against the valid runs before it (null unless a personal best), `world_record` (as in WR history) and `gap` to the record it faced. `min_tier` matches nothing until a tier count is published.
 
 ## Daily totals
 - `GET /v1/daily-totals/players|runs?range=month|year|all` (`daily_totals.rs`, hourly): players with a time (incl. pre-2.0), 2.0 runs and WRs per UTC day.
