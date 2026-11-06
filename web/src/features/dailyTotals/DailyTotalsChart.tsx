@@ -5,6 +5,7 @@
 import { type ReactNode, useState } from "react";
 import type { Schemas } from "@/api/client";
 import { Card } from "@/ui/Card";
+import { classNames } from "@/ui/classNames";
 import { LineChart } from "@/ui/LineChart";
 import { Segmented } from "@/ui/Segmented";
 
@@ -52,9 +53,13 @@ interface Point {
 export function DailyTotalsChart({
   data,
   initialRange,
+  heading,
+  plain = false,
 }: {
   data: DailyTotalsData;
   initialRange: TotalsRange;
+  heading?: string;
+  plain?: boolean;
 }) {
   const [range, setRange] = useState<TotalsRange>(initialRange);
   const [active, setActive] = useState<number | null>(null);
@@ -77,35 +82,93 @@ export function DailyTotalsChart({
   const bucketDays = current?.bucket_days ?? 1;
   const rangeLabel = ranges.find((r) => r.value === range)?.label ?? "";
 
-  return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3 max-sm:justify-center">
-        {shown && (
-          <p
-            aria-live="polite"
-            className="text-text-muted flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums max-sm:justify-center"
-          >
-            {data.kind === "players" ? (
-              <Stat value={shown.y}>
-                {shown.y === 1 ? "player" : "players"} with a recorded time
-              </Stat>
-            ) : (
-              <>
-                {/* Each number in its line's color, so the line reads as the legend. */}
-                <Stat value={shown.y} tone="text-accent">
-                  {shown.y === 1 ? "run" : "runs"}
-                </Stat>
-                <Dot />
-                <Stat value={shown.y2 ?? 0} tone="text-gold">
-                  {shown.y2 === 1 ? "world record" : "world records"}
-                </Stat>
-              </>
-            )}
-            <Dot className="max-sm:hidden" />
-            <span className="text-text-subtle max-sm:w-full max-sm:text-center">
-              {when(shown.day, bucketDays)}
-            </span>
-          </p>
+  const stats = shown && (
+    <p
+      aria-live="polite"
+      className="text-text-muted flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums max-sm:justify-center"
+    >
+      {data.kind === "players" ? (
+        <Stat value={shown.y}>
+          {shown.y === 1 ? "player" : "players"} with a recorded time
+        </Stat>
+      ) : (
+        <>
+          {/* Each number in its line's color, so the line reads as the legend. */}
+          <Stat value={shown.y} tone="text-accent">
+            {shown.y === 1 ? "run" : "runs"}
+          </Stat>
+          <Dot />
+          <Stat value={shown.y2 ?? 0} tone="text-gold">
+            {shown.y2 === 1 ? "world record" : "world records"}
+          </Stat>
+        </>
+      )}
+      <Dot className="max-sm:hidden" />
+      <span className="text-text-subtle max-sm:w-full max-sm:text-center">
+        {when(shown.day, bucketDays)}
+      </span>
+    </p>
+  );
+
+  const plot =
+    points.length < 2 ? (
+      <p
+        className={classNames(
+          "text-text-subtle flex h-28 items-center justify-center text-sm",
+          plain && "bg-bg",
+        )}
+      >
+        {current
+          ? "Not enough days yet to draw a chart."
+          : "This range couldn't be loaded."}
+      </p>
+    ) : (
+      <div
+        className={classNames(
+          "flex flex-col gap-1",
+          // Darker than the board, so the trace reads as a screen rather than more flat fill.
+          plain && "bg-bg px-4 pt-2 pb-3",
+        )}
+      >
+        <LineChart
+          size="sm"
+          label={
+            data.kind === "players"
+              ? `Players with a recorded time, ${rangeLabel.toLowerCase()}. Use the arrow keys to read each point.`
+              : `Runs and world records per ${bucketDays === 1 ? "day" : `${bucketDays} days`}, ${rangeLabel.toLowerCase()}. Use the arrow keys to read each point.`
+          }
+          points={points.map((p) => ({
+            x: Date.parse(p.day),
+            y: p.y,
+            y2: p.y2,
+          }))}
+          active={active}
+          onActive={setActive}
+          formatValue={(value) => axis.format(Math.round(value))}
+        />
+        {/* Indented by the value labels' width, so the dates sit under the plot's ends. */}
+        <div className="text-text-subtle flex justify-between pl-10 text-xs tabular-nums max-sm:pl-0">
+          <span>{date.format(new Date(points[0]?.day ?? 0))}</span>
+          <span>{date.format(new Date(points.at(-1)?.day ?? 0))}</span>
+        </div>
+      </div>
+    );
+
+  const frame = (
+    <>
+      <div
+        className={classNames(
+          "flex flex-wrap items-center justify-between gap-3 max-sm:justify-center",
+          plain && "px-4",
+        )}
+      >
+        {heading ? (
+          <div className="flex min-w-0 flex-col gap-1 max-sm:items-center">
+            <h1 className="text-xl font-bold">{heading}</h1>
+            {stats}
+          </div>
+        ) : (
+          stats
         )}
         <Segmented
           label="Range"
@@ -118,40 +181,12 @@ export function DailyTotalsChart({
           }}
         />
       </div>
-
-      {points.length < 2 ? (
-        <p className="text-text-subtle flex h-28 items-center justify-center text-sm">
-          {current
-            ? "Not enough days yet to draw a chart."
-            : "This range couldn't be loaded."}
-        </p>
-      ) : (
-        <div className="flex flex-col gap-1">
-          <LineChart
-            size="sm"
-            label={
-              data.kind === "players"
-                ? `Players with a recorded time, ${rangeLabel.toLowerCase()}. Use the arrow keys to read each point.`
-                : `Runs and world records per ${bucketDays === 1 ? "day" : `${bucketDays} days`}, ${rangeLabel.toLowerCase()}. Use the arrow keys to read each point.`
-            }
-            points={points.map((p) => ({
-              x: Date.parse(p.day),
-              y: p.y,
-              y2: p.y2,
-            }))}
-            active={active}
-            onActive={setActive}
-            formatValue={(value) => axis.format(Math.round(value))}
-          />
-          {/* Indented by the value labels' width, so the dates sit under the plot's ends. */}
-          <div className="text-text-subtle flex justify-between pl-10 text-xs tabular-nums max-sm:pl-0">
-            <span>{date.format(new Date(points[0]?.day ?? 0))}</span>
-            <span>{date.format(new Date(points.at(-1)?.day ?? 0))}</span>
-          </div>
-        </div>
-      )}
-    </Card>
+      {plot}
+    </>
   );
+
+  if (plain) return <div className="flex flex-col gap-3 pt-4">{frame}</div>;
+  return <Card className="flex flex-col gap-3">{frame}</Card>;
 }
 
 function Stat({
