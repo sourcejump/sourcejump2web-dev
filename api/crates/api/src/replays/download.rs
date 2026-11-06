@@ -1,7 +1,9 @@
 //! `GET /v1/replays/{run_id}`: the run's replay as the shavit file it was uploaded as, for players and for
 //! servers that play replays in-game. Replays are kept as SJR, a fifth of the size; the first download
 //! rebuilds the shavit file and keeps it too, and every download after passes it on from storage as it
-//! arrives, so a popular replay costs neither memory nor a rebuild per download.
+//! arrives, so a popular replay costs neither memory nor a rebuild per download. The kept file has its own
+//! random key: the SJR's is public, and a key derived from it would let anyone fetch the shavit file from
+//! storage directly, invalidated runs' included.
 
 use std::sync::Arc;
 
@@ -12,7 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{PgConnection, types::Json as JsonColumn};
+use sqlx::{PgConnection, PgPool, types::Json as JsonColumn};
 use tokio::sync::Semaphore;
 use utoipa::ToSchema;
 
@@ -20,6 +22,7 @@ use super::{current_policy, sjr};
 use crate::{
     app::AppState,
     error::{ApiError, ErrorBody},
+    storage::{Storage, random_key_part},
 };
 
 /// How many first downloads rebuild their shavit file at once. Each holds the whole file in memory, up to
@@ -177,22 +180,68 @@ async fn keep_shavit_file(
         .get(stored_key)
         .await
         .map_err(|error| ApiError::Internal(error.into()))?;
-    let file = sjr::decode(&stored).map_err(|error| {
-        ApiError::Internal(format!("stored replay {stored_key} is damaged: {error}").into())
-    })?;
-    // Named after the SJR, so two first downloads at once write the same file to the same key.
-    let key = format!("{}.replay", stored_key.trim_end_matches(".sjr"));
+    // Decompressing up to 128 MB takes a moment of CPU: off the async workers.
+    let file = tokio::task::spawn_blocking(move || sjr::decode(&stored))
+        .await
+        .map_err(|error| ApiError::Internal(error.into()))?
+        .map_err(|error| {
+            ApiError::Internal(format!("stored replay {stored_key} is damaged: {error}").into())
+        })?;
+    let key = format!("replays/{run_id}-{}.replay", random_key_part());
     state
         .storage
         .put_immutable(&key, "application/octet-stream", None, file)
         .await
         .map_err(|error| ApiError::Internal(error.into()))?;
-    sqlx::query!(
-        "UPDATE replays SET shavit_key = $2 WHERE run_id = $1",
+    // Two first downloads at once each write their own copy; the first to record it wins.
+    let kept = sqlx::query_scalar!(
+        r#"UPDATE replays SET shavit_key = coalesce(shavit_key, $2) WHERE run_id = $1
+           RETURNING shavit_key AS "shavit_key!""#,
         run_id,
         key
     )
-    .execute(&state.db)
+    .fetch_one(&state.db)
     .await?;
-    Ok(key)
+    if kept != key
+        && let Err(error) = state.storage.delete(&key).await
+    {
+        tracing::warn!(key, %error, "spare shavit file not deleted");
+    }
+    Ok(kept)
+}
+
+/// Deletes shavit files kept under the key derived from their SJR's, as they were before they got their own
+/// random part. The next download rebuilds each under a random key. Once none are left this finds nothing.
+pub async fn forget_derived_shavit_files(
+    db: &PgPool,
+    storage: &Storage,
+) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    let derived = sqlx::query!(
+        r#"SELECT run_id, shavit_key AS "shavit_key!" FROM replays
+           WHERE shavit_key = regexp_replace(stored_key, '\.sjr$', '.replay')"#
+    )
+    .fetch_all(db)
+    .await?;
+    for row in &derived {
+        // Deleted first: if that fails the row still names the file, so the next start tries again.
+        storage.delete(&row.shavit_key).await?;
+        sqlx::query!(
+            "UPDATE replays SET shavit_key = NULL WHERE run_id = $1",
+            row.run_id
+        )
+        .execute(db)
+        .await?;
+    }
+    Ok(derived.len())
+}
+
+/// `forget_derived_shavit_files` as the API starts, logging what came of it.
+pub async fn forget_derived_shavit_files_at_start(db: PgPool, storage: Storage) {
+    match forget_derived_shavit_files(&db, &storage).await {
+        Ok(0) => {}
+        Ok(count) => tracing::info!(count, "deleted shavit files kept under guessable keys"),
+        Err(error) => {
+            tracing::error!(%error, "couldn't delete shavit files kept under guessable keys; trying at the next start");
+        }
+    }
 }

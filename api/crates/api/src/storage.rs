@@ -25,6 +25,17 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 #[cfg(not(test))]
 const STAGED_READ_TIMEOUT: Duration = Duration::from_mins(5);
 
+/// Storing a public file: viewer files run to about 256 MB, which at a slow 1 MB/s from the API's host to
+/// storage takes four minutes and a bit. Small files finish long before, so the bound costs them nothing.
+#[cfg(not(test))]
+const PUT_TIMEOUT: Duration = Duration::from_mins(10);
+
+/// Passing a file on (`get_stream`): the body is read from storage only as fast as the client downloads it,
+/// so this bounds the slowest download allowed. Half an hour lets a 128 MB replay through at 75 KB/s; a
+/// download slower than that is cut off, and the client can start it again.
+#[cfg(not(test))]
+const STREAM_TIMEOUT: Duration = Duration::from_mins(30);
+
 fn env_var(name: &str) -> Result<String, String> {
     std::env::var(name).map_err(|_| format!("{name} must be set"))
 }
@@ -149,6 +160,7 @@ impl Storage {
             let mut request = self
                 .http
                 .put(url)
+                .timeout(PUT_TIMEOUT)
                 .header("content-type", content_type)
                 .header("cache-control", "public, max-age=31536000, immutable");
             if let Some(encoding) = content_encoding {
@@ -259,7 +271,7 @@ impl Storage {
                 .get_object(Some(&self.credentials), object_key)
                 .sign(REQUEST_LIFETIME)
                 .into();
-            let response = self.http.get(url).send().await?;
+            let response = self.http.get(url).timeout(STREAM_TIMEOUT).send().await?;
             check(response.status())?;
             let size = response.content_length();
             // Ends after the first error, which the receiver sees as a cut-off body.
@@ -389,6 +401,11 @@ impl Staging {
             }
             Ok(Staged::Bytes(bytes))
         }
+    }
+
+    /// The uploads under `prefix` that have finished, with the sizes they had when listed.
+    pub async fn list(&self, prefix: &str) -> Result<Vec<StoredObject>, StorageError> {
+        self.0.list(prefix).await
     }
 
     /// Removes an upload. Removing one that isn't there succeeds.

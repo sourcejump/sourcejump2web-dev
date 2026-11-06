@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM standings s USING runs r\n        WHERE r.id = ANY($1)\n          AND s.style = r.style AND s.bonus = (r.track > 0) AND s.player_steamid64 = r.player_steamid64\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eacbaee4dbcceb3a2d515ae41cfb31e5c63a8d099abb5e5200820efc9a486dd6"
+}

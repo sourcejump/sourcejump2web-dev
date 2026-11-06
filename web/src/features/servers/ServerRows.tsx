@@ -1,7 +1,8 @@
 "use client";
 // The Servers page's list. Everyone gets the listed servers rendered on the server; staff who hold
 // manage_servers then get every server from the browser, unlisted ones included, with their tools. A
-// Public / Whitelist switch shows whitelist servers apart, filtered here so the page stays cacheable.
+// Public / Whitelist switch shows whitelist servers apart, filtered here so the page's
+// server render is the same whichever is picked. Nothing caches that render yet; it is built per request.
 import { useSearchParams } from "next/navigation";
 import type { CSSProperties, ReactNode } from "react";
 import type { Schemas } from "@/api/client";
@@ -9,6 +10,7 @@ import { StaffServerRow } from "@/features/staff/servers/StaffServerRow";
 import { useStaffServers } from "@/features/staff/servers/useStaffServers";
 import { Card } from "@/ui/Card";
 import { ChoiceBar } from "@/ui/ChoiceBar";
+import { classNames } from "@/ui/classNames";
 import { LinkTabs } from "@/ui/LinkTabs";
 import { ServerRow } from "./ServerRow";
 
@@ -38,6 +40,7 @@ export function ServerRows({
       <View
         whitelist={whitelist}
         hasWhitelist={staff.servers.some(marked)}
+        pairs={false}
         rows={shown.map((server) => ({
           address: server.address,
           row: <StaffServerRow server={server} onChanged={staff.reload} />,
@@ -58,9 +61,9 @@ export function ServerRows({
     <View
       whitelist={whitelist}
       hasWhitelist={servers.some((server) => server.whitelist)}
-      rows={shown.map((server) => ({
+      rows={shown.map((server, index) => ({
         address: `${server.ip}:${server.port}`,
-        row: <ServerRow server={server} />,
+        row: <ServerRow server={server} eager={index < 2} />,
       }))}
     />
   );
@@ -73,10 +76,13 @@ export function ServerRows({
 function View({
   whitelist,
   hasWhitelist,
+  pairs = true,
   rows,
 }: {
   whitelist: boolean;
   hasWhitelist: boolean;
+  /** Staff rows need the whole width for their tools. */
+  pairs?: boolean;
   rows: { address: string; row: ReactNode }[];
 }) {
   return (
@@ -98,7 +104,7 @@ function View({
         </ChoiceBar>
       )}
       {rows.length > 0 ? (
-        <Rows rows={rows} />
+        <Rows rows={rows} pairs={pairs} />
       ) : (
         <Card className="text-text-muted">
           {whitelist
@@ -111,22 +117,35 @@ function View({
 }
 
 /** Keyed by address, so a row the public list already showed stays put when the staff list replaces it. */
-function Rows({ rows }: { rows: { address: string; row: ReactNode }[] }) {
+function Rows({
+  rows,
+  pairs,
+}: {
+  rows: { address: string; row: ReactNode }[];
+  pairs: boolean;
+}) {
   return (
-    <ul className="flex flex-col gap-2">
-      {rows.map(({ address, row }, index) => (
-        <li
-          key={address}
-          className="motion-enter"
-          style={
-            {
-              "--motion-delay": `${Math.min(index, 12) * 25}ms`,
-            } as CSSProperties
-          }
-        >
-          {row}
-        </li>
-      ))}
-    </ul>
+    <div className="@container">
+      <ul
+        className={classNames(
+          "grid gap-2",
+          pairs && "lg:grid-cols-2 @lg:max-sm:grid-cols-2",
+        )}
+      >
+        {rows.map(({ address, row }, index) => (
+          <li
+            key={address}
+            className="motion-enter"
+            style={
+              {
+                "--motion-delay": `${Math.min(index, 12) * 25}ms`,
+              } as CSSProperties
+            }
+          >
+            {row}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

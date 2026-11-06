@@ -1,6 +1,5 @@
 // Ruleset page: the rules every connected server applies.
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { RulesetView } from "@/features/ruleset/RulesetView";
 import { Page } from "@/ui/Page";
 
@@ -17,9 +16,7 @@ export default function RulesetPage() {
         The rules every connected server applies. Each run records the ruleset
         version it was played under.
       </p>
-      <Suspense fallback={<p>Loading the ruleset…</p>}>
-        <RulesetView />
-      </Suspense>
+      <RulesetView />
     </Page>
   );
 }

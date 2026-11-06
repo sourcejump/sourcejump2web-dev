@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT log_id AS \"log_id!\" FROM records_bans\n           WHERE player_steamid64 = $1 ORDER BY banned_at DESC, id DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "log_id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "records_bans",
+            "name": "log_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "5d4f220428ed510ebe16fe59043675be751f8d2d9a2df35f28e9063a9524a5cc"
+}

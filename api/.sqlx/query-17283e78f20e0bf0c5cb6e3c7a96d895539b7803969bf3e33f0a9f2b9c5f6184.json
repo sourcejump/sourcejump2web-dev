@@ -1,0 +1,238 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT * FROM (\n            SELECT b.id, b.restrictions, b.reason, b.banned_at, b.ends_at, b.lifted_at, b.lift_reason,\n                   EXISTS (SELECT 1 FROM active_bans a WHERE a.id = b.id) AS \"active!\",\n                   p.steamid64::text AS \"steamid64!\", p.name, p.avatar_url, p.country_code,\n                   s.steamid64::text AS \"by_steamid64?\", s.name AS \"by_name?\",\n                   s.avatar_url AS by_avatar_url, s.country_code AS by_country_code,\n                   l.steamid64::text AS \"lifter_steamid64?\", l.name AS \"lifter_name?\",\n                   l.avatar_url AS lifter_avatar_url, l.country_code AS lifter_country_code\n            FROM bans b\n            JOIN players p ON p.steamid64 = b.player_steamid64\n            LEFT JOIN players s ON s.steamid64 = b.banned_by\n            LEFT JOIN players l ON l.steamid64 = b.lifted_by\n            WHERE $1::bigint IS NULL OR b.player_steamid64 = $1\n        ) bans\n        WHERE $2::bool IS NULL OR \"active!\" = $2\n        -- Active bans newest first; ended ones by when they ended.\n        ORDER BY CASE WHEN \"active!\" THEN banned_at ELSE coalesce(lifted_at, ends_at) END DESC, id DESC\n        LIMIT $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "restrictions",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "restrictions"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "banned_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "banned_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "ends_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "ends_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "lifted_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "lifted_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "lift_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bans",
+            "name": "lift_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "active!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "country_code"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "by_steamid64?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 13,
+        "name": "by_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "by_avatar_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "by_country_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "country_code"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "lifter_steamid64?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 17,
+        "name": "lifter_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "lifter_avatar_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "lifter_country_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "country_code"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      null,
+      null,
+      false,
+      true,
+      true,
+      null,
+      false,
+      true,
+      true,
+      null,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "17283e78f20e0bf0c5cb6e3c7a96d895539b7803969bf3e33f0a9f2b9c5f6184"
+}

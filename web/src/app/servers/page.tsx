@@ -1,6 +1,5 @@
 // Servers page: the servers staff have listed, from their heartbeats.
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { ServerList } from "@/features/servers/ServerList";
 import { Page } from "@/ui/Page";
 
@@ -13,9 +12,7 @@ export default function ServersPage() {
   return (
     <Page className="gap-6">
       <h1 className="text-3xl font-bold">Servers</h1>
-      <Suspense>
-        <ServerList />
-      </Suspense>
+      <ServerList />
     </Page>
   );
 }

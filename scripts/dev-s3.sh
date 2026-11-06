@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 dir="$PWD/.garage"
 config="$dir/garage.toml"
 bucket=sourcejump-dev
-# Private, no website: staff uploads wait here until the API checks them.
+# Private, no website: staff and replay uploads wait here until the API checks them.
 staging=sourcejump-dev-staging
 key_id=GK000000000000000000000001
 key_secret=0000000000000000000000000000000000000000000000000000000000000001

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "LOCK TABLE personal_bests IN ROW EXCLUSIVE MODE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "d304656e4adfcb7f82b17f8fe1e4ed43ee4b53d5852e2f9a7cc8b5fbae601122"
+}

@@ -17,7 +17,7 @@ use crate::{
     app::AppState,
     error::{ApiError, ErrorBody},
     legacy::{self, View},
-    players::{PlayerRef, SteamId64, restrictions::Restriction},
+    players::{PlayerRef, SteamId64},
     replays::current_policy,
 };
 
@@ -454,15 +454,13 @@ async fn view_page(
                 FROM personal_bests pb
                 JOIN runs r ON r.id = pb.run_id
                 LEFT JOIN replays rp ON rp.run_id = pb.run_id
-                WHERE $3 AND pb.map_id = $1 AND pb.style = $10 AND pb.track = $11
+                WHERE $3 AND pb.map_id = $1 AND pb.style = $9 AND pb.track = $10
                 UNION ALL
                 SELECT true, l.player_steamid64, l.time, l.finished_at, l.id::bigint, l.jumps, l.strafes, l.sync, 0, false
                 FROM legacy_personal_bests l
                 -- By ID, not a join on name, so the view picks bests on this map alone, not across all runs.
                 WHERE l.map_id = (SELECT id FROM legacy_maps WHERE name = $2) AND NOT EXISTS (
-                    SELECT 1 FROM bans
-                    WHERE bans.player_steamid64 = l.player_steamid64 AND bans.restrictions & $4 <> 0
-                      AND bans.lifted_at IS NULL AND (bans.ends_at IS NULL OR bans.ends_at > now())
+                    SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64
                 )
             ) both_kinds
             -- Each player's fastest run of either kind; on equal times, their 2.0 run.
@@ -482,16 +480,15 @@ async fn view_page(
         FROM ranked
         LEFT JOIN players p ON p.steamid64 = ranked.player
         LEFT JOIN legacy_players lp ON lp.steamid64 = ranked.player
-        WHERE $5::float8 IS NULL
+        WHERE $4::float8 IS NULL
            OR (ranked.time, ranked.sort_at, ranked.legacy, ranked.id)
-              > ($5, coalesce($6::timestamptz, 'infinity'), $7::bool, $8::bigint)
+              > ($4, coalesce($5::timestamptz, 'infinity'), $6::bool, $7::bigint)
         ORDER BY ranked.time, ranked.sort_at, ranked.legacy, ranked.id
-        LIMIT $9
+        LIMIT $8
         "#,
         map_id,
         map.as_str(),
         view == View::All,
-        Restriction::NoRecords.bit(),
         after.map(|(time, _, _, _)| time),
         after.and_then(|(_, finished_at, _, _)| finished_at),
         after.map(|(_, _, legacy, _)| legacy),

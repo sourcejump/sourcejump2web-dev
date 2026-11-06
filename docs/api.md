@@ -24,10 +24,10 @@ How the `/v1/` API behaves for game servers, and rules every client can rely on.
 
 ## Rules every client can rely on
 - **Errors** always have the body `{"error": "..."}`. The message is for people; don't match on it.
-- **Retrying:** `2xx` means stored. Network errors, `5xx` and `429` (too many at once) are temporary: keep the item queued and resend it later. Any other `4xx` is final: the request breaks a rule and resending it will never work, so the plugin drops it.
+- **Retrying:** `2xx` means stored. Network errors, `5xx` and `429` (too many) are temporary: keep the item queued and resend it later. Any other `4xx` is final: the request breaks a rule and resending never works, so the plugin drops it.
 - **Idempotency:** runs and detections carry an ID from the game server (`server_run_id`, `server_detection_id`), unique per server. A resend gets `200` with the first answer and changes nothing; the first send gets `201`.
 - **SteamID64s** are JSON strings: too big for a JavaScript number, and SourcePawn has no 64-bit integers.
-- **Map names** are lowercased; other characters than `a-z 0-9 _ - .` are rejected.
+- **Map names** are lowercased; other characters than `a-z 0-9 _ - .`, or only dots, are rejected.
 - **Server times** (`finished_at`, `detected_at`) are Unix seconds by the game server's clock. The API also records when it received each item. Times over 5 minutes ahead of the API's clock get `422`.
 
 ## Keys
@@ -37,10 +37,10 @@ How the `/v1/` API behaves for game servers, and rules every client can rely on.
 - Staff issue, replace and revoke keys on `/staff/keys` (or `sourcejump-api keys issue "<server name>"`, `keys revoke <prefix>`). A server holds one active key at a time (a unique index); a new key revokes its old one in the same step. How servers request keys is still open (`domain.md`).
 
 ## Server heartbeats
-- Every server with the plugin, keyed or not, sends one on map start and then every `next_heartbeat_seconds` (600 now): hostname, port, map, players and slots, versions (`shavit_version` null without shavit), plugins, compliance.
+- Every plugin server, keyed or not, sends one on map start and then every `next_heartbeat_seconds` (600 now): hostname, port, map, players and slots, versions (`shavit_version` null without shavit), plugins, compliance.
 - A server is its address: the IP the heartbeat came from plus its reported port. Behind Caddy the IP is the last `X-Forwarded-For` entry, `country_code` Cloudflare's `CF-IPCountry` (`XX`, `T1`: none), trusted only from this machine (`client_address.rs`). The reported `ip` is for staff, never trusted.
 - Only the latest heartbeat per address is kept (`server_heartbeats`), at most 32 ports per IP; an hourly job drops unlisted ones silent 7 days. A valid key links the address to its `servers` row.
-- Over 64 KB gets `413`. Hostnames lose control characters, cut to 64 characters. An IP (IPv6: /64) may send 120 at once, then 30 a minute; more get `429` (`heartbeat_limit.rs`).
+- Over 64 KB gets `413`. Hostnames lose control characters, cut to 64. An IP (IPv6: /64) may send 120 at once, then 30 a minute; more get `429`, before any key check (`heartbeat_limit.rs`).
 
 ## Runs
 - Accepted only if the run's ruleset version exists, its style is ranked in that version, its tickrate matches the ruleset's `tickrate` if set, and the plugin reports the server as compliant. Field ranges are checked once, at the boundary.
@@ -49,9 +49,9 @@ How the `/v1/` API behaves for game servers, and rules every client can rely on.
 
 ## Replays
 - The `replays` policy decides which replays are wanted (`request`: `new_personal_best`, the lead's call on 2026-10-19; `every_run` or `nothing`) and which styles' replays are public (`public_styles`: every ranked style, lead 2026-11-03). A missing policy asks for nothing and makes nothing public.
-- A wanted replay gets a presigned `PUT` link, valid for an hour, to `uploads/replays/<run id>-<random>.replay`. The server uploads there directly. A resend of the run returns a fresh link, with `last_refusal` (reason, time) if the last upload was refused, or no link once the replay is stored (delete the local copy).
-- Every 30 s a job (`replays/processing.rs`) lists the uploads and checks each against its run: shavit format 12 only, frames fill the file exactly, same map (any case), track, player and tickrate, and the time within half a tick. Files over 128 MB are refused unread. A good file is stored as SJR (`replays/sjr.rs`, a fifth the size) at `replays/<run id>-<random>.sjr`; the upload is deleted. A bad one is deleted, its reason kept on the `replays` row, and the server may upload again. A stored replay never changes; an erroring upload is retried later.
-- The bucket is public; random keys mean only the API reveals where a file is. `GET /v1/runs/{id}` gives the SJR link (`replay.sjr_url`; invalidated runs too, lead 2026-11-03), its route from above (`replay.route`, `replay-viewer.md`), and `GET /v1/replays/{run_id}` the shavit file, rebuilt byte for byte at its first download and kept, only while the run is valid and its style is public.
+- A wanted replay gets a presigned `PUT` link, valid for an hour, to `uploads/replays/<run id>-<random>.replay` in a private bucket. The server uploads there directly. A resend of the run returns a fresh link, with `last_refusal` (reason, time) if the last upload was refused, or no link once the replay is stored (delete the local copy).
+- Every 30 s a job (`replays/processing.rs`) lists the uploads and checks each against its run: shavit format 12 only, frames fill the file exactly, same map (any case), track, player and tickrate, and the time within half a tick. Over 128 MB is refused. A good file is stored as SJR (`replays/sjr.rs`, a fifth the size) at `replays/<run id>-<random>.sjr`; the upload is deleted. A bad one is deleted, its reason kept on the `replays` row, and the server may upload again. A stored replay never changes; a failing upload is retried.
+- The bucket is public; random keys mean only the API reveals files. `GET /v1/runs/{id}` gives the SJR link (`replay.sjr_url`; invalidated runs too, lead 2026-11-03), its route from above (`replay.route`, `replay-viewer.md`), and `GET /v1/replays/{run_id}` the shavit file, rebuilt byte for byte at its first download and kept (own random key), only while the run is valid and its style is public.
 - `GET /v1/maps/{map}/records` marks each record `has_replay` by the same rule, so a server only asks for files it will get.
 
 ## Map records for `/wr`

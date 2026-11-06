@@ -14,7 +14,6 @@ use super::{
     SteamId64,
     details::{self, PlayerDetails},
     personal_bests::{self, DEFAULT_LIMIT, PersonalBest, Selection, Tracks},
-    restrictions::Restriction,
     steam_profile,
 };
 use crate::{
@@ -125,14 +124,9 @@ pub async fn player_profile(
     let legacy = sqlx::query!(
         r#"SELECT lp.name, lp.avatar_url, lp.country_code,
                   (SELECT count(*) FROM legacy_personal_bests l WHERE l.player_steamid64 = $1
-                   AND NOT EXISTS (
-                       SELECT 1 FROM bans
-                       WHERE bans.player_steamid64 = $1 AND bans.restrictions & $2 <> 0
-                         AND bans.lifted_at IS NULL AND (bans.ends_at IS NULL OR bans.ends_at > now())
-                   )) AS "maps!"
+                   AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = $1)) AS "maps!"
            FROM legacy_players lp WHERE lp.steamid64 = $1"#,
         steamid64.get(),
-        Restriction::NoRecords.bit()
     )
     .fetch_optional(&state.db)
     .await?;

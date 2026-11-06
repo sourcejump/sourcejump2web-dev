@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM daily_totals_stale",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "958c4c7842edc4e16c8303468cb2e01319c9a616aeca32840a8d75074af47d5c"
+}

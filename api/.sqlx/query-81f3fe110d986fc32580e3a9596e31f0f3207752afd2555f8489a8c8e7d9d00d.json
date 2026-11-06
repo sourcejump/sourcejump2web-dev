@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE replays SET shavit_key = coalesce(shavit_key, $2) WHERE run_id = $1\n           RETURNING shavit_key AS \"shavit_key!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "shavit_key!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "replays",
+            "name": "shavit_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "81f3fe110d986fc32580e3a9596e31f0f3207752afd2555f8489a8c8e7d9d00d"
+}

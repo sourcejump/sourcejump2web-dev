@@ -2,7 +2,10 @@
 //!
 //! Sensitive path, fails closed. The browser carries Steam's answer to us, so anyone can forge one. Nothing in
 //! it is trusted until Steam itself confirms it (`check_authentication`), and only fields Steam signed are
-//! read. A confirmed answer is accepted once: its nonce is recorded, so replaying it fails.
+//! read. A confirmed answer is accepted once: its nonce is recorded, so replaying it fails. It's also bound
+//! to the browser that started it: the callback URL carries a random value that browser holds in a cookie,
+//! so someone who starts a sign-in can't send the link Steam gives back to another browser and sign it in
+//! as them.
 
 use chrono::{DateTime, Duration, Utc};
 use sqlx::PgPool;
@@ -51,16 +54,18 @@ impl ReturnTo {
     }
 }
 
-/// Our callback, with the page to return to riding along. Steam echoes it back as `openid.return_to`.
-fn callback_url(public_url: &Url, return_to: &ReturnTo) -> Url {
+/// Our callback, with the page to return to and the browser's value riding along. Steam echoes it back as
+/// `openid.return_to`.
+fn callback_url(public_url: &Url, return_to: &ReturnTo, browser: &str) -> Url {
     let mut url = public_url.join(CALLBACK_PATH).expect("a valid path");
     url.query_pairs_mut()
-        .append_pair("return_to", return_to.as_str());
+        .append_pair("return_to", return_to.as_str())
+        .append_pair("browser", browser);
     url
 }
 
-/// The Steam page that asks the player to sign in.
-pub fn login_url(steam: &Steam, public_url: &Url, return_to: &ReturnTo) -> Url {
+/// The Steam page that asks the player to sign in. `browser` is the value in the sign-in cookie.
+pub fn login_url(steam: &Steam, public_url: &Url, return_to: &ReturnTo, browser: &str) -> Url {
     let mut url = steam.openid_endpoint.clone();
     let realm = public_url.origin().ascii_serialization();
     url.query_pairs_mut()
@@ -68,7 +73,7 @@ pub fn login_url(steam: &Steam, public_url: &Url, return_to: &ReturnTo) -> Url {
         .append_pair("openid.mode", "checkid_setup")
         .append_pair(
             "openid.return_to",
-            callback_url(public_url, return_to).as_str(),
+            callback_url(public_url, return_to, browser).as_str(),
         )
         .append_pair("openid.realm", &realm)
         .append_pair("openid.identity", IDENTIFIER_SELECT)
@@ -82,6 +87,8 @@ pub enum Refusal {
     /// The player turned back on Steam's page. Not an error.
     Cancelled,
     Malformed(&'static str),
+    /// The browser bringing the answer back isn't the one that started the sign-in.
+    OtherBrowser,
     /// Steam said the assertion isn't one it made, or couldn't be asked.
     NotConfirmed,
     Replayed,
@@ -94,15 +101,17 @@ pub struct Verified {
     pub return_to: ReturnTo,
 }
 
-/// Checks Steam's answer, given as the callback's query parameters.
+/// Checks Steam's answer, given as the callback's query parameters, and `browser`, the sign-in cookie's
+/// value if the browser sent one.
 pub async fn verify(
     db: &PgPool,
     steam: &Steam,
     public_url: &Url,
     params: &[(String, String)],
+    browser: Option<&str>,
     now: DateTime<Utc>,
 ) -> Result<Verified, Refusal> {
-    let (steamid64, return_to, nonce) = check_fields(steam, public_url, params, now)?;
+    let (steamid64, return_to, nonce) = check_fields(steam, public_url, params, browser, now)?;
     confirm_with_steam(steam, params).await?;
     record_nonce(db, &nonce, now).await?;
     Ok(Verified {
@@ -123,6 +132,7 @@ fn check_fields(
     steam: &Steam,
     public_url: &Url,
     params: &[(String, String)],
+    browser: Option<&str>,
     now: DateTime<Utc>,
 ) -> Result<(SteamId64, ReturnTo, String), Refusal> {
     let field =
@@ -165,18 +175,23 @@ fn check_fields(
         .and_then(|id| SteamId64::try_from(id.to_owned()).ok())
         .ok_or(Refusal::Malformed("not a Steam player ID"))?;
 
-    // The return URL must be our callback exactly; the page to go back to is read from it, since it's signed.
+    // The return URL must be our callback exactly; the page to go back to and the browser's value are read
+    // from it, since it's signed.
     let signed_return =
         Url::parse(field("return_to")?).map_err(|_| Refusal::Malformed("return_to isn't a URL"))?;
-    let return_to = ReturnTo::new(
+    let signed_query = |name: &str| {
         signed_return
             .query_pairs()
-            .find(|(key, _)| key == "return_to")
-            .map(|(_, value)| value)
-            .as_deref(),
-    );
-    if signed_return != callback_url(public_url, &return_to) {
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.into_owned())
+    };
+    let return_to = ReturnTo::new(signed_query("return_to").as_deref());
+    let signed_browser = signed_query("browser").unwrap_or_default();
+    if signed_return != callback_url(public_url, &return_to, &signed_browser) {
         return Err(Refusal::Malformed("return_to isn't our callback"));
+    }
+    if signed_browser.is_empty() || browser != Some(signed_browser.as_str()) {
+        return Err(Refusal::OtherBrowser);
     }
 
     let nonce = field("response_nonce")?;
@@ -260,6 +275,8 @@ pub mod tests {
     use super::*;
 
     pub const PLAYER: &str = "76561197960287930";
+    /// The sign-in cookie's value in the browser `assertion` belongs to.
+    pub const BROWSER: &str = "0123456789abcdef";
 
     pub fn public_url() -> Url {
         Url::parse("https://sourcejump.test/").unwrap()
@@ -269,7 +286,11 @@ pub mod tests {
     pub fn assertion(steam: &Steam, issued_at: DateTime<Utc>) -> Vec<(String, String)> {
         let claimed = format!("{CLAIMED_ID_PREFIX}{PLAYER}");
         let nonce = format!("{}abc123", issued_at.format("%Y-%m-%dT%H:%M:%SZ"));
-        let return_to = callback_url(&public_url(), &ReturnTo::new(Some("/maps/bhop_forest")));
+        let return_to = callback_url(
+            &public_url(),
+            &ReturnTo::new(Some("/maps/bhop_forest")),
+            BROWSER,
+        );
         [
             ("return_to", "/maps/bhop_forest"),
             ("openid.ns", NS),
@@ -298,7 +319,13 @@ pub mod tests {
     }
 
     fn check(params: &[(String, String)]) -> Result<(SteamId64, ReturnTo, String), Refusal> {
-        check_fields(&Steam::new(), &public_url(), params, Utc::now())
+        check_fields(
+            &Steam::new(),
+            &public_url(),
+            params,
+            Some(BROWSER),
+            Utc::now(),
+        )
     }
 
     #[test]
@@ -320,7 +347,12 @@ pub mod tests {
 
     #[test]
     fn the_login_url_goes_to_steam_and_back_to_us() {
-        let url = login_url(&Steam::new(), &public_url(), &ReturnTo::new(Some("/maps")));
+        let url = login_url(
+            &Steam::new(),
+            &public_url(),
+            &ReturnTo::new(Some("/maps")),
+            BROWSER,
+        );
         let query: Vec<(String, String)> = url.query_pairs().into_owned().collect();
 
         assert!(
@@ -329,7 +361,9 @@ pub mod tests {
         );
         assert_eq!(
             openid(&query, "return_to"),
-            Some("https://sourcejump.test/v1/auth/steam/callback?return_to=%2Fmaps")
+            Some(
+                "https://sourcejump.test/v1/auth/steam/callback?return_to=%2Fmaps&browser=0123456789abcdef"
+            )
         );
         assert_eq!(openid(&query, "realm"), Some("https://sourcejump.test"));
     }
@@ -376,6 +410,28 @@ pub mod tests {
                 "{params:?}"
             );
         }
+    }
+
+    #[test]
+    fn refuses_an_answer_brought_back_by_another_browser() {
+        let good = assertion(&Steam::new(), Utc::now());
+        for browser in [None, Some("fedcba9876543210")] {
+            assert_eq!(
+                check_fields(&Steam::new(), &public_url(), &good, browser, Utc::now()),
+                Err(Refusal::OtherBrowser),
+                "{browser:?}"
+            );
+        }
+        // An answer to a callback URL without the value is refused even when the browser has none either.
+        let unbound = with(
+            good,
+            "openid.return_to",
+            "https://sourcejump.test/v1/auth/steam/callback?return_to=%2Fmaps%2Fbhop_forest",
+        );
+        assert_eq!(
+            check_fields(&Steam::new(), &public_url(), &unbound, None, Utc::now()),
+            Err(Refusal::Malformed("return_to isn't our callback"))
+        );
     }
 
     #[test]

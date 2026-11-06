@@ -2,9 +2,10 @@
 //! finished each day, for the charts on the Players and Activity pages.
 //!
 //! Counting these on every view would read every run, so a job keeps one row per day. Its first pass builds
-//! the whole history from the runs; after that, each pass recounts yesterday and today. A day's player count
-//! is the last one taken that day, so a player whose runs are all invalidated later still counts on the days
-//! they had a time. A legacy import rebuilds the history, since it changes who had a time when.
+//! the whole history from the runs; after that, each pass recounts yesterday and today, and from any earlier
+//! day that a late, invalidated or restored run changed (`daily_totals_stale`, filled by a trigger on runs). A
+//! day's player count is the last one taken that day, so a player whose runs are all invalidated later still
+//! counts on the days they had a time. A legacy import rebuilds the history, since it changes who had a time when.
 
 use std::time::Duration;
 
@@ -43,16 +44,27 @@ pub async fn run(db: PgPool) {
     }
 }
 
-/// Builds the history if there is none, or else recounts from the day before the newest row to today.
+/// Builds the history if there is none, or else recounts to today from the day before the newest row, or from
+/// the earliest stale day if that's earlier.
 pub async fn refresh(db: &PgPool) -> Result<(), sqlx::Error> {
-    let mut conn = db.acquire().await?;
+    let mut tx = db.begin().await?;
     let newest = sqlx::query_scalar!("SELECT max(day) FROM daily_totals")
-        .fetch_one(&mut *conn)
+        .fetch_one(&mut *tx)
         .await?;
     let Some(newest) = newest else {
-        return rebuild(&mut conn).await;
+        rebuild(&mut tx).await?;
+        return tx.commit().await;
     };
+    // Taken in the same transaction as the recount: a day marked after this is left for the next pass.
+    let stale = sqlx::query_scalar!(
+        "WITH taken AS (DELETE FROM daily_totals_stale RETURNING day) SELECT min(day) FROM taken"
+    )
+    .fetch_one(&mut *tx)
+    .await?;
     // From the day before, so the last hour of a day that ended since the previous pass is counted too.
+    let from = stale.map_or(newest - TimeDelta::days(1), |stale| {
+        stale.min(newest - TimeDelta::days(1))
+    });
     sqlx::query!(
         r#"
         WITH players AS (
@@ -75,17 +87,20 @@ pub async fn refresh(db: &PgPool) -> Result<(), sqlx::Error> {
             players = CASE WHEN t.day = (now() AT TIME ZONE 'UTC')::date
                            THEN excluded.players ELSE t.players END
         "#,
-        newest - TimeDelta::days(1)
+        from
     )
-    .execute(&mut *conn)
+    .execute(&mut *tx)
     .await?;
-    Ok(())
+    tx.commit().await
 }
 
 /// Replaces the history with one counted from every run: each day's players are those whose first recorded
 /// time is on or before it. Pre-2.0 players whose runs carry no readable date count from the first day.
 pub async fn rebuild(conn: &mut PgConnection) -> Result<(), sqlx::Error> {
     sqlx::query!("DELETE FROM daily_totals")
+        .execute(&mut *conn)
+        .await?;
+    sqlx::query!("DELETE FROM daily_totals_stale")
         .execute(&mut *conn)
         .await?;
     sqlx::query!(
@@ -315,7 +330,11 @@ mod tests {
 
     use super::{PlayerTotals, RunTotals, refresh};
     use crate::{
-        runs::tests::{run, setup},
+        runs::{
+            RunAccepted,
+            tests::{run, setup},
+        },
+        staff::runs::invalidate_run,
         test_client,
     };
 
@@ -382,5 +401,41 @@ mod tests {
             .json();
         assert_eq!(players.points.last().map(|p| p.players), Some(4));
         assert_eq!(players.points[28].players, 3);
+    }
+
+    #[sqlx::test]
+    async fn recounts_older_days_that_late_or_invalidated_runs_changed(db: PgPool) {
+        let key = setup(&db).await;
+        let submit = async |body: Value| -> i64 {
+            let accepted: RunAccepted = test_client::post(&db, "/v1/runs", Some(&key), &body)
+                .await
+                .json();
+            accepted.id
+        };
+        let record = submit(run_by("a", 76_561_197_960_287_930, "bhop_badges", 30.0, 3)).await;
+        submit(run_by("b", 76_561_197_960_287_931, "bhop_badges", 33.0, 3)).await;
+        refresh(&db).await.unwrap();
+        // Points run oldest first, yesterday last: [25] is five days ago, [27] three.
+        let days = async || -> Vec<(i32, i32)> {
+            let runs: RunTotals = test_client::get(&db, "/v1/daily-totals/runs").await.json();
+            runs.points[25..28]
+                .iter()
+                .map(|p| (p.runs, p.world_records))
+                .collect()
+        };
+        assert_eq!(days().await, [(0, 0), (0, 0), (2, 1)]);
+
+        // Arrives late, finished five days ago; then the 30.0 is invalidated, so the 33.0 is no record either.
+        submit(run_by("c", 76_561_197_960_287_932, "bhop_badges", 31.0, 5)).await;
+        invalidate_run(&db, None, record, Some("test"))
+            .await
+            .unwrap();
+        refresh(&db).await.unwrap();
+        assert_eq!(days().await, [(1, 1), (0, 0), (1, 0)]);
+        let stale: i64 = sqlx::query_scalar("SELECT count(*) FROM daily_totals_stale")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(stale, 0, "taken by the pass");
     }
 }

@@ -101,25 +101,17 @@ pub(super) async fn records(
     map_id: i64,
     board: Option<(&str, i16)>,
 ) -> Result<Vec<BoardRecord>, sqlx::Error> {
-    // A running minimum over every earlier valid run on the same leaderboard: a run is a record if it beats
-    // all of them. Invalidated runs are left out, so the runs they had kept from being records become ones.
-    // This reads all of the map's runs, which the `runs_map` index serves in order.
+    // The runs that were records when set, as `leaderboards/world_records.rs` stores them: faster than every
+    // earlier valid run on the board. Invalidating a run redoes its board, so the runs it had kept from being
+    // records become ones.
     let rows = sqlx::query!(
         r#"
         SELECT r.style, r.track, r.id, r.time, r.finished_at,
                p.steamid64::text AS "steamid64!", p.name, p.avatar_url, p.country_code
-        FROM (
-            SELECT id, style, track, player_steamid64, time, finished_at,
-                   min(time) OVER (
-                       PARTITION BY style, track ORDER BY finished_at, id
-                       ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                   ) AS best_before
-            FROM runs
-            WHERE map_id = $1 AND invalidated_at IS NULL
-              AND ($2::text IS NULL OR (style = $2 AND track = $3::smallint))
-        ) r
+        FROM runs r
         JOIN players p ON p.steamid64 = r.player_steamid64
-        WHERE r.best_before IS NULL OR r.time < r.best_before
+        WHERE r.map_id = $1 AND r.was_record
+          AND ($2::text IS NULL OR (r.style = $2 AND r.track = $3::smallint))
         ORDER BY r.style, r.track, r.finished_at, r.id
         "#,
         map_id,

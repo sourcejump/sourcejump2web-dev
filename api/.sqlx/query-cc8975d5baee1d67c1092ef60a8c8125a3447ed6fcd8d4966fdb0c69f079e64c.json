@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT map_id AS \"map_id!\", style AS \"style!\", track AS \"track!\" FROM personal_bests\n           WHERE map_id = $1 AND track = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "map_id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "map_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "style!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "track!",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "track"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "cc8975d5baee1d67c1092ef60a8c8125a3447ed6fcd8d4966fdb0c69f079e64c"
+}

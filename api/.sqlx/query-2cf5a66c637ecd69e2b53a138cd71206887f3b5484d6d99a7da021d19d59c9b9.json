@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH taken AS (DELETE FROM daily_totals_stale RETURNING day) SELECT min(day) FROM taken",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "min",
+        "type_info": "Date",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2cf5a66c637ecd69e2b53a138cd71206887f3b5484d6d99a7da021d19d59c9b9"
+}

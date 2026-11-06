@@ -61,8 +61,8 @@ pub(crate) fn check_page(limit: i64, offset: i64, max: i64) -> Result<(), String
     Ok(())
 }
 
-/// A map name as shavit reports it: lowercase letters, digits, `_`, `-` and `.`, at most 64 characters.
-/// Input is lowercased first, so `bhop_Badges` and `bhop_badges` are the same map.
+/// A map name as shavit reports it: lowercase letters, digits, `_`, `-` and `.`, at most 64 characters, and
+/// not only dots. Input is lowercased first, so `bhop_Badges` and `bhop_badges` are the same map.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct MapName(String);
@@ -79,7 +79,9 @@ impl TryFrom<String> for MapName {
     fn try_from(text: String) -> Result<Self, Self::Error> {
         let name = text.to_lowercase();
         let allowed = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit() || "_-.".contains(c);
-        if name.is_empty() || name.len() > 64 || !name.chars().all(allowed) {
+        // Names go into storage keys and URL paths, where `.` and `..` mean this folder and the one above.
+        let only_dots = name.chars().all(|c| c == '.');
+        if name.is_empty() || name.len() > 64 || !name.chars().all(allowed) || only_dots {
             return Err(format!("{text:?} is not a valid map name"));
         }
         Ok(Self(name))
@@ -121,6 +123,22 @@ pub async fn record_run(
     Ok(())
 }
 
+/// Recounts `maps.players` for these runs' maps, after their personal bests changed. Callers hold those maps'
+/// rows, so a personal best written there meanwhile either waits for this transaction or has committed and is
+/// counted.
+pub async fn count_players(conn: &mut PgConnection, run_ids: &[i64]) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        UPDATE maps m SET players = (SELECT count(DISTINCT player_steamid64) FROM personal_bests WHERE map_id = m.id)
+        WHERE m.id IN (SELECT map_id FROM runs WHERE id = ANY($1))
+        "#,
+        run_ids
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::MapName;
@@ -134,5 +152,12 @@ mod tests {
         assert!(parse("../etc/passwd").is_err());
         assert!(parse("bhop badges").is_err());
         assert!(parse("").is_err());
+        for dots in [".", "..", "..."] {
+            assert!(parse(dots).is_err(), "{dots}");
+        }
+        assert!(
+            parse(".bhop.").is_ok(),
+            "dots among other characters are fine"
+        );
     }
 }

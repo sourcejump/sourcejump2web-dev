@@ -137,7 +137,7 @@ async fn submit_run(
     };
     let replay = stored
         .replay
-        .map(|requested| replays::upload_link(&state.storage, requested, Utc::now()));
+        .map(|requested| replays::upload_link(&state.staging, requested, Utc::now()));
     Ok((
         status,
         Json(RunAccepted {
@@ -231,7 +231,6 @@ async fn store(
     maps::record_run(conn, map_id, finished_at).await?;
     let new_personal_best = record_personal_best(conn, run, map_id, id, finished_at).await?;
     if new_personal_best {
-        crate::leaderboards::standings::refresh_runs(conn, &[id]).await?;
         record_events::record(conn, record_events::Kind::Run, &[id]).await?;
     }
     // Every valid run, not only personal bests: a run that arrives late may have been a record when it was set.
@@ -247,6 +246,10 @@ async fn store(
     } else {
         None
     };
+    // Last: the recount holds the standings lock, which every other recount waits on, until this commits.
+    if new_personal_best {
+        crate::leaderboards::standings::refresh_runs(conn, &[id]).await?;
+    }
 
     Ok(Stored {
         id,

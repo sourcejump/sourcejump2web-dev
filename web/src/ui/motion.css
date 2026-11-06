@@ -211,6 +211,20 @@
   animation: none;
 }
 
+/* The navigation progress bar stays live and above the header while pages fade. */
+::view-transition-group(navigation-progress) {
+  animation: none;
+  z-index: 20;
+}
+
+::view-transition-old(navigation-progress) {
+  display: none;
+}
+
+::view-transition-new(navigation-progress) {
+  animation: none;
+}
+
 /* Clicks during a fade reach the page instead of the transition overlay. */
 ::view-transition {
   pointer-events: none;

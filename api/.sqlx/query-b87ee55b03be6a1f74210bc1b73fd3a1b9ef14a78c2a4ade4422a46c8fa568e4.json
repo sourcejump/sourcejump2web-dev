@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH affected AS (SELECT DISTINCT style, track > 0 AS bonus, player_steamid64 FROM runs WHERE id = ANY($1))\n        INSERT INTO standings (style, bonus, player_steamid64, points, completed)\n        SELECT a.style, a.bonus, a.player_steamid64, totals.points, totals.completed\n        FROM affected a\n        -- Each player's own personal bests, through the primary key: joined on the list instead, the planner\n        -- can't tell how short it is and reads every personal best.\n        CROSS JOIN LATERAL (\n            SELECT sum(pb.points) AS points, count(*) AS completed FROM personal_bests pb\n            WHERE pb.player_steamid64 = a.player_steamid64 AND pb.style = a.style AND (pb.track > 0) = a.bonus\n        ) totals\n        WHERE totals.completed > 0\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b87ee55b03be6a1f74210bc1b73fd3a1b9ef14a78c2a4ade4422a46c8fa568e4"
+}

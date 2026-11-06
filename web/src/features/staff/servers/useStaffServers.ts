@@ -1,5 +1,6 @@
 "use client";
-// Every server, for staff who hold manage_servers, read from the browser so the Servers page stays cacheable.
+// Every server, for staff who hold manage_servers, read from the browser so the Servers page's
+// server render is the same for everyone. Nothing caches that render yet; it is built per request.
 import { useCallback, useEffect, useState } from "react";
 import { api, type Schemas } from "@/api/client";
 import { useHeldPrivilege } from "../useHeldPrivilege";
