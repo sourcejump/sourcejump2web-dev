@@ -47,7 +47,8 @@ visudo -cf /etc/sudoers.d/sj-preview
 loginctl enable-linger "$USER_NAME"
 uid=$(id -u "$USER_NAME")
 for _ in $(seq 10); do [ -d "/run/user/$uid" ] && break; sleep 1; done
-as_user() { sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$uid" "$@"; }
+# From /, since the folder this script runs in may be private to whoever copied it over.
+as_user() { (cd / && sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$uid" "$@"); }
 as_user systemctl --user enable --now podman-restart.service
 as_user podman pull docker.io/library/node:24-bookworm-slim
 

@@ -32,8 +32,17 @@ exec 9> "$ROOT/lock"
 flock 9
 
 # ports.map lines are nginx map entries: "<name> <port>;".
+# podman starts long-lived helpers (pause process, conmon, slirp4netns) that would inherit the lock on fd 9
+# and hold it, blocking every later deploy. Close it for every podman call.
+pm() { podman "$@" 9>&-; }
+
 port_of() { awk -v n="$1" '$1 == n { sub(";", "", $2); print $2 }' "$MAP"; }
-reload_nginx() { sudo -n /usr/sbin/nginx -t -q && sudo -n /usr/bin/systemctl reload nginx; }
+# nginx -t -q still prints every warning in the other sites' configs, so its output is shown only on failure.
+reload_nginx() {
+  local out
+  out=$(sudo -n /usr/sbin/nginx -t -q 2>&1) || { echo "$out" >&2; die "nginx config test failed"; }
+  sudo -n /usr/bin/systemctl reload nginx
+}
 
 case "$action" in
 deploy)
@@ -58,11 +67,12 @@ deploy)
     new_port=yes
   fi
 
-  podman rm -f "sjp-$name" >/dev/null 2>&1 || true
+  pm rm -f "sjp-$name" >/dev/null 2>&1 || true
   rm -rf "$ROOT/sites/$name"
   mv "$new" "$ROOT/sites/$name"
 
-  podman run -d --name "sjp-$name" --restart=always \
+  # --init: Node as PID 1 ignores SIGTERM, so without it every redeploy waits 10 s for a SIGKILL.
+  pm run -d --init --name "sjp-$name" --restart=always \
     --read-only --tmpfs /tmp:size=64m --tmpfs /app/.next/cache:size=256m \
     --memory "$MEMORY" --cpus "$CPUS" --cpu-shares 128 --pids-limit 256 \
     --cap-drop ALL --security-opt no-new-privileges --user node \
@@ -77,11 +87,11 @@ deploy)
     if curl -fsS -o /dev/null "http://127.0.0.1:$port/"; then echo "live: $name on port $port"; exit 0; fi
     sleep 1
   done
-  podman logs --tail 40 "sjp-$name" >&2 || true
+  pm logs --tail 40 "sjp-$name" >&2 || true
   die "started but not answering on port $port"
   ;;
 remove)
-  podman rm -f "sjp-$name" >/dev/null 2>&1 || true
+  pm rm -f "sjp-$name" >/dev/null 2>&1 || true
   rm -rf "$ROOT/sites/$name"
   if [ -n "$(port_of "$name")" ]; then
     awk -v n="$name" '$1 != n' "$MAP" > "$MAP.tmp" && cat "$MAP.tmp" > "$MAP" && rm -f "$MAP.tmp"
