@@ -34,13 +34,13 @@ export function ServerRow({
   );
   const connected = "Runs on this server count on SourceJump";
   return (
-    <ServerRowFrame className="relative flex flex-col sm:h-full sm:flex-row sm:items-center sm:gap-3 sm:p-3">
-      {/* A red wash and barrier stripes fading in from the right edge, so a down server stands out. */}
-      {!server.online && (
-        <span className="bg-danger/6 pointer-events-none absolute inset-0 z-10">
-          <span className="hazard-stripes absolute inset-y-0 right-0 w-1/5" />
-        </span>
+    <ServerRowFrame
+      className={classNames(
+        "relative flex flex-col sm:h-full sm:flex-row sm:items-center sm:gap-3 sm:p-3",
+        // A step darker than the board, like a panel switched off; the red is kept for the OFFLINE label alone.
+        !server.online && "bg-bg/60",
       )}
+    >
       <span
         className={classNames(
           "border-border bg-surface-raised relative flex h-28 shrink-0 items-end justify-between gap-3 overflow-hidden border-b p-3",
