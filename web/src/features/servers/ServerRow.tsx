@@ -35,20 +35,20 @@ export function ServerRow({
   const connected = "Runs on this server count on SourceJump";
   return (
     <ServerRowFrame className="relative flex flex-col sm:h-full sm:flex-row sm:items-center sm:gap-3 sm:p-3">
+      {/* A red wash over the whole cell, so a down server stands out from the rest of the list. */}
+      {!server.online && (
+        <span className="bg-danger/10 pointer-events-none absolute inset-0" />
+      )}
       <span
         className={classNames(
           "border-border bg-surface-raised relative flex h-28 shrink-0 items-end justify-between gap-3 overflow-hidden border-b p-3",
           "sm:h-18 sm:w-32 sm:rounded-sm sm:border sm:p-0",
-          !server.online && "grayscale",
+          !server.online && "[&_img]:grayscale",
         )}
       >
         <MapPicture image={server.map_image} eager={eager} />
-        {/* The picture greys out under a full-strength label rather than fading, so a down server reads at a glance. */}
-        {!server.online && (
-          <span className="bg-bg/70 absolute inset-0 flex items-center justify-center text-sm font-bold">
-            Offline
-          </span>
-        )}
+        {!server.online && <span className="bg-bg/50 absolute inset-0" />}
+
         <span className="relative min-w-0 sm:hidden">
           <OnPicture>
             <MapName server={server} />
@@ -102,12 +102,7 @@ export function ServerRow({
           <ServerAddress address={address} />
         </span>
       </span>
-      <span
-        className={classNames(
-          "flex shrink-0 flex-col items-center justify-center gap-1 max-sm:hidden",
-          dim,
-        )}
-      >
+      <span className="flex shrink-0 flex-col items-center justify-center gap-1 max-sm:hidden">
         <Players server={server} stacked />
         {server.online && (
           <a
@@ -197,7 +192,13 @@ function Players({
           stacked && "flex flex-col items-center text-center text-xs",
         )}
       >
-        <span>Last seen</span>{" "}
+        <span
+          className={classNames("text-danger font-bold", stacked && "text-sm")}
+        >
+          Offline
+        </span>
+        {stacked ? " " : " · "}
+        <span className="sr-only">last seen </span>
         <time dateTime={server.last_seen_at}>
           {formatAgo(server.seen_minutes_ago)}
         </time>
