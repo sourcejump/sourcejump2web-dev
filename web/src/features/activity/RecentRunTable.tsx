@@ -146,7 +146,6 @@ export function RecentRunTable({
               <TableCell numeric>
                 <span className="inline-flex flex-col items-end gap-0.5">
                   <span className="flex items-center gap-1.5">
-                    <ReplayLink runId={run.run_id} />
                     <RunLink
                       runId={run.run_id}
                       className="hover:text-accent font-bold underline-offset-4 hover:underline"
@@ -170,12 +169,14 @@ export function RecentRunTable({
                           : `(${formatGap(run.gap)})`}
                       </span>
                     )}
+                    <ReplayLink runId={run.run_id} />
                   </span>
                   {/* Counted from now, which differs between the server's render and the browser's. */}
                   <time
                     dateTime={run.finished_at}
                     suppressHydrationWarning
-                    className="text-text-subtle text-xs"
+                    // Clear of the play button's column, so it sits under the time.
+                    className="text-text-subtle mr-7.5 text-xs"
                   >
                     {formatAge(run.finished_at)}
                   </time>
