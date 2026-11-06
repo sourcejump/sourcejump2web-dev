@@ -14,14 +14,11 @@ type Server = Schemas["ListedServer"];
 
 export function ServerRow({
   server,
-  unlisted = false,
   badges,
   tools,
   eager = false,
 }: {
   server: Server;
-  /** Shown to staff only: the public list never has unlisted servers. */
-  unlisted?: boolean;
   badges?: ReactNode;
   /** Staff controls after Join, kept at full strength when the row is dimmed. */
   tools?: ReactNode;
@@ -32,14 +29,12 @@ export function ServerRow({
   // Each part is dimmed on its own, not inside one wrapper, so the staff tools stay at full strength.
   const dim = classNames(
     "transition-opacity duration-(--duration-base)",
-    unlisted ? "opacity-50" : !server.online && "opacity-60",
+    // Only a server that's down is dimmed; staff marks like Unlisted are badges.
+    !server.online && "opacity-60",
   );
   const connected = "Runs on this server count on SourceJump";
   return (
-    <ServerRowFrame
-      unlisted={unlisted}
-      className="relative flex flex-col sm:h-full sm:flex-row sm:items-center sm:gap-3 sm:p-3"
-    >
+    <ServerRowFrame className="relative flex flex-col sm:h-full sm:flex-row sm:items-center sm:gap-3 sm:p-3">
       <span
         className={classNames(
           "border-border bg-surface-raised relative flex h-28 shrink-0 items-end justify-between gap-3 overflow-hidden border-b p-3",
@@ -225,11 +220,9 @@ function Players({
 
 /** The row's box, shared with the staff-only row of a server listed before it was ever heard from. */
 export function ServerRowFrame({
-  unlisted = false,
   className,
   children,
 }: {
-  unlisted?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -238,7 +231,6 @@ export function ServerRowFrame({
       className={classNames(
         // A cell of the Servers board, which draws the frame and the lines between rows.
         "@container h-full overflow-hidden",
-        unlisted && "bg-bg/40",
         className,
       )}
     >

@@ -41,7 +41,6 @@ export function StaffServerRow({
   return (
     <ServerRow
       server={server.server}
-      unlisted={!listed}
       badges={
         <>
           {!listed && <Badge>Unlisted</Badge>}
