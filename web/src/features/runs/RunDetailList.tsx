@@ -42,7 +42,7 @@ export function RunDetailList({
             {run.rank === 1 && <Badge tone="accent">WR</Badge>}
             {/* Behind the record, put before the time as the Activity page does. */}
             {gap > 0 && (
-              <span className="text-text-subtle text-xs font-normal">
+              <span className="text-danger text-xs font-normal">
                 {formatGap(gap)}
               </span>
             )}

@@ -155,7 +155,11 @@ export function RecentRunTable({
                   <span
                     className={classNames(
                       "mr-2 text-xs",
-                      run.gap < 0 ? "text-success" : "text-text-subtle",
+                      run.gap < 0
+                        ? "text-success"
+                        : run.gap > 0
+                          ? "text-danger"
+                          : "text-text-subtle",
                     )}
                   >
                     {run.gap < 0
