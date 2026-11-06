@@ -5,8 +5,8 @@ import { useState, type CSSProperties } from "react";
 import { api, type Schemas } from "@/api/client";
 import { RunLink } from "@/features/runs/RunLink";
 import {
+  formatAge,
   formatGap,
-  formatSince,
   formatTime,
   trackName,
 } from "@/features/runs/time";
@@ -86,7 +86,6 @@ export function RecentRunTable({
       <Table>
         <TableHead>
           <tr>
-            <TableHeaderCell className="w-28">When</TableHeaderCell>
             <TableHeaderCell>Player</TableHeaderCell>
             <TableHeaderCell>Map</TableHeaderCell>
             <TableHeaderCell numeric>Time</TableHeaderCell>
@@ -107,12 +106,6 @@ export function RecentRunTable({
                 } as CSSProperties
               }
             >
-              <TableCell className="text-text-muted">
-                {/* Counted from now, which differs between the server's render and the browser's. */}
-                <time dateTime={run.finished_at} suppressHydrationWarning>
-                  {formatSince(run.finished_at)}
-                </time>
-              </TableCell>
               <TableCell>
                 <span className="flex items-center gap-2">
                   <Link
@@ -150,29 +143,41 @@ export function RecentRunTable({
                 </span>
               </TableCell>
               <TableCell numeric>
-                {/* Against the record when the run finished: what a new WR took off, or how far behind it was. */}
-                {run.gap != null && (
-                  <span
-                    className={classNames(
-                      "mr-2 text-xs",
-                      run.gap < 0
-                        ? "text-success"
-                        : run.gap > 0
-                          ? "text-danger"
-                          : "text-text-subtle",
+                <span className="inline-flex flex-col items-end gap-0.5">
+                  <span className="flex items-baseline gap-1.5">
+                    <RunLink
+                      runId={run.run_id}
+                      className="hover:text-accent font-bold underline-offset-4 hover:underline"
+                    >
+                      {formatTime(run.time)}
+                    </RunLink>
+                    {/* Against the record when the run finished: what a new WR took off, or how far behind it was. */}
+                    {run.gap != null && (
+                      <span
+                        className={classNames(
+                          "text-xs",
+                          run.gap < 0
+                            ? "text-success"
+                            : run.gap > 0
+                              ? "text-danger"
+                              : "text-text-subtle",
+                        )}
+                      >
+                        {run.gap < 0
+                          ? `(−${formatTime(-run.gap)})`
+                          : `(${formatGap(run.gap)})`}
+                      </span>
                     )}
-                  >
-                    {run.gap < 0
-                      ? `−${formatTime(-run.gap)}`
-                      : formatGap(run.gap)}
                   </span>
-                )}
-                <RunLink
-                  runId={run.run_id}
-                  className="hover:text-accent font-bold underline-offset-4 hover:underline"
-                >
-                  {formatTime(run.time)}
-                </RunLink>
+                  {/* Counted from now, which differs between the server's render and the browser's. */}
+                  <time
+                    dateTime={run.finished_at}
+                    suppressHydrationWarning
+                    className="text-text-subtle text-xs"
+                  >
+                    {formatAge(run.finished_at)}
+                  </time>
+                </span>
               </TableCell>
               <TableCell numeric>
                 {run.world_record ? (
