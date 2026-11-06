@@ -36,10 +36,17 @@ const date = new Intl.DateTimeFormat("en", {
 
 export function ServerActivity({
   heading,
+  live,
   activity,
 }: {
   /** Sits in the chart's top row, so the page doesn't spend a line on its own title. */
   heading: string;
+  /**
+   * Online servers and their players, counted from the list this viewer actually sees. Stands in for the
+   * chart's own "now" point, which comes from the last finished bucket and so can lag behind it by up to the
+   * bucket length.
+   */
+  live?: { servers: number; players: number };
   activity: Partial<Record<Range, Schemas["ServerActivity"]>>;
 }) {
   const [range, setRange] = useState<Range>("day");
@@ -47,7 +54,7 @@ export function ServerActivity({
   const current = activity[range];
   const points = current?.points ?? [];
   // The longer ranges' buckets are averages, so "now" always comes from the day's.
-  const now = activity.day?.points.at(-1) ?? points.at(-1);
+  const now = live ?? activity.day?.points.at(-1) ?? points.at(-1);
   const hovered = active === null ? undefined : points[active];
   // Hidden on a phone: the page's own heading covers it there, since the chart is its own card.
   const title = (
