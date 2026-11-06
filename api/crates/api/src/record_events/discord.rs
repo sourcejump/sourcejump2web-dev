@@ -410,6 +410,8 @@ mod tests {
         submit(&db, &key, &run("a", 30.0)).await;
         // Second place on the board: not a world record.
         submit(&db, &key, &by("second", "76561197960287931", "b", 32.0)).await;
+        // Ties the record and shares rank 1, but isn't faster: not a world record either.
+        submit(&db, &key, &by("tie", "76561197960287932", "c", 30.0)).await;
         feed_once(&db, &feeds).await;
         feed_once(&db, &feeds).await;
 

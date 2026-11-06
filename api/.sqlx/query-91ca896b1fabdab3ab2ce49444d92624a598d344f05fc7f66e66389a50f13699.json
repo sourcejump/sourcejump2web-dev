@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH starts AS (\n            SELECT DISTINCT ON (map_id, style, track) map_id, style, track, finished_at, id\n            FROM runs WHERE id = ANY($1)\n            ORDER BY map_id, style, track, finished_at, id\n        ), bests AS (\n            SELECT s.*, (SELECT r.time FROM runs r\n                         WHERE r.map_id = s.map_id AND r.style = s.style AND r.track = s.track AND r.was_record\n                           AND (r.finished_at, r.id) < (s.finished_at, s.id)\n                         ORDER BY r.finished_at DESC, r.id DESC LIMIT 1) AS best\n            FROM starts s\n        ), placed AS (\n            SELECT r.id,\n                   -- LEAST skips NULLs: no record before the start, or no valid run between it and this one.\n                   r.invalidated_at IS NULL AND r.time < coalesce(LEAST(b.best,\n                       min(r.time) FILTER (WHERE r.invalidated_at IS NULL) OVER (\n                           PARTITION BY r.map_id, r.style, r.track ORDER BY r.finished_at, r.id\n                           ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)),\n                       'infinity') AS was_record\n            FROM runs r\n            JOIN bests b ON b.map_id = r.map_id AND b.style = r.style AND b.track = r.track\n                        AND (r.finished_at, r.id) >= (b.finished_at, b.id)\n        )\n        UPDATE runs r SET was_record = placed.was_record FROM placed\n        WHERE r.id = placed.id AND r.was_record <> placed.was_record\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "91ca896b1fabdab3ab2ce49444d92624a598d344f05fc7f66e66389a50f13699"
+}

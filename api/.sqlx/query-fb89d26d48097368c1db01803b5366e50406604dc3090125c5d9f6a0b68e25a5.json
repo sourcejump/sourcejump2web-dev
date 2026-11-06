@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO standings (style, bonus, player_steamid64, points, completed)\n        SELECT pb.style, pb.track > 0, pb.player_steamid64,\n               sum(coalesce(points_for(b.tier, pb.time, b.best, pb.track > 0, $1, $2, $3, $4, $5), 0)), count(*)\n        FROM personal_bests pb\n        JOIN standings_boards b ON b.map_id = pb.map_id AND b.style = pb.style AND b.track = pb.track\n        GROUP BY 1, 2, 3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fb89d26d48097368c1db01803b5366e50406604dc3090125c5d9f6a0b68e25a5"
+}

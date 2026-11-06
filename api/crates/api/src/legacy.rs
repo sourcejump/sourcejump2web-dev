@@ -10,11 +10,7 @@ use sqlx::PgPool;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    app::AppState,
-    maps::wr_history::WrHistoryEntry,
-    players::{PlayerRef, restrictions::Restriction},
-};
+use crate::{app::AppState, maps::wr_history::WrHistoryEntry, players::PlayerRef};
 
 mod dump;
 pub mod import;
@@ -62,13 +58,10 @@ pub async fn board_players(db: &PgPool, map: &str) -> Result<Option<i64>, sqlx::
     sqlx::query_scalar!(
         r#"SELECT (SELECT count(*) FROM legacy_personal_bests l
                    WHERE l.map_id = lm.id AND NOT EXISTS (
-                       SELECT 1 FROM bans
-                       WHERE bans.player_steamid64 = l.player_steamid64 AND bans.restrictions & $2 <> 0
-                         AND bans.lifted_at IS NULL AND (bans.ends_at IS NULL OR bans.ends_at > now())
+                       SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64
                    )) AS "players!"
            FROM legacy_maps lm WHERE lm.name = $1"#,
         map,
-        Restriction::NoRecords.bit()
     )
     .fetch_optional(db)
     .await
@@ -90,35 +83,30 @@ pub struct BoardTotals {
 pub async fn board_totals(db: &PgPool, map: &str) -> Result<Option<BoardTotals>, sqlx::Error> {
     sqlx::query_as!(
         BoardTotals,
-        r#"WITH banned AS (
-               SELECT player_steamid64 FROM bans
-               WHERE restrictions & $2 <> 0 AND lifted_at IS NULL AND (ends_at IS NULL OR ends_at > now())
-           )
-           SELECT
+        r#"SELECT
                (SELECT count(*) FROM legacy_personal_bests l
                 WHERE l.map_id = lm.id
-                  AND NOT EXISTS (SELECT 1 FROM banned b WHERE b.player_steamid64 = l.player_steamid64)
+                  AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)
                ) AS "players!",
                (SELECT count(*) FROM legacy_runs l
                 WHERE l.map_id = lm.id
-                  AND NOT EXISTS (SELECT 1 FROM banned b WHERE b.player_steamid64 = l.player_steamid64)
+                  AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)
                ) AS "runs!",
                (SELECT count(*) FROM (
                     SELECT l.player_steamid64 FROM legacy_personal_bests l
                     WHERE l.map_id = lm.id
-                      AND NOT EXISTS (SELECT 1 FROM banned b WHERE b.player_steamid64 = l.player_steamid64)
+                      AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)
                     UNION
                     SELECT pb.player_steamid64 FROM personal_bests pb
                     JOIN maps m ON m.id = pb.map_id
-                    WHERE m.name = $1 AND pb.style = $3 AND pb.track = $4
+                    WHERE m.name = $1 AND pb.style = $2 AND pb.track = $3
                 ) both_kinds) AS "all_players!",
                (SELECT max(l.finished_at) FROM legacy_runs l
                 WHERE l.map_id = lm.id
-                  AND NOT EXISTS (SELECT 1 FROM banned b WHERE b.player_steamid64 = l.player_steamid64)
+                  AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)
                ) AS last_run_at
            FROM legacy_maps lm WHERE lm.name = $1"#,
         map,
-        Restriction::NoRecords.bit(),
         STYLE,
         TRACK
     )
@@ -145,9 +133,7 @@ pub async fn record_history(db: &PgPool, map: &str) -> Result<Vec<WrHistoryEntry
             FROM legacy_runs l
             JOIN legacy_maps lm ON lm.id = l.map_id
             WHERE lm.name = $1 AND l.finished_at IS NOT NULL AND NOT EXISTS (
-                SELECT 1 FROM bans
-                WHERE bans.player_steamid64 = l.player_steamid64 AND bans.restrictions & $2 <> 0
-                  AND bans.lifted_at IS NULL AND (bans.ends_at IS NULL OR bans.ends_at > now())
+                SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64
             )
         ) r
         JOIN legacy_players lp ON lp.steamid64 = r.player_steamid64
@@ -156,7 +142,6 @@ pub async fn record_history(db: &PgPool, map: &str) -> Result<Vec<WrHistoryEntry
         ORDER BY r.finished_at, r.id
         "#,
         map,
-        Restriction::NoRecords.bit()
     )
     .fetch_all(db)
     .await?;

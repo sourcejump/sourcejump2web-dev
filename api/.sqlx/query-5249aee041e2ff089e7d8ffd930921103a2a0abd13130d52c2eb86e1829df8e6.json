@@ -1,0 +1,121 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT r.style, r.track, r.id, r.time, r.finished_at,\n               p.steamid64::text AS \"steamid64!\", p.name, p.avatar_url, p.country_code\n        FROM runs r\n        JOIN players p ON p.steamid64 = r.player_steamid64\n        WHERE r.map_id = $1 AND r.was_record\n          AND ($2::text IS NULL OR (r.style = $2 AND r.track = $3::smallint))\n        ORDER BY r.style, r.track, r.finished_at, r.id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "style",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "track",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "track"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "time",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "finished_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "finished_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "country_code"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "5249aee041e2ff089e7d8ffd930921103a2a0abd13130d52c2eb86e1829df8e6"
+}

@@ -67,15 +67,14 @@ impl Restrictions {
     }
 }
 
-/// What the player's active bans restrict, together. A ban is active until it's lifted or its end passes;
-/// every query for active bans in the API spells out that same condition.
+/// What the player's active bans restrict, together. Which bans are active is the `active_bans` view's rule,
+/// and the queries that leave banned players off the boards read `records_bans` (migration 0047).
 pub async fn active(
     conn: &mut PgConnection,
     player: SteamId64,
 ) -> Result<Restrictions, sqlx::Error> {
     let bits = sqlx::query_scalar!(
-        r#"SELECT coalesce(bit_or(restrictions), 0) AS "bits!" FROM bans
-           WHERE player_steamid64 = $1 AND lifted_at IS NULL AND (ends_at IS NULL OR ends_at > now())"#,
+        r#"SELECT coalesce(bit_or(restrictions), 0) AS "bits!" FROM active_bans WHERE player_steamid64 = $1"#,
         player.get()
     )
     .fetch_one(conn)
@@ -100,12 +99,9 @@ pub async fn records_ban(
     .fetch_optional(&mut *conn)
     .await?;
     sqlx::query_scalar!(
-        r#"SELECT log_id FROM bans
-           WHERE player_steamid64 = $1 AND restrictions & $2 <> 0
-             AND lifted_at IS NULL AND (ends_at IS NULL OR ends_at > now())
-           ORDER BY banned_at DESC, id DESC LIMIT 1"#,
-        player.get(),
-        Restriction::NoRecords.bit()
+        r#"SELECT log_id AS "log_id!" FROM records_bans
+           WHERE player_steamid64 = $1 ORDER BY banned_at DESC, id DESC LIMIT 1"#,
+        player.get()
     )
     .fetch_optional(conn)
     .await
@@ -120,5 +116,46 @@ mod tests {
         let read = Restrictions::from_bits(0b1 | 1 << 40);
         assert_eq!(read.list(), [Restriction::NoRecords]);
         assert_eq!(Restrictions::of(&Restriction::ALL).bits(), 0b111);
+    }
+
+    /// `records_bans` spells out `no_records`'s bit itself (migration 0047), so it has to agree with this file.
+    #[sqlx::test]
+    async fn records_bans_are_the_active_no_records_ones(db: sqlx::PgPool) {
+        // By player: in force; another restriction; ended yesterday; lifted. Ends are from now.
+        let bans = [
+            (1, Restriction::NoRecords, Some("1 day"), false),
+            (2, Restriction::NoPosting, None, false),
+            (3, Restriction::NoRecords, Some("-1 day"), false),
+            (4, Restriction::NoRecords, None, true),
+        ];
+        for (player, restriction, ends_in, lifted) in bans {
+            sqlx::query(
+                "
+                WITH player AS (
+                    INSERT INTO players (steamid64, name, name_seen_at) VALUES ($1, 'p', '-infinity')
+                ), entry AS (
+                    INSERT INTO staff_log (action, target, reason) VALUES ('ban_player', $1::text, 'x') RETURNING id
+                )
+                INSERT INTO bans (player_steamid64, restrictions, reason, banned_at, ends_at, log_id,
+                                  lifted_at, lift_reason)
+                SELECT $1, $2, 'x', now() - interval '2 days', now() + $3::interval, id,
+                       CASE WHEN $4 THEN now() END, CASE WHEN $4 THEN 'x' END
+                FROM entry
+                ",
+            )
+            .bind(player)
+            .bind(restriction.bit())
+            .bind(ends_in)
+            .bind(lifted)
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+        let banned: Vec<i64> =
+            sqlx::query_scalar("SELECT player_steamid64 FROM records_bans ORDER BY 1")
+                .fetch_all(&db)
+                .await
+                .unwrap();
+        assert_eq!(banned, [1]);
     }
 }

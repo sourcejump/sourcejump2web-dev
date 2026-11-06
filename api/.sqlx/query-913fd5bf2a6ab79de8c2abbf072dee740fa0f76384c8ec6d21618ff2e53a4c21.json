@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT ON (map_id, style, track) id FROM runs ORDER BY map_id, style, track, finished_at, id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "913fd5bf2a6ab79de8c2abbf072dee740fa0f76384c8ec6d21618ff2e53a4c21"
+}

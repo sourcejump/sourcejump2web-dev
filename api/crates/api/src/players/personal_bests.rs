@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use utoipa::{IntoParams, ToSchema};
 
-use super::{SteamId64, restrictions::Restriction};
+use super::SteamId64;
 use crate::{
     app::AppState,
     error::{ApiError, ErrorBody},
@@ -202,15 +202,11 @@ async fn view_personal_bests(
                 SELECT lm.name, NULL::bigint, $4::smallint, l.time, true, l.id::bigint, l.finished_at
                 FROM legacy_personal_bests l
                 JOIN legacy_maps lm ON lm.id = l.map_id
-                WHERE l.player_steamid64 = $1 AND NOT EXISTS (
-                    SELECT 1 FROM bans
-                    WHERE bans.player_steamid64 = $1 AND bans.restrictions & $5 <> 0
-                      AND bans.lifted_at IS NULL AND (bans.ends_at IS NULL OR bans.ends_at > now())
-                )
+                WHERE l.player_steamid64 = $1 AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = $1)
             ) both_kinds
-            WHERE $6::text IS NULL OR (both_kinds.map, both_kinds.track) > ($6, $7::smallint)
+            WHERE $5::text IS NULL OR (both_kinds.map, both_kinds.track) > ($5, $6::smallint)
             ORDER BY both_kinds.map, both_kinds.track, both_kinds.time, both_kinds.legacy
-            LIMIT $8
+            LIMIT $7
         ) shown
         ORDER BY shown.map, shown.track
         "#,
@@ -218,7 +214,6 @@ async fn view_personal_bests(
         legacy::STYLE,
         view == View::All,
         legacy::TRACK,
-        Restriction::NoRecords.bit(),
         after.map(|(map, _)| map),
         after.map(|(_, track)| track),
         limit

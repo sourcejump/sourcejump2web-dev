@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH boards AS (SELECT DISTINCT map_id, style, track FROM runs WHERE id = ANY($1)),\n        -- Each board's best time, from the `personal_bests_board` index: its holders are those who have it.\n        bests AS (\n            SELECT b.*, (SELECT min(pb.time) FROM personal_bests pb\n                         WHERE pb.map_id = b.map_id AND pb.style = b.style AND pb.track = b.track) AS time\n            FROM boards b\n        )\n        INSERT INTO world_record_holders (player_steamid64, map_id, style, track)\n        SELECT pb.player_steamid64, pb.map_id, pb.style, pb.track\n        FROM bests b\n        JOIN personal_bests pb ON pb.map_id = b.map_id AND pb.style = b.style AND pb.track = b.track\n                              AND pb.time = b.time\n        ON CONFLICT DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1e4e08bfbbea80f5c47a62de5c4720d53ffff4ec25d0615eda0c7bf3af7681a4"
+}

@@ -33,8 +33,13 @@ export function StandingsTable({
   completedLabel: string;
 }) {
   const [standings, setStandings] = useState(first.standings);
+  // Rows read so far, counting repeats, so a page of players already shown still moves the next one on.
+  const [offset, setOffset] = useState(first.standings.length);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Set when a page comes back empty: players left the board since the first page, so the total overstates it.
+  const [ended, setEnded] = useState(false);
+  const complete = ended || standings.length >= first.total;
   const byPoints = first.ranking === "points";
   const legacy = first.view === "legacy";
 
@@ -54,15 +59,29 @@ export function StandingsTable({
                   view: "current",
                 }),
             limit: PAGE_SIZE,
-            offset: standings.length,
+            offset,
           },
         },
       })
       .then((result) => result.data)
       .catch(() => undefined);
     setLoading(false);
-    if (loaded) setStandings((shown) => [...shown, ...loaded.standings]);
-    else setFailed(true);
+    if (!loaded) {
+      setFailed(true);
+      return;
+    }
+    if (loaded.standings.length === 0) setEnded(true);
+    setOffset((read) => read + loaded.standings.length);
+    // Standings move while someone reads them, so a player already shown can come again on a later page.
+    setStandings((shown) => {
+      const seen = new Set(shown.map((standing) => standing.player.steamid64));
+      return [
+        ...shown,
+        ...loaded.standings.filter(
+          (standing) => !seen.has(standing.player.steamid64),
+        ),
+      ];
+    });
   }
 
   // The ranked value comes first after the player, the other one after it.
@@ -159,8 +178,8 @@ export function StandingsTable({
       </Table>
       <div className="flex items-center justify-between gap-4">
         <span className="text-text-muted text-sm tabular-nums">
-          {standings.length >= first.total
-            ? `All ${numbers.format(first.total)} players`
+          {complete
+            ? `All ${numbers.format(ended ? standings.length : first.total)} players`
             : `Top ${numbers.format(standings.length)} of ${numbers.format(first.total)} players`}
         </span>
         {failed && (
@@ -168,7 +187,7 @@ export function StandingsTable({
             More couldn&apos;t be loaded. Try again.
           </span>
         )}
-        {standings.length < first.total && (
+        {!complete && (
           <Button size="sm" onClick={() => void showMore()} disabled={loading}>
             {loading ? "Loading…" : "Show more"}
           </Button>

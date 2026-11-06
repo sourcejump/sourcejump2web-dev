@@ -12,7 +12,7 @@ use utoipa::ToSchema;
 use crate::{
     app::AppState,
     error::{ApiError, ErrorBody},
-    players::{PlayerRef, restrictions::Restriction},
+    players::PlayerRef,
 };
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -57,10 +57,6 @@ pub async fn legacy_run_detail(
     let id = i32::try_from(id).map_err(|_| not_found())?;
     let row = sqlx::query!(
         r#"
-        WITH banned AS (
-            SELECT player_steamid64 FROM bans
-            WHERE restrictions & $2 <> 0 AND lifted_at IS NULL AND (ends_at IS NULL OR ends_at > now())
-        )
         SELECT l.id, lm.name AS map, l.player_name, l.time, l.jumps, l.strafes, l.sync, l.finished_at,
                l.server_hostname,
                l.player_steamid64::text AS "steamid64!", coalesce(p.name, lp.name) AS "name!",
@@ -68,17 +64,16 @@ pub async fn legacy_run_detail(
                coalesce(p.country_code, lp.country_code) AS country_code,
                (SELECT min(o.time) FROM legacy_runs o
                 WHERE o.map_id = l.map_id
-                  AND NOT EXISTS (SELECT 1 FROM banned b WHERE b.player_steamid64 = o.player_steamid64)
+                  AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = o.player_steamid64)
                ) AS "record_time!"
         FROM legacy_runs l
         JOIN legacy_maps lm ON lm.id = l.map_id
         JOIN legacy_players lp ON lp.steamid64 = l.player_steamid64
         LEFT JOIN players p ON p.steamid64 = l.player_steamid64
         WHERE l.id = $1
-          AND NOT EXISTS (SELECT 1 FROM banned b WHERE b.player_steamid64 = l.player_steamid64)
+          AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)
         "#,
         id,
-        Restriction::NoRecords.bit()
     )
     .fetch_optional(&state.db)
     .await?

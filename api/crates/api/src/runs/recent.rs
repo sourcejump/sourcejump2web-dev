@@ -195,14 +195,16 @@ async fn page(
     tiers_in_force: bool,
 ) -> Result<Vec<RecentRun>, sqlx::Error> {
     let track = track_key(query);
-    // "Before" a run means earlier on its board in WR history's order: finish time, then ID. Records only
-    // reads the stored `was_record` through its own index (`leaderboards/world_records.rs`). `prior`, the
+    // "Before" a run means earlier on its board in WR history's order: finish time, then ID. Whether a run
+    // was a record is the stored `was_record` (`leaderboards/world_records.rs`), which the records filter reads
+    // through its own index. `prior`, the
     // board's best before the run, and placements are worked out for the page's runs alone, reading the
     // board's earlier runs through the `runs_map` index.
     let rows = sqlx::query!(
         r#"
         WITH listed AS (
-            SELECT r.id, r.map_id, r.style, r.track, r.player_steamid64, r.time, r.finished_at, tier.tier
+            SELECT r.id, r.map_id, r.style, r.track, r.player_steamid64, r.time, r.finished_at, r.was_record,
+                   tier.tier
             FROM runs r
             LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = r.map_id AND track = r.track
                                ORDER BY assigned_at DESC LIMIT 1) tier ON $7
@@ -215,7 +217,7 @@ async fn page(
             ORDER BY r.finished_at DESC, r.id DESC
             LIMIT $8 OFFSET $9
         )
-        SELECT l.id, l.style, l.track, l.time, l.finished_at, l.tier AS "tier?", prior.best AS "best?",
+        SELECT l.id, l.style, l.track, l.time, l.finished_at, l.was_record, l.tier AS "tier?", prior.best AS "best?",
                m.name AS map, place.placement AS "placement?",
                p.steamid64::text AS "steamid64!", p.name, p.avatar_url, p.country_code
         FROM listed l
@@ -259,7 +261,6 @@ async fn page(
     Ok(rows
         .into_iter()
         .map(|row| {
-            let world_record = row.best.is_none_or(|best| row.time < best);
             RecentRun {
                 run_id: row.id,
                 player: PlayerRef {
@@ -275,7 +276,7 @@ async fn page(
                 time: row.time,
                 finished_at: row.finished_at,
                 placement: row.placement,
-                world_record,
+                world_record: row.was_record,
                 // Rounded to the millisecond, as in WR history.
                 gap: row
                     .best
