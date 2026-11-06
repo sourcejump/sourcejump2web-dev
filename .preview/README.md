@@ -22,16 +22,19 @@ change goes live at `https://<your-github-name>-sj.okwhiteli.st`, showing real d
    - Actions → General → Workflow permissions: read-only. Tick "Allow GitHub Actions to create and approve
      pull requests". Fork PR workflows: require approval for first-time contributors.
    - Environments: create `mirror` and `preview-deploy`. Set deployment branches to `main` only on both.
-   - `mirror` secret `MIRROR_DEPLOY_KEY`: private half of a repo deploy key with **write** access. Push
-     upstream's workflow changes to main through this key.
+   - `mirror` secret `MIRROR_DEPLOY_KEY`: private half of a repo deploy key with **write** access. Needed
+     because upstream commits sometimes change workflow files, which GITHUB_TOKEN may not push.
    - `preview-deploy` secrets:
      - `PREVIEW_SSH_KEY`: private half of the server SSH key
-     - `PREVIEW_SSH_TARGET`: e.g. `sjpreview@host`
-     - `PREVIEW_SSH_KNOWN_HOSTS`: output of `ssh-keyscan host`
+     - `PREVIEW_SSH_TARGET`: `sjpreview@149.28.171.130`
+     - `PREVIEW_SSH_KNOWN_HOSTS`: output of `ssh-keyscan 149.28.171.130`
    - Optional variables: `PREVIEW_API_URL` (default `https://beta.sourcejump.net`), `PREVIEW_HOST_SUFFIX`
      (default `-sj.okwhiteli.st`).
    - Create the `preview-ok` label.
-2. **Server:** copy `.preview/server/` over, then run `sudo ./install.sh "<server key's public half>"`. It
-   prints the Cloudflare tunnel and DNS steps left to do by hand.
+2. **Server (AU):**
+   - In Cloudflare, go to SSL/TLS → Origin Server → Create certificate for `*.okwhiteli.st`. Save it on AU
+     as `/etc/ssl/sj-preview/origin.pem` and `origin.key`.
+   - Copy `.preview/server/` to AU, then run `sudo ./install.sh "<public half of the preview key>"`.
+   - Add a Cloudflare DNS record: `*` A → AU's IP, proxied.
 3. Test by hand: Actions → Preview build → Run workflow on `main` with `branch: u/<you>`. Create the branch
    first.

@@ -3,19 +3,20 @@
 #   deploy <name>   site tarball on stdin; (re)starts the container serving <name>-sj.okwhiteli.st
 #   remove <name>   stops it and deletes its files
 # Each preview is a rootless podman container: read-only, resource-limited, no capabilities, published on
-# loopback only. Caddy finds a preview's port in ports.map. The tarball holds contributor code, so it is only
-# ever run inside the container.
+# loopback only, at low CPU priority (AU also runs the game servers). nginx finds a preview's port in ports.map.
+# The tarball holds contributor code, so it is only ever run inside the container.
 set -euo pipefail
 
 ROOT=/srv/sj-preview
 MAP="$ROOT/ports.map"
-# Optional overrides: SJP_API_URL, SJP_IMAGE, SJP_MEMORY, SJP_CPUS, SJP_MAX_MB.
+# Optional overrides: SJP_API_URL, SJP_IMAGE, SJP_MEMORY, SJP_CPUS, SJP_MAX_MB, SJP_MAX_PREVIEWS.
 [ -r /etc/sj-preview.env ] && . /etc/sj-preview.env
 API_URL="${SJP_API_URL:-https://beta.sourcejump.net}"
 # glibc, matching the GitHub runner the site is built on (native modules such as sharp).
 IMAGE="${SJP_IMAGE:-docker.io/library/node:24-bookworm-slim}"
-MEMORY="${SJP_MEMORY:-512m}"
+MEMORY="${SJP_MEMORY:-384m}"
 CPUS="${SJP_CPUS:-1}"
+MAX_PREVIEWS="${SJP_MAX_PREVIEWS:-12}"
 MAX_BYTES=$(( ${SJP_MAX_MB:-300} * 1024 * 1024 ))
 FIRST_PORT=4100
 
@@ -30,8 +31,9 @@ touch "$MAP"
 exec 9> "$ROOT/lock"
 flock 9
 
-port_of() { awk -v n="$1" '$1 == n { print $2 }' "$MAP"; }
-reload_caddy() { sudo -n /usr/bin/systemctl reload caddy; }
+# ports.map lines are nginx map entries: "<name> <port>;".
+port_of() { awk -v n="$1" '$1 == n { sub(";", "", $2); print $2 }' "$MAP"; }
+reload_nginx() { sudo -n /usr/sbin/nginx -t -q && sudo -n /usr/bin/systemctl reload nginx; }
 
 case "$action" in
 deploy)
@@ -47,28 +49,29 @@ deploy)
   # Mount point for the writable cache; the rest of the site is mounted read-only.
   mkdir -p "$new/.next/cache"
 
+  port=$(port_of "$name")
+  if [ -z "$port" ]; then
+    [ "$(grep -c . "$MAP")" -lt "$MAX_PREVIEWS" ] || die "preview limit ($MAX_PREVIEWS) reached"
+    last=$(awk 'BEGIN { m = 0 } { sub(";", "", $2); if ($2 + 0 > m) m = $2 + 0 } END { print m }' "$MAP")
+    port=$(( last >= FIRST_PORT ? last + 1 : FIRST_PORT ))
+    echo "$name $port;" >> "$MAP"
+    new_port=yes
+  fi
+
   podman rm -f "sjp-$name" >/dev/null 2>&1 || true
   rm -rf "$ROOT/sites/$name"
   mv "$new" "$ROOT/sites/$name"
 
-  port=$(port_of "$name")
-  if [ -z "$port" ]; then
-    last=$(awk 'BEGIN { m = 0 } $2 > m { m = $2 } END { print m }' "$MAP")
-    port=$(( last >= FIRST_PORT ? last + 1 : FIRST_PORT ))
-    echo "$name $port" >> "$MAP"
-    new_port=yes
-  fi
-
   podman run -d --name "sjp-$name" --restart=always \
     --read-only --tmpfs /tmp:size=64m --tmpfs /app/.next/cache:size=256m \
-    --memory "$MEMORY" --cpus "$CPUS" --pids-limit 256 \
+    --memory "$MEMORY" --cpus "$CPUS" --cpu-shares 128 --pids-limit 256 \
     --cap-drop ALL --security-opt no-new-privileges --user node \
     -p "127.0.0.1:$port:3000" \
     -v "$ROOT/sites/$name:/app:ro" -w /app \
     -e NODE_ENV=production -e PORT=3000 -e HOSTNAME=0.0.0.0 -e SJ_API_URL="$API_URL" \
     "$IMAGE" node server.js >/dev/null
 
-  [ "${new_port:-}" = yes ] && reload_caddy
+  [ "${new_port:-}" = yes ] && reload_nginx
 
   for _ in $(seq 30); do
     if curl -fsS -o /dev/null "http://127.0.0.1:$port/"; then echo "live: $name on port $port"; exit 0; fi
@@ -82,7 +85,7 @@ remove)
   rm -rf "$ROOT/sites/$name"
   if [ -n "$(port_of "$name")" ]; then
     awk -v n="$name" '$1 != n' "$MAP" > "$MAP.tmp" && cat "$MAP.tmp" > "$MAP" && rm -f "$MAP.tmp"
-    reload_caddy
+    reload_nginx
   fi
   echo "removed: $name"
   ;;
