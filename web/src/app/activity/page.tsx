@@ -15,13 +15,14 @@ export default function ActivityPage({ searchParams }: PageProps<"/activity">) {
     <Page width="medium" className="gap-0">
       <div className="border-border bg-surface overflow-hidden rounded-lg border">
         <DailyTotals kind="runs" heading="Activity" plain />
-        {searchParams.then(({ style, track, tier, show }) => (
+        {searchParams.then(({ style, track, tier, show, page }) => (
           <RecentRuns
             params={{
               style: typeof style === "string" ? style : undefined,
               track: typeof track === "string" ? track : undefined,
               tier: typeof tier === "string" ? tier : undefined,
               show: typeof show === "string" ? show : undefined,
+              page: typeof page === "string" ? page : undefined,
             }}
           />
         ))}

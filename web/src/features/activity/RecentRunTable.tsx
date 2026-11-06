@@ -1,8 +1,16 @@
 "use client";
-// The latest runs as a table: who, which board, the time, and where it placed when it finished. Previous and
-// Next step through older runs a page at a time.
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useRef, useState, type CSSProperties } from "react";
+// The latest runs as a table: who, which board, the time, and where it placed when it finished. Runs come a
+// hundred at a time and are paged here, so turning a page is instant; the next hundred load in the background.
+import { useSearchParams } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type MouseEvent,
+} from "react";
 import { api, type Schemas } from "@/api/client";
 import { ReplayLink } from "@/features/replays/ReplayLink";
 import { RunLink } from "@/features/runs/RunLink";
@@ -14,11 +22,11 @@ import {
 } from "@/features/runs/time";
 import { Avatar } from "@/ui/Avatar";
 import { Badge } from "@/ui/Badge";
-import { Button } from "@/ui/Button";
 import { classNames } from "@/ui/classNames";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
 import { Medal } from "@/ui/Medal";
+import { Pager } from "@/ui/Pager";
 import {
   Table,
   TableBody,
@@ -29,7 +37,7 @@ import {
 } from "@/ui/Table";
 import { TierBadge } from "@/ui/TierBadge";
 
-type Page = Schemas["RecentRuns"];
+type Runs = Schemas["RecentRuns"];
 type Query = {
   style?: string;
   track?: "main" | "bonus";
@@ -41,55 +49,124 @@ type Query = {
 export function RecentRunTable({
   first,
   query,
+  address,
+  page: firstPage,
+  pageSize,
   styleNames,
   showStyle,
 }: {
-  first: Page;
-  /** The filters `first` was loaded with, for loading the pages after it. */
+  /** The newest runs, enough to reach `page`. */
+  first: Runs;
+  /** The filters `first` was loaded with, for loading the runs after it. */
   query: Query;
+  /** The page's address with these filters, which the page number is added to. */
+  address: string;
+  page: number;
+  pageSize: number;
   styleNames: Record<string, string>;
   /** With every style shown, each run names its own. */
   showStyle: boolean;
 }) {
-  // Pages already seen stay loaded, so going back is instant.
-  const [pages, setPages] = useState([first]);
-  const [index, setIndex] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [runs, setRuns] = useState(first.runs);
+  const [cursor, setCursor] = useState(first.next_cursor ?? null);
   const [failed, setFailed] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  // The latest runs and cursor for the loops below, which outlive the render that started them.
+  const latest = useRef({
+    runs: first.runs,
+    cursor: first.next_cursor ?? null,
+  });
+  const inFlight = useRef<Promise<boolean> | null>(null);
   const board = useRef<HTMLDivElement>(null);
   const rows = useRef<HTMLDivElement>(null);
   // Held at the first page's height, so a short last page doesn't pull the page controls up.
   const [minHeight, setMinHeight] = useState<number>();
   const tierCount = first.tier_count;
-  const page = pages[index] ?? first;
-  const runs = page.runs;
 
-  function show(next: number) {
+  // The address holds the page, so a reload, a shared link and the back button all land on it.
+  const asked = Number(useSearchParams().get("page") ?? firstPage);
+  const pageCount = Math.max(1, Math.ceil(runs.length / pageSize));
+  const page = Math.min(Math.max(1, Math.floor(asked) || 1), pageCount);
+  const shown = runs.slice((page - 1) * pageSize, page * pageSize);
+
+  const pageHref = useCallback(
+    (p: number) =>
+      p > 1
+        ? `${address}${address.includes("?") ? "&" : "?"}page=${p}`
+        : address,
+    [address],
+  );
+
+  /** Loads the next hundred runs, once however many ask; false when there are none or they failed. */
+  const loadMore = useCallback((): Promise<boolean> => {
+    if (inFlight.current) return inFlight.current;
+    const after = latest.current.cursor;
+    if (!after) return Promise.resolve(false);
+    inFlight.current = api
+      .GET("/v1/runs", { params: { query: { ...query, cursor: after } } })
+      .then((result) => result.data)
+      .catch(() => undefined)
+      .then((next) => {
+        inFlight.current = null;
+        setFailed(!next);
+        if (!next) return false;
+        latest.current = {
+          runs: [...latest.current.runs, ...next.runs],
+          cursor: next.next_cursor ?? null,
+        };
+        setRuns(latest.current.runs);
+        setCursor(latest.current.cursor);
+        return true;
+      });
+    return inFlight.current;
+  }, [query]);
+
+  // Keeps a few pages loaded past the one shown, so Next never waits.
+  useEffect(() => {
+    if (cursor && !failed && runs.length < (page + 4) * pageSize)
+      void loadMore();
+  }, [cursor, failed, runs.length, page, pageSize, loadMore]);
+
+  async function go(target: number) {
+    // A typed page past what's loaded walks forward to it, or to the last page if the runs end first.
+    while (latest.current.runs.length < target * pageSize) {
+      setWaiting(true);
+      if (!(await loadMore())) break;
+    }
+    setWaiting(false);
+    const count = Math.max(1, Math.ceil(latest.current.runs.length / pageSize));
     setMinHeight((held) => held ?? rows.current?.offsetHeight);
-    setIndex(next);
+    window.history.pushState(null, "", pageHref(Math.min(target, count)));
     // Keep the table's top in view when a page is turned from the bottom of a long page.
     const top = board.current?.getBoundingClientRect().top ?? 0;
     if (top < 0) board.current?.scrollIntoView({ block: "start" });
   }
 
-  async function showNext() {
-    if (pages[index + 1]) return show(index + 1);
-    if (!page.next_cursor) return;
-    setLoading(true);
-    setFailed(false);
-    const loaded = await api
-      .GET("/v1/runs", {
-        params: { query: { ...query, cursor: page.next_cursor } },
-      })
-      .then((result) => result.data)
-      .catch(() => undefined);
-    setLoading(false);
-    if (!loaded) {
-      setFailed(true);
+  // The pager's links and box work without this; here they turn the page without asking the server.
+  function onPagerClick(event: MouseEvent<HTMLDivElement>) {
+    const link = (event.target as HTMLElement).closest("a");
+    if (
+      !link ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
       return;
-    }
-    setPages((seen) => [...seen.slice(0, index + 1), loaded]);
-    show(index + 1);
+    // Stopped here too, as Next's Link and Form navigate even when the event is already prevented.
+    event.preventDefault();
+    event.stopPropagation();
+    void go(Number(new URL(link.href).searchParams.get("page") ?? 1));
+  }
+
+  function onPagerSubmit(event: FormEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    const form = event.target as HTMLFormElement;
+    const typed = Math.floor(Number(new FormData(form).get("page")));
+    form.reset();
+    if (typed >= 1) void go(typed);
   }
 
   if (runs.length === 0) {
@@ -104,7 +181,15 @@ export function RecentRunTable({
 
   return (
     <div ref={board} className="flex scroll-mt-20 flex-col">
-      <div ref={rows} style={{ minHeight }}>
+      <div
+        ref={rows}
+        style={{ minHeight }}
+        aria-busy={waiting}
+        className={classNames(
+          "transition-opacity duration-(--duration-fast)",
+          waiting && "opacity-60",
+        )}
+      >
         <Table flush>
           <TableHead>
             <tr>
@@ -123,8 +208,8 @@ export function RecentRunTable({
             </tr>
           </TableHead>
           {/* Keyed by page, so a turned page's rows fade in like the first. */}
-          <TableBody key={index}>
-            {runs.map((run, row) => (
+          <TableBody key={page}>
+            {shown.map((run, row) => (
               <TableRow
                 key={run.run_id}
                 className="motion-enter"
@@ -226,42 +311,24 @@ export function RecentRunTable({
           </TableBody>
         </Table>
       </div>
-      {(index > 0 || page.next_cursor) && (
-        <nav
-          aria-label="Pages"
-          className="border-border flex items-center gap-3 border-t py-2 pr-1.5 pl-4"
+      {(pageCount > 1 || cursor) && (
+        <div
+          onClickCapture={onPagerClick}
+          onSubmitCapture={onPagerSubmit}
+          className="border-border border-t py-2 pr-2 pl-4"
         >
-          <span className="text-text-subtle text-sm tabular-nums">
-            Page {index + 1}
-          </span>
-          {failed && (
-            <span role="alert" className="text-danger text-sm">
-              Couldn&apos;t load the next page. Try again.
-            </span>
-          )}
-          <span className="ml-auto flex gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => show(index - 1)}
-              disabled={index === 0}
-              className="pl-2"
-            >
-              <ChevronLeft aria-hidden />
-              Previous
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void showNext()}
-              disabled={loading || !page.next_cursor}
-              className="pr-2"
-            >
-              Next
-              <ChevronRight aria-hidden />
-            </Button>
-          </span>
-        </nav>
+          <Pager
+            page={page}
+            pageCount={pageCount}
+            more={cursor != null}
+            href={pageHref}
+          />
+        </div>
+      )}
+      {failed && (
+        <p role="alert" className="text-danger px-4 pb-3 text-sm">
+          Older runs couldn&apos;t be loaded. Try again in a moment.
+        </p>
       )}
     </div>
   );

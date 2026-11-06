@@ -7,6 +7,7 @@ import {
   type ToggleEvent,
   useId,
   useRef,
+  useState,
 } from "react";
 import { Link } from "./Link";
 import { anchoredStyle, anchorStyle } from "./anchor";
@@ -35,6 +36,8 @@ export function Menu({
 }) {
   const id = useId();
   const menu = useRef<HTMLDivElement>(null);
+  // Mirrored onto the trigger, so its open look can follow the popover.
+  const [open, setOpen] = useState(false);
   const items = () =>
     Array.from(
       menu.current?.querySelectorAll<HTMLElement>(
@@ -43,6 +46,7 @@ export function Menu({
     );
 
   function onToggle(event: ToggleEvent<HTMLDivElement>) {
+    setOpen(event.newState === "open");
     if (event.newState === "open") items()[0]?.focus();
   }
 
@@ -67,6 +71,7 @@ export function Menu({
         type="button"
         popoverTarget={id}
         aria-haspopup="menu"
+        aria-expanded={open}
         aria-label={label}
         style={anchorStyle(id)}
         className={triggerClassName}

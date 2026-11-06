@@ -45,17 +45,20 @@ export function ChoiceMenu({
           <span className="ml-auto sm:ml-0">{chosen?.label ?? value}</span>
           <ChevronDown
             aria-hidden
-            className="text-text-subtle group-hover:text-text-muted group-aria-expanded:text-text-muted size-4 transition-colors duration-(--duration-fast)"
+            className="text-text-subtle size-4 transition-transform duration-(--duration-fast) group-aria-expanded:rotate-180"
           />
         </>
       }
       // On a phone each menu takes a full row, label on the left and value on the right, so menus of different
       // widths line up as one column instead of wrapping unevenly.
-      triggerClassName="group bg-text/4 hover:bg-text/8 aria-expanded:bg-text/8 flex h-8 w-full items-center gap-1.5 rounded-md px-2.5 text-sm whitespace-nowrap transition-colors duration-(--duration-fast) sm:inline-flex sm:w-auto"
+      // Darker than the surface it sits on, like a well, so it reads as a control without competing with the data.
+      triggerClassName="group border-border bg-bg hover:border-border-strong hover:bg-surface-raised aria-expanded:border-border-strong aria-expanded:bg-surface-raised flex h-9 w-full items-center gap-2 rounded-md border pr-2.5 pl-3 text-sm font-medium whitespace-nowrap transition-colors duration-(--duration-fast) sm:inline-flex sm:w-auto"
     >
       {options.map((option) => {
         const className = classNames(
-          (option.quiet || option.disabled) && "text-text-subtle",
+          option.quiet || option.disabled
+            ? "text-text-subtle"
+            : "text-text-muted hover:text-text aria-checked:text-accent",
           option.disabled && "cursor-not-allowed",
         );
         const content = (
