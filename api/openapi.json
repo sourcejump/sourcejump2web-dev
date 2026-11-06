@@ -2040,6 +2040,19 @@
             }
           },
           {
+            "name": "offset",
+            "in": "query",
+            "description": "Runs to skip, for going straight to a page. Default 0. Counted after `cursor` when both are given.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "description": "Continue after this point: a `next_cursor` from an earlier page with the same filters.",
@@ -2063,7 +2076,7 @@
             }
           },
           "422": {
-            "description": "Not a valid tier, limit or cursor",
+            "description": "Not a valid tier, limit, offset or cursor",
             "content": {
               "application/json": {
                 "schema": {
@@ -8858,7 +8871,8 @@
       "RecentRuns": {
         "type": "object",
         "required": [
-          "runs"
+          "runs",
+          "total"
         ],
         "properties": {
           "next_cursor": {
@@ -8882,6 +8896,11 @@
             ],
             "format": "int32",
             "description": "Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many runs match the filters, across all pages."
           }
         }
       },

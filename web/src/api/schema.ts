@@ -2657,6 +2657,11 @@ export interface components {
              * @description Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier.
              */
             tier_count?: number | null;
+            /**
+             * Format: int64
+             * @description How many runs match the filters, across all pages.
+             */
+            total: number;
         };
         Record: {
             /** Format: date-time */
@@ -4688,6 +4693,8 @@ export interface operations {
                 records?: boolean | null;
                 /** @description 1 to 100. Default 50. */
                 limit?: number | null;
+                /** @description Runs to skip, for going straight to a page. Default 0. Counted after `cursor` when both are given. */
+                offset?: number | null;
                 /** @description Continue after this point: a `next_cursor` from an earlier page with the same filters. */
                 cursor?: string | null;
             };
@@ -4705,7 +4712,7 @@ export interface operations {
                     "application/json": components["schemas"]["RecentRuns"];
                 };
             };
-            /** @description Not a valid tier, limit or cursor */
+            /** @description Not a valid tier, limit, offset or cursor */
             422: {
                 headers: {
                     [name: string]: unknown;

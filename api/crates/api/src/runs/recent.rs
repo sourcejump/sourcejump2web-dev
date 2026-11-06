@@ -33,6 +33,8 @@ pub struct RecentRunsQuery {
     records: Option<bool>,
     /// 1 to 100. Default 50.
     limit: Option<i64>,
+    /// Runs to skip, for going straight to a page. Default 0. Counted after `cursor` when both are given.
+    offset: Option<i64>,
     /// Continue after this point: a `next_cursor` from an earlier page with the same filters.
     cursor: Option<String>,
 }
@@ -52,6 +54,8 @@ pub struct RecentRuns {
     pub runs: Vec<RecentRun>,
     /// Pass as `cursor` for the runs before these. None at the end.
     pub next_cursor: Option<String>,
+    /// How many runs match the filters, across all pages.
+    pub total: i64,
     /// Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier.
     pub tier_count: Option<i16>,
 }
@@ -88,7 +92,7 @@ pub struct RecentRun {
     params(RecentRunsQuery),
     responses(
         (status = OK, body = RecentRuns),
-        (status = UNPROCESSABLE_ENTITY, description = "Not a valid tier, limit or cursor", body = ErrorBody),
+        (status = UNPROCESSABLE_ENTITY, description = "Not a valid tier, limit, offset or cursor", body = ErrorBody),
     ),
 )]
 pub async fn recent_runs(
@@ -96,7 +100,8 @@ pub async fn recent_runs(
     Query(query): Query<RecentRunsQuery>,
 ) -> Result<Json<RecentRuns>, ApiError> {
     let limit = query.limit.unwrap_or(DEFAULT_LIMIT);
-    check_page(limit, 0, MAX_LIMIT).map_err(ApiError::Invalid)?;
+    let offset = query.offset.unwrap_or(0);
+    check_page(limit, offset, MAX_LIMIT).map_err(ApiError::Invalid)?;
     if query.min_tier.is_some_and(|tier| tier < 1) {
         return Err(ApiError::Invalid("min_tier must be 1 or more".to_owned()));
     }
@@ -110,11 +115,16 @@ pub async fn recent_runs(
         return Ok(Json(RecentRuns {
             runs: Vec::new(),
             next_cursor: None,
+            total: 0,
             tier_count,
         }));
     }
 
-    let mut runs = page(&state.db, &query, after, limit + 1, tier_count.is_some()).await?;
+    let tiers_in_force = tier_count.is_some();
+    let (mut runs, total) = tokio::try_join!(
+        page(&state.db, &query, after, limit + 1, offset, tiers_in_force),
+        count(&state.db, &query, tiers_in_force),
+    )?;
     let limit = usize::try_from(limit).expect("checked to be positive");
     let next_cursor = (runs.len() > limit).then(|| {
         runs.truncate(limit);
@@ -123,6 +133,7 @@ pub async fn recent_runs(
     Ok(Json(RecentRuns {
         runs,
         next_cursor: next_cursor.flatten(),
+        total,
         tier_count,
     }))
 }
@@ -140,17 +151,50 @@ async fn position(db: &PgPool, cursor: &str) -> Result<Position, ApiError> {
     Ok((finished_at, run_id))
 }
 
+fn track_key(query: &RecentRunsQuery) -> Option<&'static str> {
+    query.track.map(|track| match track {
+        TrackKind::Main => "main",
+        TrackKind::Bonus => "bonus",
+    })
+}
+
+/// Every run the filters match, ignoring `cursor`, `offset` and `limit`. The same conditions as `page`'s.
+async fn count(
+    db: &PgPool,
+    query: &RecentRunsQuery,
+    tiers_in_force: bool,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"
+        SELECT count(*) AS "total!"
+        FROM runs r
+        LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = r.map_id AND track = r.track
+                           ORDER BY assigned_at DESC LIMIT 1) tier ON $5
+        WHERE r.invalidated_at IS NULL
+          AND (NOT $4 OR r.was_record)
+          AND ($1::text IS NULL OR r.style = $1)
+          AND ($2::text IS NULL OR ($2 = 'main') = (r.track = 0))
+          AND ($3::smallint IS NULL OR tier.tier >= $3)
+        "#,
+        query.style,
+        track_key(query),
+        query.min_tier,
+        query.records.unwrap_or(false),
+        tiers_in_force,
+    )
+    .fetch_one(db)
+    .await
+}
+
 async fn page(
     db: &PgPool,
     query: &RecentRunsQuery,
     after: Option<Position>,
     limit: i64,
+    offset: i64,
     tiers_in_force: bool,
 ) -> Result<Vec<RecentRun>, sqlx::Error> {
-    let track = query.track.map(|track| match track {
-        TrackKind::Main => "main",
-        TrackKind::Bonus => "bonus",
-    });
+    let track = track_key(query);
     // "Before" a run means earlier on its board in WR history's order: finish time, then ID. Records only
     // reads the stored `was_record` through its own index (`leaderboards/world_records.rs`). `prior`, the
     // board's best before the run, and placements are worked out for the page's runs alone, reading the
@@ -169,7 +213,7 @@ async fn page(
               AND ($3::smallint IS NULL OR tier.tier >= $3)
               AND ($5::timestamptz IS NULL OR (r.finished_at, r.id) < ($5, $6::bigint))
             ORDER BY r.finished_at DESC, r.id DESC
-            LIMIT $8
+            LIMIT $8 OFFSET $9
         )
         SELECT l.id, l.style, l.track, l.time, l.finished_at, l.tier AS "tier?", prior.best AS "best?",
                m.name AS map, place.placement AS "placement?",
@@ -206,7 +250,8 @@ async fn page(
         after.map(|(finished_at, _)| finished_at),
         after.map(|(_, run_id)| run_id),
         tiers_in_force,
-        limit
+        limit,
+        offset
     )
     .fetch_all(db)
     .await?;
@@ -360,6 +405,29 @@ mod tests {
         assert_eq!(test_client::get(&db, "/v1/runs?cursor=x").await.status, 422);
         assert_eq!(test_client::get(&db, "/v1/runs?limit=0").await.status, 422);
 
+        // An offset goes straight to a page, and the total counts the whole filtered list, not the page.
+        let third = list(&db, "?limit=2&offset=2").await;
+        assert_eq!(
+            third,
+            [
+                row("ricochet", "bhop_badges", 0, 28.0, Some(1), true),
+                row("ricochet", "bhop_badges", 0, 33.0, Some(2), false),
+            ]
+        );
+        let last: RecentRuns = test_client::get(&db, "/v1/runs?limit=2&offset=4")
+            .await
+            .json();
+        assert_eq!((last.runs.len(), last.total), (1, 5));
+        assert_eq!(last.next_cursor, None);
+        let main: RecentRuns = test_client::get(&db, "/v1/runs?track=main&limit=1")
+            .await
+            .json();
+        assert_eq!(main.total, 4);
+        assert_eq!(
+            test_client::get(&db, "/v1/runs?offset=-1").await.status,
+            422
+        );
+
         // An invalidated record leaves the list, and the record it had beaten is the board's best again.
         let run_id: i64 = sqlx::query_scalar("SELECT id FROM runs WHERE server_run_id = 'c'")
             .fetch_one(&db)
@@ -387,7 +455,8 @@ mod tests {
         ] {
             test_client::post(&db, "/v1/runs", Some(&key), &body).await;
         }
-        assert_eq!(list(&db, "?min_tier=1").await.len(), 0);
+        let none: RecentRuns = test_client::get(&db, "/v1/runs?min_tier=1").await.json();
+        assert_eq!((none.runs.len(), none.total), (0, 0));
         assert_eq!(
             test_client::get(&db, "/v1/runs?min_tier=0").await.status,
             422
