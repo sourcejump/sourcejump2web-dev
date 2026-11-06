@@ -2,9 +2,10 @@
 // Players online across listed servers over the last day, week, month or year. Hovering, tapping or arrow
 // keys read a point: players and servers at that time. Every range arrives with the page, so switching is
 // instant.
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { Schemas } from "@/api/client";
-import { Card, Label } from "@/ui/Card";
+import { Card } from "@/ui/Card";
+import { classNames } from "@/ui/classNames";
 import { LineChart } from "@/ui/LineChart";
 import { Segmented } from "@/ui/Segmented";
 
@@ -43,17 +44,54 @@ export function ServerActivity({
   const [active, setActive] = useState<number | null>(null);
   const current = activity[range];
   const points = current?.points ?? [];
-  const shown = points[active ?? points.length - 1];
-  if (!current || !shown || points.length < 2) return null;
-  // A day's buckets are short enough to read as "now"; longer ones are averages over hours or days.
-  const averaged = range !== "day";
+  // The longer ranges' buckets are averages, so "now" always comes from the day's.
+  const now = activity.day?.points.at(-1) ?? points.at(-1);
+  const hovered = active === null ? undefined : points[active];
+  if (!current || !now || points.length < 2) return null;
+  const peak = Math.max(...points.map((point) => point.players));
 
   return (
-    <Card className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Label>Players online</Label>
+    <Card className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 max-sm:justify-center">
+        <p
+          aria-live="polite"
+          className="text-text-muted flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums max-sm:justify-center"
+        >
+          {hovered ? (
+            <>
+              <Stat value={hovered.players}>
+                {hovered.players === 1 ? "player" : "players"}
+                {range !== "day" && " on average"}
+              </Stat>
+              <Dot />
+              <Stat value={hovered.servers}>
+                {hovered.servers === 1 ? "server" : "servers"}
+              </Stat>
+              <Dot />
+              <span className="text-text-subtle">
+                {when(hovered.at, current.bucket_minutes)}
+              </span>
+            </>
+          ) : (
+            <>
+              <Stat
+                value={now.players}
+                tone={now.players > 0 ? "text-success" : "text-danger"}
+              >
+                online now
+              </Stat>
+              <Dot />
+              <Stat value={now.servers}>
+                {now.servers === 1 ? "server" : "servers"}
+              </Stat>
+              <Dot />
+              <Stat value={peak}>peak in {rangeLabel(range)}</Stat>
+            </>
+          )}
+        </p>
         <Segmented
           label="Range"
+          fillOnPhones
           options={ranges}
           value={range}
           onChange={(value) => {
@@ -63,44 +101,51 @@ export function ServerActivity({
         />
       </div>
 
-      <p
-        aria-live="polite"
-        className="flex flex-wrap items-baseline gap-x-4 gap-y-1"
-      >
-        <span>
-          <span className="text-2xl font-bold tabular-nums">
-            {shown.players}
-          </span>{" "}
-          <span className="text-text-muted text-sm">
-            {shown.players === 1 ? "player" : "players"}
-            {averaged && " on average"}
-          </span>
-        </span>
-        <span className="text-text-muted text-sm tabular-nums">
-          on {shown.servers === 1 ? "1 server" : `${shown.servers} servers`}
-        </span>
-        <span className="text-text-subtle text-sm tabular-nums">
-          {active === null ? "Latest: " : ""}
-          {when(shown.at, current.bucket_minutes)}
-        </span>
-      </p>
-
       <div className="flex flex-col gap-1">
         <LineChart
-          label={`Players online over the last ${ranges.find((r) => r.value === range)?.label}. Use the arrow keys to read each point.`}
+          size="sm"
+          label={`Players online over the last ${rangeLabel(range)}. Use the arrow keys to read each point.`}
           points={points.map((p) => ({ x: Date.parse(p.at), y: p.players }))}
           active={active}
           onActive={setActive}
           formatValue={(value) => String(Math.round(value))}
         />
         {/* Indented by the value labels' width, so the dates sit under the plot's ends. */}
-        <div className="text-text-subtle flex justify-between pl-10 text-xs tabular-nums">
+        <div className="text-text-subtle flex justify-between pl-10 text-xs tabular-nums max-sm:pl-0">
           <span>{edge(points[0]?.at, range)}</span>
           <span>{edge(points.at(-1)?.at, range)}</span>
         </div>
       </div>
     </Card>
   );
+}
+
+function Stat({
+  value,
+  tone = "text-text",
+  children,
+}: {
+  value: number;
+  tone?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span>
+      <span className={classNames("font-bold", tone)}>{value}</span> {children}
+    </span>
+  );
+}
+
+function Dot() {
+  return (
+    <span aria-hidden className="text-text-subtle">
+      ·
+    </span>
+  );
+}
+
+function rangeLabel(range: Range): string {
+  return ranges.find((r) => r.value === range)?.label ?? "";
 }
 
 /** The bucket a point covers: a time span within a day, or the whole day. */

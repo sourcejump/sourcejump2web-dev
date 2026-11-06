@@ -26,7 +26,7 @@ export function StaffServerRow({
 
   if (!server.server || !server.report) {
     return (
-      <ServerRowFrame>
+      <ServerRowFrame className="flex h-full flex-wrap items-center gap-4 p-3">
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="font-bold tabular-nums">{server.address}</span>
           <span className="text-text-muted text-sm">

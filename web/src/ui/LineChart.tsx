@@ -3,6 +3,7 @@
 // scale, e.g. world records among runs. Hovering, tapping or arrow keys pick a point and report it through
 // `onActive`; the parent shows the values, so no tooltip covers the line.
 import { type KeyboardEvent, type PointerEvent } from "react";
+import { classNames } from "./classNames";
 
 export interface LinePoint {
   /** Milliseconds since the epoch. */
@@ -25,6 +26,7 @@ export function LineChart({
   onActive,
   formatValue,
   label,
+  size = "md",
 }: {
   /** Oldest first, evenly spaced. */
   points: LinePoint[];
@@ -33,6 +35,8 @@ export function LineChart({
   formatValue: (value: number) => string;
   /** Read out for the chart, since it's a picture. */
   label: string;
+  /** `sm` is shorter, and on a phone shows only the top value so the line spans the card. */
+  size?: "sm" | "md";
 }) {
   if (points.length < 2) return null;
   const top = niceMax(Math.max(...points.map((point) => point.y)));
@@ -76,10 +80,15 @@ export function LineChart({
 
   // Vertical padding leaves room for the top and bottom value labels, which center on their gridlines.
   return (
-    <div className="flex h-40 gap-2 py-2">
+    <div
+      className={classNames("flex gap-2 py-2", size === "sm" ? "h-28" : "h-40")}
+    >
       <div
         aria-hidden
-        className="text-text-subtle relative w-8 shrink-0 text-right text-xs tabular-nums"
+        className={classNames(
+          "text-text-subtle relative w-8 shrink-0 text-right text-xs tabular-nums",
+          size === "sm" && "max-sm:hidden",
+        )}
       >
         {ticks.map((tick) => (
           <span
@@ -103,6 +112,14 @@ export function LineChart({
         onBlur={() => onActive(null)}
         onKeyDown={onKeyDown}
       >
+        {size === "sm" && (
+          <span
+            aria-hidden
+            className="text-text-subtle pointer-events-none absolute top-0 left-0 -translate-y-full text-xs tabular-nums sm:hidden"
+          >
+            {formatValue(top)}
+          </span>
+        )}
         <svg
           viewBox={`0 0 ${W} ${H}`}
           preserveAspectRatio="none"

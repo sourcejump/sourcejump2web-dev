@@ -1,6 +1,5 @@
 // Maps page: every map with a finished run, searchable, with its world record in a chosen style.
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { MapList } from "@/features/maps/MapList";
 import { Page } from "@/ui/Page";
 
@@ -13,11 +12,9 @@ export default function MapsPage({ searchParams }: PageProps<"/maps">) {
   return (
     <Page className="gap-6">
       <h1 className="text-3xl font-bold">Maps</h1>
-      <Suspense>
-        {searchParams.then((params) => (
-          <MapList params={firstValues(params)} />
-        ))}
-      </Suspense>
+      {searchParams.then((params) => (
+        <MapList params={firstValues(params)} />
+      ))}
     </Page>
   );
 }

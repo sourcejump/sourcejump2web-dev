@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
     // That proxying buffers request bodies, cut off at 10 MB by default; a packed map can be up to the API's
     // 256 MB (`staff/map_viewer_file.rs`).
     proxyClientMaxBodySize: "256mb",
+    // Pages block on their data by design (`instant = false` in the root layout), so don't warn about it.
+    instantInsights: { validationLevel: "manual-warning" },
   },
   turbopack: {
     rules: {

@@ -1,7 +1,6 @@
 // One leaderboard in full: /leaderboards/points or /leaderboards/completed, with the overview's choices.
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 import {
   LeaderboardList,
   listTitle,
@@ -31,23 +30,21 @@ export default function LeaderboardListPage({
 }: PageProps<"/leaderboards/[ranking]">) {
   return (
     <Page className="gap-6">
-      <Suspense>
-        {Promise.all([params, searchParams]).then(
-          ([{ ranking }, { style, track, view }]) => {
-            if (!rankings.includes(ranking)) notFound();
-            return (
-              <LeaderboardList
-                ranking={ranking as Ranking}
-                params={{
-                  style: typeof style === "string" ? style : undefined,
-                  track: typeof track === "string" ? track : undefined,
-                  view: typeof view === "string" ? view : undefined,
-                }}
-              />
-            );
-          },
-        )}
-      </Suspense>
+      {Promise.all([params, searchParams]).then(
+        ([{ ranking }, { style, track, view }]) => {
+          if (!rankings.includes(ranking)) notFound();
+          return (
+            <LeaderboardList
+              ranking={ranking as Ranking}
+              params={{
+                style: typeof style === "string" ? style : undefined,
+                track: typeof track === "string" ? track : undefined,
+                view: typeof view === "string" ? view : undefined,
+              }}
+            />
+          );
+        },
+      )}
     </Page>
   );
 }

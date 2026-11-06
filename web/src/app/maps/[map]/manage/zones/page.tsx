@@ -1,7 +1,6 @@
 // The zone editor for a map, under its header, for staff with manage_zones. Kept out of search engines, as the
 // staff area is.
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { ZoneEditorView } from "@/features/staff/maps/ZoneEditorView";
 import { PageView } from "@/ui/Page";
 
@@ -19,11 +18,9 @@ export default function ZoneEditorPage({
 }: PageProps<"/maps/[map]/manage/zones">) {
   return (
     <PageView>
-      <Suspense>
-        {params.then(({ map }) => (
-          <ZoneEditorView name={decodeURIComponent(map)} />
-        ))}
-      </Suspense>
+      {params.then(({ map }) => (
+        <ZoneEditorView name={decodeURIComponent(map)} />
+      ))}
     </PageView>
   );
 }

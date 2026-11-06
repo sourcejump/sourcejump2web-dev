@@ -8,7 +8,7 @@ export function ServerAddress({ address }: { address: string }) {
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(`connect ${address}`);
+      await navigator.clipboard.writeText(address);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -20,14 +20,17 @@ export function ServerAddress({ address }: { address: string }) {
     <button
       type="button"
       onClick={copy}
-      aria-label={`Copy "connect ${address}"`}
-      className="text-text-muted hover:text-text inline-flex items-center gap-1.5 text-sm tabular-nums transition-colors duration-(--duration-fast)"
+      aria-label={`Copy ${address}`}
+      className="text-text-muted hover:text-text inline-flex items-center gap-2.5 text-sm tabular-nums transition-colors duration-(--duration-fast)"
     >
       {address}
       {copied ? (
-        <Check aria-hidden className="text-success size-3.5" />
+        <Check
+          aria-hidden
+          className="text-success mt-0.75 size-3.25 self-start"
+        />
       ) : (
-        <Copy aria-hidden className="size-3.5" />
+        <Copy aria-hidden className="mt-0.75 size-3.25 self-start" />
       )}
     </button>
   );

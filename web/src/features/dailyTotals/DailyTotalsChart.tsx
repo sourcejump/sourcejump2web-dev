@@ -2,9 +2,9 @@
 // A chart of the site's daily totals over a month, a year or all time: players with a recorded time on the
 // Players page, runs and world records per day on the Activity page. Hovering, tapping or arrow keys read a
 // point. Every range arrives with the page, so switching is instant.
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { Schemas } from "@/api/client";
-import { Card, Label } from "@/ui/Card";
+import { Card } from "@/ui/Card";
 import { LineChart } from "@/ui/LineChart";
 import { Segmented } from "@/ui/Segmented";
 
@@ -78,13 +78,38 @@ export function DailyTotalsChart({
   const rangeLabel = ranges.find((r) => r.value === range)?.label ?? "";
 
   return (
-    <Card className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Label>
-          {data.kind === "players" ? "Players with a recorded time" : "Runs"}
-        </Label>
+    <Card className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 max-sm:justify-center">
+        {shown && (
+          <p
+            aria-live="polite"
+            className="text-text-muted flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums max-sm:justify-center"
+          >
+            {data.kind === "players" ? (
+              <Stat value={shown.y}>
+                {shown.y === 1 ? "player" : "players"} with a recorded time
+              </Stat>
+            ) : (
+              <>
+                {/* Each number in its line's color, so the line reads as the legend. */}
+                <Stat value={shown.y} tone="text-accent">
+                  {shown.y === 1 ? "run" : "runs"}
+                </Stat>
+                <Dot />
+                <Stat value={shown.y2 ?? 0} tone="text-gold">
+                  {shown.y2 === 1 ? "world record" : "world records"}
+                </Stat>
+              </>
+            )}
+            <Dot className="max-sm:hidden" />
+            <span className="text-text-subtle max-sm:w-full max-sm:text-center">
+              {when(shown.day, bucketDays)}
+            </span>
+          </p>
+        )}
         <Segmented
           label="Range"
+          fillOnPhones
           options={ranges}
           value={range}
           onChange={(value) => {
@@ -94,32 +119,8 @@ export function DailyTotalsChart({
         />
       </div>
 
-      {shown && (
-        <p
-          aria-live="polite"
-          className="flex flex-wrap items-baseline gap-x-4 gap-y-1"
-        >
-          {data.kind === "players" ? (
-            <Amount value={shown.y} unit="player" />
-          ) : (
-            <>
-              <Amount value={shown.y} unit="run" swatch="bg-accent" />
-              <Amount
-                value={shown.y2 ?? 0}
-                unit="world record"
-                swatch="bg-gold"
-              />
-            </>
-          )}
-          <span className="text-text-subtle text-sm tabular-nums">
-            {active === null ? "Latest: " : ""}
-            {when(shown.day, bucketDays)}
-          </span>
-        </p>
-      )}
-
       {points.length < 2 ? (
-        <p className="text-text-subtle flex h-40 items-center justify-center text-sm">
+        <p className="text-text-subtle flex h-28 items-center justify-center text-sm">
           {current
             ? "Not enough days yet to draw a chart."
             : "This range couldn't be loaded."}
@@ -127,6 +128,7 @@ export function DailyTotalsChart({
       ) : (
         <div className="flex flex-col gap-1">
           <LineChart
+            size="sm"
             label={
               data.kind === "players"
                 ? `Players with a recorded time, ${rangeLabel.toLowerCase()}. Use the arrow keys to read each point.`
@@ -142,7 +144,7 @@ export function DailyTotalsChart({
             formatValue={(value) => axis.format(Math.round(value))}
           />
           {/* Indented by the value labels' width, so the dates sit under the plot's ends. */}
-          <div className="text-text-subtle flex justify-between pl-10 text-xs tabular-nums">
+          <div className="text-text-subtle flex justify-between pl-10 text-xs tabular-nums max-sm:pl-0">
             <span>{date.format(new Date(points[0]?.day ?? 0))}</span>
             <span>{date.format(new Date(points.at(-1)?.day ?? 0))}</span>
           </div>
@@ -152,30 +154,27 @@ export function DailyTotalsChart({
   );
 }
 
-function Amount({
+function Stat({
   value,
-  unit,
-  swatch,
+  tone = "text-text",
+  children,
 }: {
   value: number;
-  unit: string;
-  /** The line's color, beside its number, when the chart has two. */
-  swatch?: string;
+  tone?: string;
+  children: ReactNode;
 }) {
   return (
-    <span className="inline-flex items-baseline gap-1.5">
-      {swatch && (
-        <span
-          aria-hidden
-          className={`${swatch} size-2.5 self-center rounded-full`}
-        />
-      )}
-      <span className="text-2xl font-bold tabular-nums">
-        {count.format(value)}
-      </span>
-      <span className="text-text-muted text-sm">
-        {value === 1 ? unit : `${unit}s`}
-      </span>
+    <span>
+      <span className={`font-bold ${tone}`}>{count.format(value)}</span>{" "}
+      {children}
+    </span>
+  );
+}
+
+function Dot({ className }: { className?: string }) {
+  return (
+    <span aria-hidden className={`text-text-subtle ${className ?? ""}`}>
+      ·
     </span>
   );
 }

@@ -14,6 +14,7 @@ export function Segmented({
   value,
   onChange,
   label,
+  fillOnPhones = false,
   className,
 }: {
   options: SegmentedOption[];
@@ -21,6 +22,8 @@ export function Segmented({
   onChange: (value: string) => void;
   /** Names the group for screen readers. */
   label: string;
+  /** On a phone, spans its container with the options sharing the width. */
+  fillOnPhones?: boolean;
   className?: string;
 }) {
   const styles = tabStyles.segmented;
@@ -31,6 +34,7 @@ export function Segmented({
       className={classNames(
         styles.list,
         "max-w-full [scrollbar-width:none] overflow-x-auto",
+        fillOnPhones && "max-sm:flex max-sm:w-full",
         className,
       )}
     >
@@ -42,6 +46,7 @@ export function Segmented({
           onClick={() => onChange(option.value)}
           className={classNames(
             "shrink-0 whitespace-nowrap transition-colors duration-(--duration-fast)",
+            fillOnPhones && "max-sm:flex-1",
             styles.tab,
             option.value === value ? styles.active : styles.idle,
           )}

@@ -1,6 +1,5 @@
 // A map's Zones view, for everyone, under the map's header.
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { MapZones } from "@/features/maps/MapZones";
 import { PageView } from "@/ui/Page";
 
@@ -15,11 +14,9 @@ export default function MapZonesPage({
 }: PageProps<"/maps/[map]/zones">) {
   return (
     <PageView>
-      <Suspense>
-        {params.then(({ map }) => (
-          <MapZones name={decodeURIComponent(map)} />
-        ))}
-      </Suspense>
+      {params.then(({ map }) => (
+        <MapZones name={decodeURIComponent(map)} />
+      ))}
     </PageView>
   );
 }
