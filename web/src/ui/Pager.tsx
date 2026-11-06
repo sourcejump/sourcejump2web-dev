@@ -116,10 +116,10 @@ export function Pager({
           required
           className="peer border-border bg-bg text-text placeholder:text-text-subtle hover:border-border-strong focus:border-accent h-8 w-16 [appearance:textfield] rounded-md border px-2 text-center text-sm tabular-nums transition-colors duration-(--duration-fast) outline-none [&::-webkit-inner-spin-button]:appearance-none"
         />
-        {/* Lights up once the box holds a page it can go to; empty or out of range, it stays dim. */}
+        {/* Lights up and takes clicks once the box holds a page it can go to; empty or out of range, it stays dim. */}
         <button
           type="submit"
-          className="border-border bg-bg text-text-subtle peer-valid:border-accent/40 peer-valid:bg-accent-soft peer-valid:text-accent peer-valid:hover:bg-accent/20 h-8 rounded-md border px-3 text-sm font-bold transition-colors duration-(--duration-fast)"
+          className="border-border bg-bg text-text-subtle peer-valid:border-accent/40 peer-valid:bg-accent-soft peer-valid:text-accent peer-valid:hover:bg-accent/20 h-8 rounded-md border px-3 text-sm font-bold transition-colors duration-(--duration-fast) peer-invalid:pointer-events-none"
         >
           Go
         </button>
