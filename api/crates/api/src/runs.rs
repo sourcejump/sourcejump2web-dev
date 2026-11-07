@@ -130,6 +130,24 @@ async fn submit_run(
     let stored = store(&mut tx, key, &run).await?;
     tx.commit().await?;
 
+    // A player is otherwise fetched from Steam only when they sign in or their profile is opened, so one who just
+    // plays would show initials everywhere they're listed. Their runs keep the copy fresh instead; the queue's
+    // spacing and cap keep this to Steam's pace however busy the servers are.
+    if stored.created {
+        let fetched_at = sqlx::query_scalar!(
+            "SELECT steam_profile_fetched_at FROM players WHERE steamid64 = $1",
+            run.player.steamid64.get()
+        )
+        .fetch_one(&state.db)
+        .await?;
+        players::steam_profile::refresh_if_stale(
+            state.db.clone(),
+            state.steam.clone(),
+            run.player.steamid64,
+            fetched_at,
+        );
+    }
+
     let status = if stored.created {
         StatusCode::CREATED
     } else {
