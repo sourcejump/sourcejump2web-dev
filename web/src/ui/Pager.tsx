@@ -6,15 +6,14 @@ import { type ReactNode, useId } from "react";
 import { classNames } from "./classNames";
 import { Link } from "./Link";
 
-const PARAM = "page";
-
 const cell =
   "inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-sm tabular-nums transition-colors duration-(--duration-fast)";
 const link = "text-text-muted hover:bg-text/6 hover:text-text";
 const number = new Intl.NumberFormat("en");
 
 /**
- * Renders nothing when everything fits on one page. Pages count from 1 and sit in the address as `?page=`, so
+ * Renders nothing when everything fits on one page. Pages count from 1 and sit in the address as `?page=` (or
+ * `param`), so
  * `href(1)` also gives the address the box keeps. A list whose length isn't known yet passes the pages loaded so
  * far and `more`, and its last page shows as a gap.
  */
@@ -25,6 +24,7 @@ export function Pager({
   total,
   noun,
   href,
+  param = "page",
 }: {
   page: number;
   pageCount: number;
@@ -33,6 +33,8 @@ export function Pager({
   total?: number;
   noun?: string;
   href: (page: number) => string;
+  /** The address's name for the page, for a page with more than one list: `?page=` unless given. */
+  param?: string;
 }) {
   const box = useId();
   if (pageCount <= 1 && !more) return null;
@@ -43,7 +45,7 @@ export function Pager({
     .filter((p) => p >= 1 && p <= last)
     .sort((a, b) => a - b);
   const base = new URL(href(1), "http://site");
-  base.searchParams.delete(PARAM);
+  base.searchParams.delete(param);
 
   const items = [];
   let previous = 0;
@@ -109,7 +111,7 @@ export function Pager({
         <input
           id={box}
           type="number"
-          name={PARAM}
+          name={param}
           min={1}
           max={more ? undefined : pageCount}
           placeholder={String(page)}

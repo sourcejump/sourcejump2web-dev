@@ -15,3 +15,23 @@ export function isCurrent(href: string, pathname: string | null): boolean {
     ? pathname === "/"
     : pathname === href || pathname.startsWith(`${href}/`);
 }
+
+/** SourceJump's own pages on other sites. The Discord invite is the one the plugin spec links to. */
+export const communityLinks = [
+  { label: "Discord", brand: "discord", href: "https://discord.gg/RYP5G4tuwX" },
+  {
+    label: "YouTube",
+    brand: "youtube",
+    href: "https://www.youtube.com/user/SourceJump",
+  },
+  {
+    label: "Steam",
+    brand: "steam",
+    href: "https://steamcommunity.com/groups/SourceJump",
+  },
+  {
+    label: "TikTok",
+    brand: "tiktok",
+    href: "https://www.tiktok.com/@sourcejump.net",
+  },
+] as const;

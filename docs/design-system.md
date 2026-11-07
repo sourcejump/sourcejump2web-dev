@@ -2,8 +2,8 @@
 One visual language that every page is built from, so pages can't drift apart. See it all at `/dev/ui` (dev builds only).
 
 ## Direction
-"Navy", chosen by the lead on 2026-10-19 (reference: `design/reference.webp`, a direction, not a target).
-- Dark blue slate, never pitch black. One cyan accent; at most one primary button per view.
+"Classic" (2026-11-07): the old sourcejump.net, updated. Replaced "Navy".
+- A slate sheet (`bg`, `shadow-sheet`) between darker gutters. One cyan accent; at most one primary button per view.
 - Gamified but professional: medals, tier colors, WR badges, count-ups and small motions. No mascots, confetti, slogans or sales copy.
 - Play for everything. Its digits are all the same width, so times line up in columns without a second font.
 - Corners: `rounded-sm` (4px) for badges, `rounded-md` (8px) for controls and rows, `rounded-lg` (12px) only for padded cards and dialogs.
@@ -21,6 +21,7 @@ One visual language that every page is built from, so pages can't drift apart. S
 | Component | Use |
 |---|---|
 | `Page` | Every page's content area; `width` is `wide`, `narrow` (reading) or `fill` (inside a section layout that sets its own width, such as the staff area). Runs the page fade |
+| `Masthead` | Full-width top band, plain or over a map picture; inside `Page width="fill"` (Players pages) |
 | `Link` | Every internal link; never prefetches. Lint blocks importing `next/link` elsewhere |
 | `Button`, `ButtonLink`, `ButtonAnchor` | `primary` (one per view), `secondary` (default), `ghost`; sizes `sm`, `md`. A `ghost` button with `aria-pressed` or `aria-expanded` shows the accent while on. `ButtonAnchor` is for full page loads, such as sign-in |
 | `Card`, `Label` | Bordered surface; `interactive` adds the hover lift. `Label` is the small uppercase heading |
@@ -36,7 +37,7 @@ One visual language that every page is built from, so pages can't drift apart. S
 | `Segmented` | Looks like segmented `Tabs`, for a choice that changes the view in place (a server's activity range, a post's kind). The chosen option is in the accent |
 | `ChoiceMenu` | "Label  Value ▾": one choice from a list, in a `Menu` of radio items, changing the view in place, or following each option's `href` on a server page. Boards, profiles and the Maps page use a row of them (Style, Track, Runs; Sort, Records in; lead, 2026-10-26); quiet options are dimmed but choosable, disabled ones dimmed and kept in place. On a phone each takes a full row, label left and value right |
 | `ChoiceBar` | The row those menus sit in, with any tabs beside them. Every page uses it, so the spacing between choices stays the same everywhere |
-| `Pager` | Previous and next under a paged list |
+| `Pager` | Previous and next under a paged list; `param`: its address key |
 | `DividedList`, `DividedSection` | Rows with lines between them, and a part set off by a line above, inside a `Card` or `Dialog`. The lines run to the surface's edges |
 | `StepChart` | A value that changes in steps over time (WR history). Hover snaps a crosshair to the nearest point; points take focus and open their link |
 | `LineChart` | One count over time from zero (players online). Drawn in a fixed box stretched by CSS, so it fills its container before scripts load. Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
@@ -44,7 +45,8 @@ One visual language that every page is built from, so pages can't drift apart. S
 | `Tooltip` | Hint on hover and focus; the child must be focusable |
 | `Menu`, `MenuItem`, `MenuLink`, `MenuSeparator` | Menu button (account, mobile sections) |
 | `Dialog` | Controlled modal (`open`, `onClose`). A field marked `data-autofocus` takes focus on each opening (React's `autoFocus` fires only on mount). Closes itself, without calling `onClose`, when its page is hidden for Back |
-| `Input`, `Textarea`, `CountUp` | Text field with optional icon; multi-line field; animated number |
+| `BrandIcon`, `SteamButton` | Community and Steam logos (`colored`: in their own colors); Steam sign-in |
+| `Input`, `SearchField`, `Textarea`, `CountUp` | Text field with optional icon; search, button inside; multi-line field; animated number |
 | `Prose` | Long-form HTML (a post's body) in the site's type. Only for HTML the API made safe |
 
 The run dialog opens in place: `RunLink` adds `?run=<id>` to the address with `history.pushState`, and `RunDialogHost` (in the root layout) opens at once and loads the run inside. Back or Escape closes it, and the address can be shared. A run link's `href` is `/runs/{id}`, the run's own page, for new tabs. A map page's style and track work the same way, with `replaceState`.
@@ -63,7 +65,6 @@ Named utilities, so pages never write their own transitions:
 - `motion-reveal`: a section rising in as it scrolls into view (scroll-driven; browsers without it show it at once).
 - `motion-settle`: a large picture easing out of a slight zoom as the page opens (the home header).
 - `HeaderDepth` (`features/home/`): the home header's picture leans with the mouse, by a depth map of it (`scripts/header-depth.py`; rerun it when the picture changes). Dust drifts in the light shaft, and a click sends cyan traces crawling over the surfaces (`headerTraces.ts`). WebGL, running only while the header is on screen; off on touch screens and with reduced motion.
-- `motion-ripple`: a ring spreading and fading from where something landed; re-key it to replay.
 - `motion-pop`: a popover menu fading in with a slight drop and grow, and fading out as it closes (`Menu`).
 - `CountUp`: counts up when scrolled into view, and from the old value when it changes. A number already in view when the page loads stays as it is.
 - `page-fade`: between pages (see Navigation).
@@ -76,7 +77,7 @@ Pages swap in place with no full page load. The old page fades out quickly and t
 Links never prefetch, whether in view or hovered (lead's choice, 2026-10-19). A page loads only once it's opened, and the fade covers the wait. `e2e/navigation.e2e.ts` checks that following a link doesn't reload the page.
 
 ## Layout shell (`web/src/features/site/`)
-Header (wordmark, sections, account corner) and footer, applied in the root layout. On narrow screens the sections collapse into a menu. The account corner (sign-in button, or the player's menu) and the current-section highlight depend on the request, so each sits in `<Suspense>` and every page's shell stays static. Search lives on the Players page. Section pages arrive with their roadmap slices.
+Header, page and footer sit on the sheet. The header is one sticky bar: wordmark, sections, search (`/`), Steam sign-in; footer: one line, community logos. Phones: menu, wordmark, search, account. Account and current section sit in `<Suspense>`, so every shell stays static. Search lives on the Players page. Section pages arrive with their roadmap slices.
 
 ## Screenshot tests
 `npm run test:ui` (part of `just check`) screenshots `/dev/ui` wide, on a phone, with the menu open and with the dialog open, and fails on any pixel change. After an intended visual change:

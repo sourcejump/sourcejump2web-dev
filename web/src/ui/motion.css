@@ -30,13 +30,6 @@
   animation: sj-draw 2.2s var(--ease-out) both;
 }
 
-/* A ring spreading out and fading from where something landed: the home page's bhop demo. */
-@utility motion-ripple {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: sj-ripple 700ms var(--ease-out) both;
-}
-
 /* A large picture settling into place as the page opens: a slow zoom out from slightly close. */
 @utility motion-settle {
   animation: sj-settle 1.8s var(--ease-out) both;
@@ -89,17 +82,6 @@
 @keyframes sj-draw {
   from {
     stroke-dashoffset: 1;
-  }
-}
-
-@keyframes sj-ripple {
-  from {
-    opacity: 1;
-    scale: 0.5;
-  }
-  to {
-    opacity: 0;
-    scale: 1.6;
   }
 }
 

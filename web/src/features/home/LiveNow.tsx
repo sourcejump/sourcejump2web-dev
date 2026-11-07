@@ -1,205 +1,372 @@
-// The home page's live part: the newest world records beside the busiest servers online right now.
-import { ArrowRight } from "lucide-react";
-import type { CSSProperties } from "react";
+// The home page's live part, under its header: a strip of the numbers that say how busy SourceJump is (players on
+// now, the latest day's runs, the week's world records), the newest world records beside the top of the points
+// board, then the servers people are playing on now.
+import type { CSSProperties, ReactNode } from "react";
 import { api, type Schemas } from "@/api/client";
 import { currentStyles } from "@/features/ruleset/styles";
 import { RunLink } from "@/features/runs/RunLink";
-import { formatSince, formatTime, trackName } from "@/features/runs/time";
+import { ReplayLink } from "@/features/replays/ReplayLink";
+import {
+  formatAge,
+  formatDate,
+  formatTime,
+  trackName,
+} from "@/features/runs/time";
+import { ServerRow } from "@/features/servers/ServerRow";
 import { Avatar } from "@/ui/Avatar";
 import { buttonClasses } from "@/ui/Button";
-import { Card, Label } from "@/ui/Card";
-import { DividedList } from "@/ui/Divided";
+import { classNames } from "@/ui/classNames";
+import { CountUp } from "@/ui/CountUp";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
+import { Medal } from "@/ui/Medal";
+import { TierBadge } from "@/ui/TierBadge";
 
-const RECORDS = 6;
+const RECORDS = 8;
+const LEADERS = 10;
 const SERVERS = 4;
+const numbers = new Intl.NumberFormat("en");
 
 export async function LiveNow() {
-  const [records, servers, styles] = await Promise.all([
+  // Each part shows what it has; one that can't be loaded says so, or (the strip) leaves its number out.
+  const [records, servers, leaders, runs, styles] = await Promise.all([
     api
       .GET("/v1/runs", { params: { query: { records: true, limit: RECORDS } } })
       .catch(() => undefined),
     api.GET("/v1/servers").catch(() => undefined),
+    api
+      .GET("/v1/leaderboards/{ranking}", {
+        params: { path: { ranking: "points" }, query: { limit: LEADERS } },
+      })
+      .catch(() => undefined),
+    api
+      .GET("/v1/daily-totals/runs", { params: { query: { range: "month" } } })
+      .catch(() => undefined),
     currentStyles(),
   ]);
+  const listed = servers?.data?.servers;
+  // The API lists online servers first, busiest first.
+  const online = listed?.filter((server) => server.online) ?? [];
+  const lastDay = runs?.data?.points.at(-1);
+  const week = runs?.data?.points.slice(-7) ?? [];
+  const board = leaders?.data;
+
+  return (
+    <>
+      <Pulse
+        cells={[
+          listed && {
+            label: "Playing now",
+            value: online.reduce((sum, server) => sum + server.players, 0),
+            live: true,
+            detail: `on ${online.length} of ${listed.length} servers`,
+            href: "/servers",
+          },
+          lastDay && {
+            label: `Runs on ${formatDate(lastDay.day).replace(/, \d{4}$/, "")}`,
+            value: lastDay.runs,
+            detail: `${numbers.format(lastDay.world_records)} world ${lastDay.world_records === 1 ? "record" : "records"}`,
+            href: "/activity",
+          },
+          week.length > 0 && {
+            label: "World records, last 7 days",
+            value: week.reduce((sum, day) => sum + day.world_records, 0),
+            detail: `from ${numbers.format(week.reduce((sum, day) => sum + day.runs, 0))} runs`,
+            href: "/activity?show=records",
+          },
+        ]}
+      />
+
+      <div className="grid items-start gap-4 lg:grid-cols-5">
+        <Panel
+          className="lg:col-span-3"
+          title="Latest world records"
+          href="/activity?show=records"
+          link="All records"
+        >
+          {records?.data ? (
+            <Records
+              runs={records.data.runs}
+              tierCount={records.data.tier_count ?? null}
+              styleName={styles.keys.length > 1 ? styles.name : undefined}
+            />
+          ) : (
+            <Note>Records couldn&apos;t be loaded. Try again in a moment.</Note>
+          )}
+        </Panel>
+        <Panel
+          className="lg:col-span-2"
+          title="Top players"
+          href="/leaderboards"
+          link="Leaderboards"
+          note={
+            board &&
+            `${styles.name(board.style ?? styles.keys[0] ?? "")} points${board.points.draft ? ", draft" : ""}`
+          }
+        >
+          {board ? (
+            <Leaders standings={board.standings} />
+          ) : (
+            <Note>
+              The leaderboard couldn&apos;t be loaded. Try again in a moment.
+            </Note>
+          )}
+        </Panel>
+      </div>
+
+      <Panel title="Online now" href="/servers" link="All servers">
+        {!listed ? (
+          <Note>Servers couldn&apos;t be loaded. Try again in a moment.</Note>
+        ) : online.length === 0 ? (
+          <div className="flex flex-col items-start gap-3 px-5 pb-5">
+            <p className="text-text-muted">
+              No servers are online right now. The server list shows where
+              players were last seen.
+            </p>
+            <Link href="/servers" className={buttonClasses({ size: "sm" })}>
+              Server list
+            </Link>
+          </div>
+        ) : (
+          // The Servers page's own rows, two to a line, with the lines between them drawn by each cell.
+          <ul className="border-border @container grid gap-2 border-t p-2 sm:-mb-px sm:gap-0 sm:p-0 lg:grid-cols-2">
+            {online.slice(0, SERVERS).map((server, index) => (
+              <li
+                key={`${server.ip}:${server.port}`}
+                className="sm:border-border sm:border-b lg:odd:border-r"
+              >
+                <ServerRow server={server} eager={index < 2} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+    </>
+  );
+}
+
+interface PulseCell {
+  label: string;
+  value: number;
+  /** A count of what's happening right now, in the green of the servers' online dots. */
+  live?: boolean;
+  detail: string;
+  href: string;
+}
+
+/** The numbers that say how busy SourceJump is, each opening the page it comes from. */
+function Pulse({
+  cells,
+}: {
+  cells: (PulseCell | false | 0 | null | undefined)[];
+}) {
+  const shown = cells.filter((cell): cell is PulseCell => !!cell);
+  if (shown.length === 0) return null;
   return (
     <section
-      className="motion-reveal grid gap-4 lg:grid-cols-5"
-      aria-label="Live"
+      aria-label="SourceJump now"
+      className="border-border bg-surface divide-border grid overflow-hidden rounded-lg border max-sm:divide-y sm:grid-cols-3 sm:divide-x"
     >
-      <Card className="flex flex-col gap-3 lg:col-span-3">
-        <Heading href="/activity?show=records" link="All records">
-          Latest world records
-        </Heading>
-        {records?.data ? (
-          <Records
-            runs={records.data.runs}
-            styleName={styles.keys.length > 1 ? styles.name : undefined}
-          />
-        ) : (
-          <p className="text-text-muted">
-            Records couldn&apos;t be loaded. Try again in a moment.
-          </p>
-        )}
-      </Card>
-      <Card className="flex flex-col gap-3 lg:col-span-2">
-        <Heading href="/servers" link="All servers">
-          Online now
-        </Heading>
-        {servers?.data ? (
-          <Servers servers={servers.data.servers} />
-        ) : (
-          <p className="text-text-muted">
-            Servers couldn&apos;t be loaded. Try again in a moment.
-          </p>
-        )}
-      </Card>
+      {shown.map((cell) => (
+        <Link
+          key={cell.label}
+          href={cell.href}
+          className="group hover:bg-surface-raised flex flex-col gap-0.5 px-5 py-4 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
+        >
+          <span className="text-text-muted text-sm">{cell.label}</span>
+          <span className="flex items-baseline gap-2">
+            <span
+              className={classNames(
+                "text-2xl font-bold transition-colors duration-(--duration-fast)",
+                cell.live ? "text-success" : "group-hover:text-accent",
+              )}
+            >
+              <CountUp value={cell.value} />
+            </span>
+            <span className="text-text-subtle text-sm">{cell.detail}</span>
+          </span>
+        </Link>
+      ))}
     </section>
   );
 }
 
-function Heading({
+function Panel({
+  title,
   href,
   link,
+  note,
+  className,
   children,
 }: {
+  title: string;
   href: string;
   link: string;
-  children: string;
+  /** Beside the title, e.g. which board the panel shows. */
+  note?: ReactNode;
+  className?: string;
+  children: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <Label>{children}</Label>
-      <Link
-        href={href}
-        className="text-text-muted hover:text-accent flex items-center gap-1 text-sm"
-      >
-        {link}
-        <ArrowRight aria-hidden className="size-3.5" />
-      </Link>
-    </div>
+    <section
+      className={classNames(
+        "border-border bg-surface min-w-0 overflow-hidden rounded-lg border",
+        className,
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-3 px-5 pt-4 pb-3">
+        <h2 className="flex items-baseline gap-2 text-lg font-bold">
+          {title}
+          {note && (
+            <span className="text-text-subtle text-xs font-normal">{note}</span>
+          )}
+        </h2>
+        <Link
+          href={href}
+          className="text-text-muted hover:text-accent shrink-0 text-sm"
+        >
+          {link}
+        </Link>
+      </div>
+      {children}
+    </section>
   );
+}
+
+function Note({ children }: { children: ReactNode }) {
+  return <p className="text-text-muted px-5 pb-5">{children}</p>;
 }
 
 function Records({
   runs,
+  tierCount,
   styleName,
 }: {
   runs: Schemas["RecentRun"][];
+  tierCount: number | null;
   /** Given when more than one style is ranked, so each record names its own. */
   styleName?: (key: string) => string;
 }) {
-  if (runs.length === 0) {
-    return <p className="text-text-muted">No world records yet.</p>;
-  }
+  if (runs.length === 0) return <Note>No world records yet.</Note>;
   return (
-    <DividedList>
+    <ul className="divide-border border-border divide-y border-t">
       {runs.map((run, index) => (
         <li
           key={run.run_id}
-          className="motion-enter flex items-center gap-3 py-2.5"
-          style={{ "--motion-delay": `${index * 40}ms` } as CSSProperties}
+          className="motion-enter flex items-center gap-3 px-5 py-2.5"
+          style={{ "--motion-delay": `${index * 30}ms` } as CSSProperties}
         >
-          <Avatar
-            name={run.player.name}
-            src={run.player.avatar_url ?? undefined}
-            size="sm"
-          />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="flex items-center gap-2">
-              <Link
-                href={`/players/${run.player.steamid64}`}
-                className="hover:text-accent truncate font-bold"
-              >
-                {run.player.name}
-              </Link>
-              <Flag code={run.player.country_code} />
-            </span>
-            <span className="text-text-muted truncate text-sm">
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            {/* The map first, on its own line: on a records feed, where it was set is what reads at a glance. The
+                player, and the style and track, beneath. */}
+            <span className="flex min-w-0 items-center gap-2">
+              {run.tier != null && tierCount != null && (
+                <TierBadge tier={run.tier} tierCount={tierCount} />
+              )}
               <Link
                 href={`/maps/${run.map}?style=${run.style}${run.track > 0 ? `&track=${run.track}` : ""}`}
-                className="hover:text-accent"
+                className="hover:text-accent truncate font-bold"
               >
                 {run.map}
               </Link>
-              {[run.track > 0 && trackName(run.track), styleName?.(run.style)]
-                .filter(Boolean)
-                .map((part) => ` · ${part}`)}
             </span>
-          </span>
-          <span className="flex flex-col items-end">
-            {/* Every row is a world record, so the time says by how much it beat the last one instead of "WR". */}
-            <span className="flex items-baseline gap-2">
-              {run.gap != null && run.gap < 0 && (
-                <span className="text-success text-xs tabular-nums">
-                  −{formatTime(-run.gap)}
+            <span className="text-text-muted flex min-w-0 items-center gap-2 text-sm">
+              <Avatar
+                name={run.player.name}
+                src={run.player.avatar_url ?? undefined}
+                size="sm"
+              />
+              <Link
+                href={`/players/${run.player.steamid64}`}
+                className="hover:text-accent truncate"
+              >
+                {run.player.name}
+              </Link>
+              {/* Most players have no country on Steam; a placeholder on every row would only be noise. */}
+              {run.player.country_code && (
+                <Flag code={run.player.country_code} />
+              )}
+              {(run.track > 0 || styleName) && (
+                <span className="text-text-subtle shrink-0">
+                  {[
+                    run.track > 0 && trackName(run.track),
+                    styleName?.(run.style),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               )}
+            </span>
+          </span>
+          {/* As on the Activity board: the time with what it took off the old record in brackets, how long ago
+              beneath, then the replay. */}
+          <span className="flex shrink-0 flex-col items-end">
+            <span className="flex items-baseline gap-1.5">
               <RunLink
                 runId={run.run_id}
                 className="hover:text-accent font-bold tabular-nums underline-offset-4 hover:underline"
               >
                 {formatTime(run.time)}
               </RunLink>
+              {run.gap != null && run.gap < 0 && (
+                <span className="text-success text-xs tabular-nums">
+                  (−{formatTime(-run.gap)})
+                </span>
+              )}
             </span>
-            <span className="text-text-subtle text-xs tabular-nums">
-              {/* Counted from now, which differs between the server's render and the browser's. */}
-              <time dateTime={run.finished_at} suppressHydrationWarning>
-                {formatSince(run.finished_at)}
-              </time>
-            </span>
+            {/* Counted from now, which differs between the server's render and the browser's. */}
+            <time
+              dateTime={run.finished_at}
+              suppressHydrationWarning
+              className="text-text-subtle text-xs leading-4 tabular-nums"
+            >
+              {formatAge(run.finished_at)}
+            </time>
           </span>
+          <ReplayLink runId={run.run_id} />
         </li>
       ))}
-    </DividedList>
+    </ul>
   );
 }
 
-function Servers({ servers }: { servers: Schemas["ListedServer"][] }) {
-  // The API lists online servers first, busiest first.
-  const online = servers.filter((server) => server.online).slice(0, SERVERS);
-  if (online.length === 0) {
-    return (
-      <div className="flex flex-1 flex-col items-start justify-center gap-3">
-        <p className="text-text-muted">
-          No servers are online right now. The server list shows where players
-          were last seen.
-        </p>
-        <Link href="/servers" className={buttonClasses({ size: "sm" })}>
-          Server list
-        </Link>
-      </div>
-    );
-  }
+function Leaders({ standings }: { standings: Schemas["Standing"][] }) {
+  if (standings.length === 0) return <Note>No one has points yet.</Note>;
   return (
-    <DividedList>
-      {online.map((server) => {
-        const address = `${server.ip}:${server.port}`;
-        return (
-          <li key={address} className="flex items-center gap-3 py-2.5">
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate font-bold">{server.hostname}</span>
-              <span className="text-text-muted truncate text-sm">
-                {server.map}
+    <ol className="divide-border border-border divide-y border-t">
+      {standings.map((standing, index) => (
+        <li
+          key={standing.player.steamid64}
+          className="motion-enter"
+          style={{ "--motion-delay": `${index * 30}ms` } as CSSProperties}
+        >
+          <Link
+            href={`/players/${standing.player.steamid64}`}
+            className="group hover:bg-surface-raised flex h-14 items-center gap-3 px-5 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
+          >
+            <Medal placement={standing.rank} />
+            <Avatar
+              name={standing.player.name}
+              src={standing.player.avatar_url ?? undefined}
+              size="sm"
+            />
+            <span className="group-hover:text-accent min-w-0 truncate transition-colors duration-(--duration-fast)">
+              {standing.player.name}
+            </span>
+            {standing.player.country_code && (
+              <Flag code={standing.player.country_code} />
+            )}
+            <span className="ml-auto shrink-0 pl-2 text-right tabular-nums">
+              <span className="font-bold">
+                {numbers.format(standing.points)}
+              </span>
+              <span className="text-text-subtle block text-xs">
+                {standing.completed} {standing.completed === 1 ? "map" : "maps"}
               </span>
             </span>
-            <span className="flex items-center gap-2 text-sm tabular-nums">
-              <span aria-hidden className="bg-success size-2 rounded-full" />
-              <span>
-                <span className="font-bold">{server.players}</span>
-                <span className="text-text-muted">/{server.max_slots}</span>
-              </span>
-            </span>
-            <a
-              href={`steam://connect/${address}`}
-              className={buttonClasses({ size: "sm" })}
-            >
-              Join
-            </a>
-          </li>
-        );
-      })}
-    </DividedList>
+          </Link>
+        </li>
+      ))}
+    </ol>
   );
 }

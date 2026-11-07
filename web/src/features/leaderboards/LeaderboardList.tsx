@@ -1,4 +1,5 @@
-// One leaderboard in full, by points or by completions, under the same choices as the overview it opens from.
+// One leaderboard in full, by points or by completions, a page at a time, under the same choices as the overview
+// it opens from.
 import { ArrowLeft } from "lucide-react";
 import { api } from "@/api/client";
 import { currentStyles } from "@/features/ruleset/styles";
@@ -27,17 +28,25 @@ export function listTitle(ranking: Ranking, track: string | undefined) {
 export async function LeaderboardList({
   ranking,
   params,
+  page: requested,
 }: {
   ranking: Ranking;
   params: BoardParams;
+  /** `?page=` as given. */
+  page?: string;
 }) {
+  const page = Math.max(1, Math.floor(Number(requested)) || 1);
   const styles = await currentStyles();
   const board = boardFrom(params, styles);
   const list = await api
     .GET("/v1/leaderboards/{ranking}", {
       params: {
         path: { ranking },
-        query: { ...boardApiQuery(board), limit: LIST_PAGE_SIZE },
+        query: {
+          ...boardApiQuery(board),
+          limit: LIST_PAGE_SIZE,
+          offset: (page - 1) * LIST_PAGE_SIZE,
+        },
       },
     })
     .then((result) => result.data)
@@ -68,14 +77,27 @@ export async function LeaderboardList({
         <p>This leaderboard couldn&apos;t be loaded. Try again in a moment.</p>
       ) : list.standings.length === 0 ? (
         <Card className="text-text-muted">
-          {ranking === "points"
-            ? !board.legacy && !list.points.tiers
-              ? "Points start once maps have tiers."
-              : "Nobody has points here yet."
-            : "Nobody has finished one yet."}
+          {page > 1
+            ? "There's no page this far."
+            : ranking === "points"
+              ? !board.legacy && !list.points.tiers
+                ? "Points start once maps have tiers."
+                : "Nobody has points here yet."
+              : "Nobody has finished one yet."}
         </Card>
       ) : (
-        <StandingsTable key={query} first={list} completedLabel={label} />
+        <StandingsTable
+          key={`${query}-${page}`}
+          list={list}
+          page={page}
+          href={(to) => {
+            const search = new URLSearchParams(query);
+            if (to > 1) search.set("page", String(to));
+            const text = search.toString();
+            return `/leaderboards/${ranking}${text ? `?${text}` : ""}`;
+          }}
+          completedLabel={label}
+        />
       )}
       {list && ranking === "points" && (
         <PointsNote formula={list.points} legacy={board.legacy} />
