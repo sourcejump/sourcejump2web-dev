@@ -9,6 +9,12 @@ import { LinkTabs } from "@/ui/LinkTabs";
 export type Track = Schemas["LeaderboardTrack"];
 /** Players per page of a full list. */
 export const LIST_PAGE_SIZE = 50;
+/**
+ * Players per page of each list on the overview, and per request: five pages, turned in the browser. Here and
+ * not in StandingsPanel, a client module, whose exports reach server code only as references.
+ */
+export const OVERVIEW_PAGE_SIZE = 20;
+export const OVERVIEW_CHUNK = 100;
 type Styles = Awaited<ReturnType<typeof currentStyles>>;
 
 export interface BoardParams {

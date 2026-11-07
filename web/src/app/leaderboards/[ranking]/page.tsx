@@ -31,7 +31,7 @@ export default function LeaderboardListPage({
   return (
     <Page className="gap-6">
       {Promise.all([params, searchParams]).then(
-        ([{ ranking }, { style, track, view }]) => {
+        ([{ ranking }, { style, track, view, page }]) => {
           if (!rankings.includes(ranking)) notFound();
           return (
             <LeaderboardList
@@ -41,6 +41,7 @@ export default function LeaderboardListPage({
                 track: typeof track === "string" ? track : undefined,
                 view: typeof view === "string" ? view : undefined,
               }}
+              page={typeof page === "string" ? page : undefined}
             />
           );
         },
