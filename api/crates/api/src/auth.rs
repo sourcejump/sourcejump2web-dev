@@ -75,6 +75,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(start))
         .routes(routes!(callback))
         .routes(routes!(sign_out))
+        .routes(routes!(sign_out_everywhere))
         .routes(routes!(me))
 }
 
@@ -181,6 +182,37 @@ async fn sign_out(
     sessions::require_same_origin(&headers, &state.public_url)?;
     if let Some(cookie) = jar.get(sessions::COOKIE) {
         sessions::end(&state.db, cookie.value()).await?;
+    }
+    let return_to = ReturnTo::new(query.return_to.as_deref());
+    Ok((
+        jar.remove(sessions::removal_cookie()),
+        Redirect::to(return_to.as_str()),
+    ))
+}
+
+/// Ends every session of the signed-in player, in every browser, and signs this one out. A form on the
+/// website posts here. Without a live session it only clears this browser's cookie, as signing out does.
+#[utoipa::path(
+    post,
+    path = "/v1/auth/sign-out-everywhere",
+    tag = "auth",
+    params(ReturnQuery),
+    responses(
+        (status = SEE_OTHER, description = "Back to the page the player came from, signed out everywhere"),
+        (status = FORBIDDEN, description = "Not sent from SourceJump's own pages", body = ErrorBody),
+    ),
+)]
+async fn sign_out_everywhere(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    jar: CookieJar,
+    signed_in: Option<SignedIn>,
+    Query(query): Query<ReturnQuery>,
+) -> Result<(CookieJar, Redirect), ApiError> {
+    sessions::require_same_origin(&headers, &state.public_url)?;
+    if let Some(signed_in) = signed_in {
+        sessions::end_all(&state.db, signed_in.steamid64).await?;
+        tracing::info!(steamid64 = %signed_in.steamid64, "signed out everywhere");
     }
     let return_to = ReturnTo::new(query.return_to.as_deref());
     Ok((
@@ -403,6 +435,48 @@ mod tests {
         assert_eq!(response.status, 303);
         assert_eq!(response.headers[header::LOCATION], "/maps");
         assert_eq!(me_with(&state, &token).await.status, 401);
+    }
+
+    #[sqlx::test]
+    async fn signing_out_everywhere_ends_every_session_of_the_player_only(db: PgPool) {
+        let state = state(&db, fake_steam(true).await);
+        let token = session_from(&sign_in(&state).await);
+        let player = players::SteamId64::try_from(openid::tests::PLAYER.to_owned()).unwrap();
+        // The same player signed in on another computer, and someone else signed in.
+        let elsewhere = sessions::create(&db, player).await.unwrap();
+        let other = players::SteamId64::try_from("76561197960287931".to_owned()).unwrap();
+        players::ensure_exists(&db, other).await.unwrap();
+        let someone_else = sessions::create(&db, other).await.unwrap();
+        let sign_out_everywhere = |origin: &'static str| {
+            test_client::send_to(
+                state.clone(),
+                Request::post("/v1/auth/sign-out-everywhere?return_to=/maps")
+                    .header(header::COOKIE, format!("sj_session={token}"))
+                    .header(header::ORIGIN, origin)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+        };
+
+        assert_eq!(
+            sign_out_everywhere("https://evil.example").await.status,
+            403
+        );
+        assert_eq!(me_with(&state, &elsewhere).await.status, 200);
+
+        let response = sign_out_everywhere("https://sourcejump.test").await;
+        assert_eq!(response.status, 303);
+        assert_eq!(response.headers[header::LOCATION], "/maps");
+        let removed = set_cookie(&response, "sj_session").expect("the session cookie is removed");
+        assert!(removed.starts_with("sj_session=;"), "{removed}");
+        assert_eq!(me_with(&state, &token).await.status, 401);
+        assert_eq!(me_with(&state, &elsewhere).await.status, 401);
+        assert_eq!(me_with(&state, &someone_else).await.status, 200);
+
+        // Again without a live session: nothing to end, and the same way back.
+        let again = sign_out_everywhere("https://sourcejump.test").await;
+        assert_eq!(again.status, 303);
+        assert_eq!(again.headers[header::LOCATION], "/maps");
     }
 
     #[sqlx::test]

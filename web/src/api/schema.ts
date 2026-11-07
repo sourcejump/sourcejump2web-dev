@@ -55,6 +55,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/sign-out-everywhere": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ends every session of the signed-in player, in every browser, and signs this one out. A form on the
+         *     website posts here. Without a live session it only clears this browser's cookie, as signing out does.
+         */
+        post: operations["sign_out_everywhere"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/steam": {
         parameters: {
             query?: never;
@@ -3665,6 +3685,36 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Back to the page the player came from, signed out */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not sent from SourceJump's own pages */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sign_out_everywhere: {
+        parameters: {
+            query?: {
+                /** @description The page to come back to: a path on this site, such as `/maps`. Anything else means `/`. */
+                return_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Back to the page the player came from, signed out everywhere */
             303: {
                 headers: {
                     [name: string]: unknown;

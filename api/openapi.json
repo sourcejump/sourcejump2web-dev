@@ -134,6 +134,44 @@
         }
       }
     },
+    "/v1/auth/sign-out-everywhere": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Ends every session of the signed-in player, in every browser, and signs this one out. A form on the\nwebsite posts here. Without a live session it only clears this browser's cookie, as signing out does.",
+        "operationId": "sign_out_everywhere",
+        "parameters": [
+          {
+            "name": "return_to",
+            "in": "query",
+            "description": "The page to come back to: a path on this site, such as `/maps`. Anything else means `/`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Back to the page the player came from, signed out everywhere"
+          },
+          "403": {
+            "description": "Not sent from SourceJump's own pages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/steam": {
       "get": {
         "tags": [
