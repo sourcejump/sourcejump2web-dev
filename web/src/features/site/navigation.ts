@@ -54,4 +54,9 @@ export const communityLinks = [
     brand: "tiktok",
     href: "https://www.tiktok.com/@sourcejump.net",
   },
+  {
+    label: "Instagram",
+    brand: "instagram",
+    href: "https://www.instagram.com/sourcejump_official",
+  },
 ] as const;

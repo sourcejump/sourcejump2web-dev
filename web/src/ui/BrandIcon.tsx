@@ -1,8 +1,9 @@
 // The logos of the services SourceJump's community uses, for links to them and Steam sign-in: each brand's current
 // mark, paths from Simple Icons (simpleicons.org, CC0), on a 24 × 24 grid. Plain, a logo takes the text color;
 // `colored`, it's drawn as the brand draws it: Discord's blurple, YouTube's red with a white play button, Steam's
-// mark in its light client blue, TikTok's white note over its cyan and pink copies; `round`, as a round badge,
-// the mark in white on a circle of the brand's color (YouTube's, its own round badge).
+// mark in its light client blue, TikTok's white note over its cyan and pink copies, Instagram's pink; `round`, as a
+// round badge, the mark in white on a circle of the brand's color (YouTube's, its own round badge; Instagram's, on its
+// yellow-to-purple gradient).
 import { type SVGProps, useId } from "react";
 import { classNames } from "./classNames";
 
@@ -16,10 +17,11 @@ const paths = {
     "M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z",
   tiktok:
     "M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z",
+  instagram:
+    "M7.0301.084c-1.2768.0602-2.1487.264-2.911.5634-.7888.3075-1.4575.72-2.1228 1.3877-.6652.6677-1.075 1.3368-1.3802 2.127-.2954.7638-.4956 1.6365-.552 2.914-.0564 1.2775-.0689 1.6882-.0626 4.947.0062 3.2586.0206 3.6671.0825 4.9473.061 1.2765.264 2.1482.5635 2.9107.308.7889.72 1.4573 1.388 2.1228.6679.6655 1.3365 1.0743 2.1285 1.38.7632.295 1.6361.4961 2.9134.552 1.2773.056 1.6884.069 4.9462.0627 3.2578-.0062 3.668-.0207 4.9478-.0814 1.28-.0607 2.147-.2652 2.9098-.5633.7889-.3086 1.4578-.72 2.1228-1.3881.665-.6682 1.0745-1.3378 1.3795-2.1284.2957-.7632.4966-1.636.552-2.9124.056-1.2809.0692-1.6898.063-4.948-.0063-3.2583-.021-3.6668-.0817-4.9465-.0607-1.2797-.264-2.1487-.5633-2.9117-.3084-.7889-.72-1.4568-1.3876-2.1228C21.2982 1.33 20.628.9208 19.8378.6165 19.074.321 18.2017.1197 16.9244.0645 15.6471.0093 15.236-.005 11.977.0014 8.718.0076 8.31.0215 7.0301.0839m.1402 21.6932c-1.17-.0509-1.8053-.2453-2.2287-.408-.5606-.216-.96-.4771-1.3819-.895-.422-.4178-.6811-.8186-.9-1.378-.1644-.4234-.3624-1.058-.4171-2.228-.0595-1.2645-.072-1.6442-.079-4.848-.007-3.2037.0053-3.583.0607-4.848.05-1.169.2456-1.805.408-2.2282.216-.5613.4762-.96.895-1.3816.4188-.4217.8184-.6814 1.3783-.9003.423-.1651 1.0575-.3614 2.227-.4171 1.2655-.06 1.6447-.072 4.848-.079 3.2033-.007 3.5835.005 4.8495.0608 1.169.0508 1.8053.2445 2.228.408.5608.216.96.4754 1.3816.895.4217.4194.6816.8176.9005 1.3787.1653.4217.3617 1.056.4169 2.2263.0602 1.2655.0739 1.645.0796 4.848.0058 3.203-.0055 3.5834-.061 4.848-.051 1.17-.245 1.8055-.408 2.2294-.216.5604-.4763.96-.8954 1.3814-.419.4215-.8181.6811-1.3783.9-.4224.1649-1.0577.3617-2.2262.4174-1.2656.0595-1.6448.072-4.8493.079-3.2045.007-3.5825-.006-4.848-.0608M16.953 5.5864A1.44 1.44 0 1 0 18.39 4.144a1.44 1.44 0 0 0-1.437 1.4424M5.8385 12.012c.0067 3.4032 2.7706 6.1557 6.173 6.1493 3.4026-.0065 6.157-2.7701 6.1506-6.1733-.0065-3.4032-2.771-6.1565-6.174-6.1498-3.403.0067-6.156 2.771-6.1496 6.1738M8 12.0077a4 4 0 1 1 4.008 3.9921A3.9996 3.9996 0 0 1 8 12.0077",
 } as const;
 
 const YOUTUBE_PLAY = "M9.545 15.568V8.432L15.818 12z";
-/** YouTube's play button alone, centred on the circle and a little larger: the red frame around it is the badge. */
 /**
  * YouTube's round badge as YouTube draws it: the white play block on a red circle, the play triangle cut out of it.
  * On a 1000-unit grid, scaled to the icon's 24.
@@ -31,19 +33,23 @@ const YOUTUBE_ROUND = {
 };
 
 /** Each badge's circle, in the brand's own color. */
-const roundFills: Record<"discord" | "steam" | "tiktok", string> = {
-  discord: "#5865f2",
-  // Steam's lighter blue: its darkest, #1b2838, all but vanishes on the footer.
-  steam: "#2a475e",
-  tiktok: "#000",
-};
+const roundFills: Record<"discord" | "steam" | "tiktok" | "instagram", string> =
+  {
+    discord: "#5865f2",
+    // Its gradient's middle, under the gradient itself (drawn where the badge has one).
+    instagram: "#e1306c",
+    // Steam's lighter blue: its darkest, #1b2838, all but vanishes on the footer.
+    steam: "#2a475e",
+    tiktok: "#000",
+  };
 
 /**
  * How large each mark sits in its circle, scaled about the centre. By eye rather than by box: TikTok's narrow note
  * at Discord's scale looked smaller than the rest.
  */
-const insets: Record<"discord" | "tiktok", string> = {
+const insets: Record<"discord" | "tiktok" | "instagram", string> = {
   discord: "translate(12 12) scale(0.58) translate(-12 -12)",
+  instagram: "translate(12 12) scale(0.56) translate(-12 -12)",
   tiktok: "translate(12 12) scale(0.68) translate(-12 -12)",
 };
 
@@ -54,6 +60,7 @@ const colors: Record<Brand, string> = {
   youtube: "text-[#ff0000]",
   steam: "text-[#c7d5e0]",
   tiktok: "text-[#fff]",
+  instagram: "text-[#e4405f]",
 };
 
 /**
@@ -72,7 +79,7 @@ export function BrandIcon({
   round?: boolean;
 } & SVGProps<SVGSVGElement>) {
   const d = paths[brand];
-  // Each Steam badge masks with its own id, so several on one page don't share one.
+  // Each Steam badge's mask and Instagram badge's gradient has its own id, so several on one page don't share one.
   const clip = useId();
   if (round) {
     return (
@@ -96,7 +103,22 @@ export function BrandIcon({
           </>
         ) : (
           <>
-            <circle cx="12" cy="12" r="12" fill={roundFills[brand]} />
+            {brand === "instagram" && (
+              // Instagram's glow: yellow from the bottom left, through orange and pink, to purple.
+              <radialGradient id={clip} cx="0.3" cy="1.07" r="1.2">
+                <stop offset="0" stopColor="#fdf497" />
+                <stop offset="0.1" stopColor="#fdf497" />
+                <stop offset="0.5" stopColor="#fd5949" />
+                <stop offset="0.68" stopColor="#d6249f" />
+                <stop offset="1" stopColor="#285aeb" />
+              </radialGradient>
+            )}
+            <circle
+              cx="12"
+              cy="12"
+              r="12"
+              fill={brand === "instagram" ? `url(#${clip})` : roundFills[brand]}
+            />
             <g transform={insets[brand]}>
               {brand === "tiktok" && (
                 <>
