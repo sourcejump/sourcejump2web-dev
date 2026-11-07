@@ -31,7 +31,7 @@ One visual language that every page is built from, so pages can't drift apart. S
 | `TierBadge` | `tier` and `tierCount` from the API |
 | `Avatar` | Steam avatar or initials; `sm` to `xl` |
 | `Flag` | Country flag from an ISO code, a grey placeholder without one; `hint` replaces its tooltip |
-| `Table` + `TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/`TableCell` | Leaderboards, staff lists; `numeric` cells right-align, `centered` heads center on narrow marks, `wrap` cells wrap. Scrolls sideways if too wide |
+| `Table` + `TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/`TableCell` | Leaderboards, staff lists; `numeric` cells right-align, `centered` heads center on narrow marks, `wrap` cells wrap, `separated` rows start a group. Scrolls sideways if too wide |
 | `Tabs` | Panels on one page; `underline` or `segmented` |
 | `LinkTabs` | Looks like `Tabs`, but each tab is a link: a view the server renders, such as the Maps page's sort |
 | `Segmented` | Looks like segmented `Tabs`, for a choice that changes the view in place (a server's activity range, a post's kind). The chosen option is in the accent |
@@ -72,7 +72,7 @@ Named utilities, so pages never write their own transitions:
 All of them respect `prefers-reduced-motion` and show their end state at once.
 
 ## Navigation
-Pages swap in place with no full page load. The old page fades out quickly and the new one fades in, using React's `<ViewTransition>` in `Page` and the `page-fade` rules in `motion.css`. The header has its own view-transition name, so it stays still during the fade. Browsers without view transitions swap pages without the fade. A page with views, such as a map and its Manage view, keeps its header in a route layout and wraps each view in `PageView`: switching views fades the old one out and lifts the new one in (`view-flip`), and the header stays.
+Pages swap in place with no full page load. The old page fades out quickly and the new one fades in, using React's `<ViewTransition>` in `Page` and the `page-fade` rules in `motion.css`. The header has its own view-transition name, so it stays still during the fade. Browsers without view transitions skip the fade. A page with views, such as a map and its Manage view, keeps its header in a route layout and wraps each view in `PageView`: switching views fades the old one out and lifts the new one in (`view-flip`).
 
 Links never prefetch, whether in view or hovered (lead's choice, 2026-10-19). A page loads only once it's opened, and the fade covers the wait. `e2e/navigation.e2e.ts` checks that following a link doesn't reload the page.
 
