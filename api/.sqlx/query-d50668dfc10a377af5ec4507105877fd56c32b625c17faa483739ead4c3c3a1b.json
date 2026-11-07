@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT pb.player_steamid64::text AS \"steamid64!\", pb.style, pb.track, pb.time, pb.run_id,\n               pb.finished_at,\n               1 + (SELECT count(*) FROM personal_bests faster\n                    WHERE faster.map_id = pb.map_id AND faster.style = pb.style AND faster.track = pb.track\n                      AND faster.time < pb.time) AS \"rank!\"\n        FROM personal_bests pb\n        JOIN maps m ON m.id = pb.map_id\n        WHERE m.name = $1 AND pb.player_steamid64 = ANY($2)\n        ORDER BY pb.player_steamid64, pb.style, pb.track\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "style",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "track",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "track"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "time",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "run_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "run_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "finished_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "finished_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "rank!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "d50668dfc10a377af5ec4507105877fd56c32b625c17faa483739ead4c3c3a1b"
+}

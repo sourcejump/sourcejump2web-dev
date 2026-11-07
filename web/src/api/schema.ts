@@ -245,6 +245,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/maps/{map}/personal-bests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * These players' SourceJump personal bests on the map, every style and track. An unknown map, or players
+         *     without runs on it, give an empty list.
+         */
+        get: operations["players_personal_bests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/maps/{map}/records": {
         parameters: {
             query?: never;
@@ -2366,6 +2386,30 @@ export interface components {
         PlayerList: {
             players: components["schemas"]["PlayerSummary"][];
         };
+        PlayerPersonalBest: {
+            /** Format: date-time */
+            finished_at: string;
+            /**
+             * Format: int64
+             * @description Place on the leaderboard; equal times share a place, as in `…/records`.
+             */
+            rank: number;
+            /** Format: int64 */
+            run_id: number;
+            /** @description SteamID64, as a string. */
+            steamid64: string;
+            style: string;
+            /**
+             * Format: double
+             * @description Seconds.
+             */
+            time: number;
+            /**
+             * Format: int32
+             * @description 0 is the main track, 1 and up are bonuses.
+             */
+            track: number;
+        };
         PlayerPrivileges: {
             /** @description What the player holds after the change. */
             privileges: components["schemas"]["Privilege"][];
@@ -2494,6 +2538,14 @@ export interface components {
              * @description Players with at least one recorded time, 2.0 or pre-2.0, at the end of the point's last day.
              */
             players: number;
+        };
+        PlayersPersonalBests: {
+            map: string;
+            /**
+             * @description Sorted by player, style and track. A player with no personal best on the map has no entries. One flat
+             *     list keeps it simple to read in SourcePawn.
+             */
+            personal_bests: components["schemas"]["PlayerPersonalBest"][];
         };
         /** @description A published `sourcejump.smx` build. */
         PluginRelease: {
@@ -3979,6 +4031,40 @@ export interface operations {
                 };
             };
             /** @description Not a valid map name, track, limit or cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    players_personal_bests: {
+        parameters: {
+            query: {
+                /** @description Players by SteamID64, comma-separated: 1 to 64 of them. Repeats count once. */
+                players: string;
+            };
+            header?: never;
+            path: {
+                /** @description Map name */
+                map: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayersPersonalBests"];
+                };
+            };
+            /** @description Not a valid map name, or `players` isn't 1 to 64 SteamID64s */
             422: {
                 headers: {
                     [name: string]: unknown;
