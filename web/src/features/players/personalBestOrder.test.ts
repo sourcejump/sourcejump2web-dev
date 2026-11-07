@@ -40,9 +40,9 @@ describe("profile personal best order", () => {
     expect(down.map((p) => p.map)).toEqual(["bhop_b", "bhop_a", "bhop_c"]);
   });
 
-  it("sorts by gap and by map", () => {
-    const gap = sortedPbs(list, { key: "gap", descending: true }, name);
-    expect(gap.map((p) => p.map)).toEqual(["bhop_b", "bhop_a", "bhop_c"]);
+  it("sorts by time and by map", () => {
+    const time = sortedPbs(list, { key: "time", descending: true }, name);
+    expect(time.map((p) => p.map)).toEqual(["bhop_c", "bhop_b", "bhop_a"]);
     const map = sortedPbs(list, { key: "map", descending: false }, name);
     expect(map.map((p) => p.map)).toEqual(["bhop_a", "bhop_b", "bhop_c"]);
   });

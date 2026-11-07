@@ -18,7 +18,10 @@ use sqlx::{PgPool, types::Json as JsonColumn};
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use super::keys::{self, KeyLookup};
+use super::{
+    activity,
+    keys::{self, KeyLookup},
+};
 use crate::{
     app::AppState,
     client_address::{ClientAddress, ClientCountry},
@@ -174,7 +177,7 @@ async fn heartbeat(
     // Only listed servers feed the activity chart, which is all it shows; it also keeps unlisted
     // senders, which anyone can be, from growing the log. The log serves up to a month, the daily totals
     // a year.
-    sqlx::query!(
+    let logged = sqlx::query!(
         r#"
         WITH listed AS (
             SELECT ip, port FROM server_listings WHERE ip = $1::inet AND port = $2
@@ -192,6 +195,27 @@ async fn heartbeat(
     )
     .execute(&state.db)
     .await?;
+    // A beat is the only time the total online can rise, so the day's peak is kept here. Its own statement:
+    // within the one above, the log row it just wrote wouldn't be visible yet.
+    if logged.rows_affected() > 0 {
+        sqlx::query!(
+            r#"
+            INSERT INTO server_activity_peaks AS p (day, players)
+            SELECT (now() AT TIME ZONE 'UTC')::date, coalesce(sum(latest.players), 0)
+            FROM (
+                SELECT DISTINCT ON (h.ip, h.port) h.players
+                FROM server_heartbeat_log h
+                JOIN server_listings l ON l.ip = h.ip AND l.port = h.port
+                WHERE h.received_at > now() - make_interval(mins => $1)
+                ORDER BY h.ip, h.port, h.received_at DESC
+            ) latest
+            ON CONFLICT (day) DO UPDATE SET players = greatest(p.players, excluded.players)
+            "#,
+            activity::ONLINE_WINDOW_MINUTES
+        )
+        .execute(&state.db)
+        .await?;
+    }
 
     Ok(Json(HeartbeatResponse {
         key,
@@ -211,7 +235,7 @@ fn clean_hostname(hostname: &str) -> String {
 }
 
 /// Prunes every hour, for as long as the API runs. Not on each heartbeat: anyone can send those, and each
-/// would cost three deletes.
+/// would cost four deletes.
 pub async fn run(db: PgPool) {
     let mut ticks = tokio::time::interval(PRUNE_INTERVAL);
     ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -223,13 +247,16 @@ pub async fn run(db: PgPool) {
     }
 }
 
-/// Forgets unlisted servers silent for a week, logged heartbeats after 30 days and daily totals after 400
-/// days.
+/// Forgets unlisted servers silent for a week, logged heartbeats after 30 days and daily totals and peaks
+/// after 400 days.
 async fn prune(db: &PgPool) -> Result<(), sqlx::Error> {
     sqlx::query!("DELETE FROM server_heartbeat_log WHERE received_at < now() - interval '30 days'")
         .execute(db)
         .await?;
     sqlx::query!("DELETE FROM server_activity_daily WHERE day < current_date - 400")
+        .execute(db)
+        .await?;
+    sqlx::query!("DELETE FROM server_activity_peaks WHERE day < current_date - 400")
         .execute(db)
         .await?;
     sqlx::query!(

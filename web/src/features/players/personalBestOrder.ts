@@ -3,7 +3,7 @@
 import type { Schemas } from "@/api/client";
 
 type PersonalBest = Schemas["PersonalBest"];
-export type PbSortKey = "place" | "map" | "style" | "time" | "gap" | "date";
+export type PbSortKey = "place" | "map" | "style" | "time" | "date";
 export interface PbSort {
   key: PbSortKey;
   descending: boolean;
@@ -18,7 +18,7 @@ export function gapOf(pb: PersonalBest): number | null {
   return pb.world_record_time == null ? null : pb.time - pb.world_record_time;
 }
 
-/** Personal bests in the chosen order; rows without the value (a legacy run's place or gap) go last either way. */
+/** Personal bests in the chosen order; rows without the value (a legacy run's place or date) go last either way. */
 export function sortedPbs(
   personalBests: PersonalBest[],
   sort: PbSort,
@@ -34,8 +34,6 @@ export function sortedPbs(
         return styleName(pb.style).toLowerCase();
       case "time":
         return pb.time;
-      case "gap":
-        return gapOf(pb);
       case "date":
         return pb.finished_at ? Date.parse(pb.finished_at) : null;
     }
