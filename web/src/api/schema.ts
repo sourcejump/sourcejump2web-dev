@@ -1537,7 +1537,10 @@ export interface components {
         /** @description New details for a profile. Every field is replaced: leave one out or null to clear it. */
         DetailsInput: {
             aspect?: components["schemas"]["Aspect"] | null;
-            /** @description An ISO 3166-1 alpha-2 code to show instead of the Steam profile's country; null to show Steam's. */
+            /**
+             * @description An ISO 3166-1 alpha-2 code to show instead of Steam's or a game server's, until a run's server finds one;
+             *     null to stop showing the player's pick.
+             */
             country_code?: string | null;
             /**
              * Format: int32
@@ -2347,9 +2350,12 @@ export interface components {
              */
             all_styles: components["schemas"]["StyleTotals"];
             avatar_url?: string | null;
-            /** @description Whether the player picked `country_code` themselves, rather than it coming from Steam. */
+            /** @description Whether the player picked `country_code` themselves, rather than it coming from a game server or Steam. */
             country_chosen: boolean;
-            /** @description ISO 3166-1 alpha-2: the one the player picked, or else their Steam profile's. None if neither has one. */
+            /**
+             * @description ISO 3166-1 alpha-2: the latest one a game server found for them, the player's pick if they made it
+             *     since, or else their Steam profile's. None if none has one.
+             */
             country_code?: string | null;
             details?: components["schemas"]["PlayerDetails"] | null;
             /** @description Whether `details` are what they had on the old site, shown until they save their own. */
@@ -3015,6 +3021,14 @@ export interface components {
             world_record_time?: number | null;
         };
         RunPlayer: {
+            /**
+             * @description The player's country, as the game server found it from their address with SourceMod's `GeoipCode2`: an ISO
+             *     3166-1 alpha-2 code. Leave it out when the lookup finds nothing; send only the code, never the address. It
+             *     becomes the player's flag. A code SourceJump doesn't know as a country is ignored and the run is stored
+             *     anyway. Runs only: detections ignore it.
+             * @example SE
+             */
+            country_code?: string | null;
             name: string;
             /** @example 76561197960287930 */
             steamid64: string;

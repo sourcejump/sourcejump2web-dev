@@ -30,9 +30,10 @@ pub struct PlayerProfile {
     /// The name from their latest run, or from Steam if they haven't played yet.
     pub name: String,
     pub avatar_url: Option<String>,
-    /// ISO 3166-1 alpha-2: the one the player picked, or else their Steam profile's. None if neither has one.
+    /// ISO 3166-1 alpha-2: the latest one a game server found for them, the player's pick if they made it
+    /// since, or else their Steam profile's. None if none has one.
     pub country_code: Option<String>,
-    /// Whether the player picked `country_code` themselves, rather than it coming from Steam.
+    /// Whether the player picked `country_code` themselves, rather than it coming from a game server or Steam.
     pub country_chosen: bool,
     /// Their setup, as they describe it. None when they've said nothing.
     pub details: Option<PlayerDetails>,

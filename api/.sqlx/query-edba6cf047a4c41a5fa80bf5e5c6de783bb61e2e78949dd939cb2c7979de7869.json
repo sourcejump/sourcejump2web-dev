@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE players SET country_code = $2, country_from_server = true, country_chosen = false\n        WHERE steamid64 = $1 AND name_seen_at <= $3\n          AND (country_code IS DISTINCT FROM $2 OR NOT country_from_server)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "edba6cf047a4c41a5fa80bf5e5c6de783bb61e2e78949dd939cb2c7979de7869"
+}

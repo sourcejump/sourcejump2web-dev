@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE players SET\n            avatar_url = $2,\n            -- Steam's country comes last: one a game server found or the player picked stays.\n            country_code = CASE WHEN country_chosen OR country_from_server THEN country_code ELSE $3 END,\n            steam_profile_fetched_at = now(),\n            name = CASE WHEN name_seen_at = '-infinity' AND $4::text IS NOT NULL THEN $4 ELSE name END\n        WHERE steamid64 = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fb61c057eeaad93846cb18dc80de808b8f42a0540f9eee7761f8845c487934f8"
+}
