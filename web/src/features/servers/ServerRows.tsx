@@ -156,7 +156,7 @@ function Rows({
 
 function Note({ children }: { children: ReactNode }) {
   return (
-    <p className="text-text-muted border-border rounded-lg border p-5 sm:rounded-none sm:border-x-0 sm:border-t sm:border-b-0 sm:px-4 sm:py-6">
+    <p className="text-text-muted border-border rounded-md border p-5 sm:rounded-none sm:border-x-0 sm:border-t sm:border-b-0 sm:px-4 sm:py-6">
       {children}
     </p>
   );

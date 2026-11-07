@@ -2267,6 +2267,12 @@ export interface components {
             run_id: number;
             style: string;
             /**
+             * Format: int32
+             * @description The board's tier. None while tiers aren't in force or staff haven't set this board's, and for a legacy
+             *     run.
+             */
+            tier?: number | null;
+            /**
              * Format: double
              * @description Seconds.
              */
@@ -2276,6 +2282,12 @@ export interface components {
              * @description 0 is the main track, 1 and up are bonuses.
              */
             track: number;
+            /**
+             * Format: double
+             * @description The board's 2.0 record time, as on its map leaderboard, so a client can show the gap to it. None for a
+             *     legacy run.
+             */
+            world_record_time?: number | null;
         };
         PersonalBestPage: {
             /** @description Pass as `cursor` for the personal bests after these. None at the end. */
@@ -2368,6 +2380,12 @@ export interface components {
             steamid64: string;
             /** @description One entry per style they hold a personal best in, sorted by style key. Counts are 2.0 alone. */
             styles: components["schemas"]["PlayerStyle"][];
+            /**
+             * Format: int32
+             * @description Number of tiers in force; None while the community hasn't set tiers, and personal bests then have no
+             *     tier.
+             */
+            tier_count?: number | null;
         };
         /**
          * @description A player as leaderboards, records and runs show them: enough to draw their name, avatar and flag, and to

@@ -10,7 +10,7 @@ export function Card({
   return (
     <div
       className={classNames(
-        "border-border bg-surface rounded-lg border p-5",
+        "border-border bg-surface rounded-md border p-5",
         interactive && "motion-lift",
         className,
       )}

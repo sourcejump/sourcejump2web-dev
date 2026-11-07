@@ -7,7 +7,7 @@ export default function MapLayout({
   children,
 }: LayoutProps<"/maps/[map]">) {
   return (
-    <Page className="gap-6">
+    <Page className="gap-4">
       {params.then(({ map }) => (
         <MapHeader name={decodeURIComponent(map)} />
       ))}

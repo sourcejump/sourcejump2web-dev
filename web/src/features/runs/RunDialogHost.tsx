@@ -12,6 +12,7 @@ import { REPLAY_ANCHOR } from "@/features/replays/anchor";
 import { Button, ButtonLink } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
 import { Tooltip } from "@/ui/Tooltip";
+import { loadGapWhenFinished } from "./loadGapWhenFinished";
 import { RunDetailList } from "./RunDetailList";
 import { closeRun, PRE_RUN_PARAM, REPLAY_PARAM, RUN_PARAM } from "./runDialog";
 
@@ -22,7 +23,7 @@ const ReplayPlayer = dynamic(
 );
 
 type Run =
-  | { legacy: false; run: Schemas["RunDetail"] }
+  | { legacy: false; run: Schemas["RunDetail"]; gap: number | null }
   | { legacy: true; run: Schemas["LegacyRunDetail"] };
 type Loaded = { key: string } & (Run | { error: string });
 
@@ -51,9 +52,12 @@ async function loadRun(id: string, legacy: boolean): Promise<Run | string> {
       ? "SourceJump has no such run."
       : FAILED;
   }
-  return legacy
-    ? { legacy: true, run: result.data as Schemas["LegacyRunDetail"] }
-    : { legacy: false, run: result.data as Schemas["RunDetail"] };
+  if (legacy) {
+    return { legacy: true, run: result.data as Schemas["LegacyRunDetail"] };
+  }
+  const run = result.data as Schemas["RunDetail"];
+  // Against the record standing when it finished, as on Activity and the run's page.
+  return { legacy: false, run, gap: await loadGapWhenFinished(run) };
 }
 
 export function RunDialogHost() {
@@ -167,6 +171,7 @@ export function RunDialogHost() {
         ) : (
           <RunDetailList
             run={run.run}
+            gap={run.gap}
             styleName={names.get(run.run.style) ?? run.run.style}
           />
         )

@@ -390,7 +390,7 @@ export function ReplayPlayer({
       onKeyDown={onKeyDown}
       className={classNames(
         "bg-bg @container relative w-full scroll-mt-24 overflow-hidden outline-none",
-        fullscreen ? "h-full" : "border-border aspect-video rounded-lg border",
+        fullscreen ? "h-full" : "border-border aspect-video rounded-md border",
         idle && "cursor-none",
       )}
     >

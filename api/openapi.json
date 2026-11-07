@@ -7958,6 +7958,14 @@
           "style": {
             "type": "string"
           },
+          "tier": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The board's tier. None while tiers aren't in force or staff haven't set this board's, and for a legacy\nrun."
+          },
           "time": {
             "type": "number",
             "format": "double",
@@ -7967,6 +7975,14 @@
             "type": "integer",
             "format": "int32",
             "description": "0 is the main track, 1 and up are bonuses."
+          },
+          "world_record_time": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The board's 2.0 record time, as on its map leaderboard, so a client can show the gap to it. None for a\nlegacy run."
           }
         }
       },
@@ -8215,6 +8231,14 @@
               "$ref": "#/components/schemas/PlayerStyle"
             },
             "description": "One entry per style they hold a personal best in, sorted by style key. Counts are 2.0 alone."
+          },
+          "tier_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Number of tiers in force; None while the community hasn't set tiers, and personal bests then have no\ntier."
           }
         }
       },

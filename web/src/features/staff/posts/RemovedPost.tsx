@@ -48,7 +48,7 @@ export function RemovedPost({ fallback }: { fallback: ReactNode }) {
   return (
     <article className="motion-enter flex flex-col gap-6">
       <BackToCommunity />
-      <div className="border-danger/60 bg-danger-soft flex flex-col gap-1 rounded-lg border px-4 py-3">
+      <div className="border-danger/60 bg-danger-soft flex flex-col gap-1 rounded-md border px-4 py-3">
         <p className="text-danger text-sm font-bold">
           Removed. Only staff can see this post.
         </p>

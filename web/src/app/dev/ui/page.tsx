@@ -162,14 +162,19 @@ export default function StyleGuidePage() {
 
       <Section title="Radius and elevation">
         <div className="flex flex-wrap gap-4">
-          <Swatch label="radius-sm · badges" className="rounded-sm" />
-          <Swatch label="radius-md · controls, rows" className="rounded-md" />
-          <Swatch label="radius-lg · cards, dialogs" className="rounded-lg" />
+          <Swatch
+            label="radius-sm · badges, rows inside a frame"
+            className="rounded-sm"
+          />
+          <Swatch
+            label="radius-md · every frame: panels, fields, buttons, menus"
+            className="rounded-md"
+          />
           <Swatch
             label="shadow-popover"
             className="shadow-popover rounded-md"
           />
-          <Swatch label="shadow-dialog" className="shadow-dialog rounded-lg" />
+          <Swatch label="shadow-dialog" className="shadow-dialog rounded-md" />
           <Swatch label="shadow-glow" className="shadow-glow rounded-md" />
         </div>
       </Section>

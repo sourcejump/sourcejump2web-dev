@@ -18,7 +18,7 @@ export async function ServerList() {
   const servers = result?.data?.servers;
 
   return (
-    <div className="sm:border-border sm:bg-surface flex flex-col gap-4 sm:gap-0 sm:overflow-hidden sm:rounded-lg sm:border">
+    <div className="sm:border-border sm:bg-surface flex flex-col gap-4 sm:gap-0 sm:overflow-hidden sm:rounded-md sm:border">
       <ServerActivity
         heading="Servers"
         servers={servers}
@@ -36,7 +36,7 @@ export async function ServerList() {
       {servers ? (
         <ServerRows servers={servers} />
       ) : (
-        <p className="text-text-muted border-border rounded-lg border p-5 sm:rounded-none sm:border-x-0 sm:border-t sm:border-b-0 sm:px-4 sm:py-6">
+        <p className="text-text-muted border-border rounded-md border p-5 sm:rounded-none sm:border-x-0 sm:border-t sm:border-b-0 sm:px-4 sm:py-6">
           Servers couldn&apos;t be loaded. Try again in a moment.
         </p>
       )}

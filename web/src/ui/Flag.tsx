@@ -1,21 +1,21 @@
 // A country flag from its ISO 3166-1 alpha-2 code, or a question-mark placeholder when there's no country.
-import "flag-icons/css/flag-icons.min.css";
+import "./flags.css";
 import { Tooltip } from "./Tooltip";
 import { classNames } from "./classNames";
 
 const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
 
-// The 4:3 drawings lose a pixel top and bottom, so stripes stay on whole pixels.
+// country-flag-icons draws every flag for a 3:2 box, the shape most flags have, so the box is exactly 3:2 and the
+// drawing fills it edge to edge: nothing cropped, nothing stretched. A 4:3 set looked too square beside names.
+// Whole pixels, so edges stay sharp. No outline: a ring reads differently on light and dark flags, which made some
+// look framed and others not.
 const sizes = {
-  md: "h-4 w-6 rounded-[2px]",
-  lg: "h-5.5 w-8 rounded-[3px]",
+  md: "h-3.5 w-[21px] rounded-[2px]",
+  lg: "h-5 w-[30px] rounded-[3px]",
 };
 
-const outline =
-  "shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-text)_10%,transparent)]";
-
 /**
- * flag-icons' stylesheet points at one SVG per country, so a browser downloads only the flags it shows.
+ * `flags.css` points at one SVG per country, so a browser downloads only the flags it shows.
  * `hint` replaces the tooltip, e.g. to tell a player how to set their country.
  */
 export function Flag({
@@ -40,9 +40,8 @@ export function Flag({
       title={hint ? undefined : label}
       tabIndex={hint ? 0 : undefined}
       className={classNames(
-        `fi-${valid.toLowerCase()} inline-block shrink-0 bg-cover bg-center align-middle`,
+        `flag-${valid.toLowerCase()} inline-block shrink-0 overflow-hidden bg-cover bg-center bg-no-repeat align-middle`,
         sizes[size],
-        outline,
         className,
       )}
     />
@@ -56,7 +55,6 @@ export function Flag({
       className={classNames(
         "bg-surface-raised text-text-subtle inline-flex shrink-0 items-center justify-center align-middle",
         sizes[size],
-        outline,
         className,
       )}
     >

@@ -13,13 +13,9 @@ import {
 } from "react";
 import { api, type Schemas } from "@/api/client";
 import { ReplayLink } from "@/features/replays/ReplayLink";
+import { RecordGap } from "@/features/runs/RecordGap";
 import { RunLink } from "@/features/runs/RunLink";
-import {
-  formatAge,
-  formatGap,
-  formatTime,
-  trackName,
-} from "@/features/runs/time";
+import { formatAge, formatTime, trackName } from "@/features/runs/time";
 import { Avatar } from "@/ui/Avatar";
 import { Badge } from "@/ui/Badge";
 import { classNames } from "@/ui/classNames";
@@ -263,7 +259,88 @@ export function RecentRunTable({
           waiting && "opacity-60",
         )}
       >
-        <Table flush>
+        {/* On a phone each run is two lines, paired by width as ok-website's feed does: the player beside the time
+            and its gap, the map (the longest part) beside the age (the shortest); the place leads, the replay
+            ends. Wider screens get the table. */}
+        <div
+          aria-hidden
+          className="border-border text-text-muted flex h-10 items-center gap-3 border-b pr-2 pl-4 text-xs tracking-widest uppercase sm:hidden"
+        >
+          <span className="w-8 shrink-0 text-center">#</span>
+          <span className="min-w-0 flex-1">Player</span>
+          <span className="shrink-0">Time</span>
+          {/* The replay button's width, so Time sits over the times. */}
+          <span className="w-6.5 shrink-0" />
+        </div>
+        <ol className="divide-border divide-y sm:hidden">
+          {shown.map((run, row) => (
+            <li
+              key={run.run_id}
+              className={turned ? undefined : "motion-enter"}
+              style={
+                {
+                  "--motion-delay": `${Math.min(row, 12) * 20}ms`,
+                } as CSSProperties
+              }
+            >
+              <div className="flex items-center gap-3 py-2.5 pr-2 pl-4">
+                <span className="flex w-8 shrink-0 justify-center">
+                  <Placement run={run} />
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <Link
+                        href={`/players/${run.player.steamid64}`}
+                        className="hover:text-accent truncate font-medium"
+                      >
+                        {run.player.name}
+                      </Link>
+                      {run.player.country_code && (
+                        <Flag code={run.player.country_code} />
+                      )}
+                    </span>
+                    <span className="flex shrink-0 items-baseline gap-1.5">
+                      <RunLink
+                        runId={run.run_id}
+                        className="hover:text-accent font-bold tabular-nums underline-offset-4 hover:underline"
+                      >
+                        {formatTime(run.time)}
+                      </RunLink>
+                      {run.gap != null && (
+                        <RecordGap gap={run.gap} className="text-xs" />
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    {/* One line tall: what doesn't fit wraps below and is hidden, so the style shows whole or not at all. */}
+                    <span className="text-text-muted flex h-5 min-w-0 flex-wrap items-center gap-x-1.5 overflow-hidden">
+                      <RunMap
+                        run={run}
+                        tierCount={tierCount}
+                        styleName={
+                          showStyle
+                            ? (styleNames[run.style] ?? run.style)
+                            : undefined
+                        }
+                      />
+                    </span>
+                    {/* Counted from now, which differs between the server's render and the browser's. */}
+                    <time
+                      dateTime={run.finished_at}
+                      suppressHydrationWarning
+                      className="text-text-subtle shrink-0"
+                    >
+                      {formatAge(run.finished_at)}
+                    </time>
+                  </div>
+                </div>
+                <ReplayLink runId={run.run_id} />
+              </div>
+            </li>
+          ))}
+        </ol>
+        <Table flush className="max-sm:hidden">
           <TableHead>
             <tr>
               <TableHeaderCell>Player</TableHeaderCell>
@@ -275,7 +352,8 @@ export function RecentRunTable({
               <TableHeaderCell className="w-px pr-0 pl-0">
                 <span className="sr-only">Replay</span>
               </TableHeaderCell>
-              <TableHeaderCell numeric className="w-px pl-2">
+              {/* Centered, as the column holds marks of different widths: the WR badge, a medal, a number. */}
+              <TableHeaderCell centered className="w-px pl-2">
                 Place
               </TableHeaderCell>
             </tr>
@@ -293,7 +371,7 @@ export function RecentRunTable({
                 }
               >
                 <TableCell>
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5">
                     <Link
                       href={`/players/${run.player.steamid64}`}
                       className="hover:text-accent flex items-center gap-3"
@@ -310,22 +388,15 @@ export function RecentRunTable({
                 </TableCell>
                 <TableCell>
                   <span className="flex items-center gap-2">
-                    {run.tier != null && tierCount != null && (
-                      <TierBadge tier={run.tier} tierCount={tierCount} />
-                    )}
-                    <Link href={mapHref(run)} className="hover:text-accent">
-                      {run.map}
-                    </Link>
-                    {(run.track > 0 || showStyle) && (
-                      <span className="text-text-subtle">
-                        {[
-                          run.track > 0 && trackName(run.track),
-                          showStyle && (styleNames[run.style] ?? run.style),
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    )}
+                    <RunMap
+                      run={run}
+                      tierCount={tierCount}
+                      styleName={
+                        showStyle
+                          ? (styleNames[run.style] ?? run.style)
+                          : undefined
+                      }
+                    />
                   </span>
                 </TableCell>
                 <TableCell numeric className="pr-2">
@@ -339,20 +410,7 @@ export function RecentRunTable({
                       </RunLink>
                       {/* Against the record when the run finished: what a new WR took off, or how far behind it was. */}
                       {run.gap != null && (
-                        <span
-                          className={classNames(
-                            "text-xs",
-                            run.gap < 0
-                              ? "text-success"
-                              : run.gap > 0
-                                ? "text-danger"
-                                : "text-text-subtle",
-                          )}
-                        >
-                          {run.gap < 0
-                            ? `(−${formatTime(-run.gap)})`
-                            : `(${formatGap(run.gap)})`}
-                        </span>
+                        <RecordGap gap={run.gap} className="text-xs" />
                       )}
                     </span>
                     {/* Counted from now, which differs between the server's render and the browser's. */}
@@ -368,16 +426,10 @@ export function RecentRunTable({
                 <TableCell className="pr-0 pl-0">
                   <ReplayLink runId={run.run_id} />
                 </TableCell>
-                <TableCell numeric className="pl-2">
-                  {run.world_record ? (
-                    <Badge tone="accent">WR</Badge>
-                  ) : run.placement != null ? (
-                    <span className="inline-flex justify-end">
-                      <Medal placement={run.placement} />
-                    </span>
-                  ) : (
-                    <span className="text-text-subtle">–</span>
-                  )}
+                <TableCell className="pl-2 text-center">
+                  <span className="inline-flex justify-center align-middle">
+                    <Placement run={run} />
+                  </span>
                 </TableCell>
               </TableRow>
             ))}
@@ -428,4 +480,46 @@ function runsIn(loaded: RunChunks): number {
 
 function pagesIn(loaded: RunChunks, pageSize: number): number {
   return Math.max(1, Math.ceil((loaded.total ?? runsIn(loaded)) / pageSize));
+}
+
+/** Where a run was set: the board's tier, the map, and its track and style when they need saying. */
+function RunMap({
+  run,
+  tierCount,
+  styleName,
+}: {
+  run: Schemas["RecentRun"];
+  tierCount: number | null;
+  /** Left out when the board already shows one style. */
+  styleName: string | undefined;
+}) {
+  const extra = [run.track > 0 && trackName(run.track), styleName]
+    .filter(Boolean)
+    .join(" · ");
+  // The tier and map are one piece, shortened only when they alone overrun the line; the track and style follow
+  // it, and in a line that can't hold them they wrap out of sight (the phone list's line hides its overflow).
+  return (
+    <>
+      <span className="flex max-w-full min-w-0 items-center gap-1.5">
+        {run.tier != null && tierCount != null && (
+          <TierBadge tier={run.tier} tierCount={tierCount} />
+        )}
+        <Link
+          href={mapHref(run)}
+          title={run.map}
+          className="hover:text-accent truncate"
+        >
+          {run.map}
+        </Link>
+      </span>
+      {extra && <span className="text-text-subtle">{extra}</span>}
+    </>
+  );
+}
+
+/** Where a run placed on its board when it finished: the WR badge, a medal or number, or a dash. */
+function Placement({ run }: { run: Schemas["RecentRun"] }) {
+  if (run.world_record) return <Badge tone="accent">WR</Badge>;
+  if (run.placement != null) return <Medal placement={run.placement} />;
+  return <span className="text-text-subtle">–</span>;
 }

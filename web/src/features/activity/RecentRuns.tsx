@@ -87,7 +87,8 @@ export async function RecentRuns({ params }: { params: RecentRunsParams }) {
       <div className="border-border border-y px-4 py-2">
         <ChoiceBar>
           <ChoiceMenu
-            label="Show"
+            // Its values ("All runs", "World records") say what it is, so a phone leaves the word out.
+            label={<span className="max-sm:hidden">Show</span>}
             options={[
               {
                 value: "all",
@@ -128,7 +129,12 @@ export async function RecentRuns({ params }: { params: RecentRunsParams }) {
           {/* Tiers are the community's to set; until a tier count is published there's nothing to filter by. */}
           {tierCount != null && (
             <ChoiceMenu
-              label="Lowest tier"
+              label={
+                <>
+                  <span className="sm:hidden">Tier</span>
+                  <span className="max-sm:hidden">Lowest tier</span>
+                </>
+              }
               options={[
                 { value: "", label: "Any", href: href({ tier: undefined }) },
                 ...Array.from({ length: tierCount }, (_, i) => ({

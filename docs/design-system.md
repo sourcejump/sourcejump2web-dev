@@ -6,7 +6,7 @@ One visual language that every page is built from, so pages can't drift apart. S
 - A slate sheet (`bg`, `shadow-sheet`) between darker gutters. One cyan accent; at most one primary button per view.
 - Gamified but professional: medals, tier colors, WR badges, count-ups and small motions. No mascots, confetti, slogans or sales copy.
 - Play for everything. Its digits are all the same width, so times line up in columns without a second font.
-- Corners: `rounded-sm` (4px) for badges, `rounded-md` (8px) for controls and rows, `rounded-lg` (12px) only for padded cards and dialogs.
+- Corners: `rounded-md` (8px) for every frame, from a panel to a field or button; `rounded-sm` (4px) for badges and rows inside a frame.
 
 ## Tokens
 `web/src/ui/tokens.css` holds every color, type size, radius, shadow and easing as Tailwind theme variables. Tailwind's own palette, radii, type scale and shadows are cleared, so `bg-red-500` or `rounded-3xl` don't compile. Spacing keeps Tailwind's 4px grid.
@@ -31,11 +31,11 @@ One visual language that every page is built from, so pages can't drift apart. S
 | `TierBadge` | `tier` and `tierCount` from the API |
 | `Avatar` | Steam avatar or initials; `sm` to `xl` |
 | `Flag` | Country flag from an ISO code, a grey placeholder without one; `hint` replaces its tooltip |
-| `Table` + `TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/`TableCell` | Leaderboards and staff lists; `numeric` cells right-align, `wrap` cells let long names wrap. Scrolls sideways inside its frame when too wide |
+| `Table` + `TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/`TableCell` | Leaderboards, staff lists; `numeric` cells right-align, `centered` heads center on narrow marks, `wrap` cells wrap. Scrolls sideways if too wide |
 | `Tabs` | Panels on one page; `underline` or `segmented` |
 | `LinkTabs` | Looks like `Tabs`, but each tab is a link: a view the server renders, such as the Maps page's sort |
 | `Segmented` | Looks like segmented `Tabs`, for a choice that changes the view in place (a server's activity range, a post's kind). The chosen option is in the accent |
-| `ChoiceMenu` | "Label  Value ▾": one choice from a list, in a `Menu` of radio items, changing the view in place, or following each option's `href` on a server page. Boards, profiles and the Maps page use a row of them (Style, Track, Runs; Sort, Records in; lead, 2026-10-26); quiet options are dimmed but choosable, disabled ones dimmed and kept in place. On a phone each takes a full row, label left and value right |
+| `ChoiceMenu` | "Label  Value ▾": one choice from a list, in a `Menu` of radio items, changing the view in place, or following each option's `href` on a server page. Boards, profiles and the Maps page use a row of them (Style, Track, Runs; Sort, Records in; lead, 2026-10-26); quiet options are dimmed but choosable, disabled ones dimmed and kept in place. Word-width on phones too, so they sit side by side |
 | `ChoiceBar` | The row those menus sit in, with any tabs beside them. Every page uses it, so the spacing between choices stays the same everywhere |
 | `Pager` | Previous and next under a paged list; `param`: its address key |
 | `DividedList`, `DividedSection` | Rows with lines between them, and a part set off by a line above, inside a `Card` or `Dialog`. The lines run to the surface's edges |
@@ -43,7 +43,7 @@ One visual language that every page is built from, so pages can't drift apart. S
 | `LineChart` | One count over time from zero (players online). Drawn in a fixed box stretched by CSS, so it fills its container before scripts load. Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
 | `TierSpread` | How many maps hold each tier: a donut in tier colors beside each tier's count and share; each slice and row links to that tier's maps, the others dim, and "All" closes the list (Maps page) |
 | `Tooltip` | Hint on hover and focus; the child must be focusable |
-| `Menu`, `MenuItem`, `MenuLink`, `MenuSeparator` | Menu button (account, mobile sections) |
+| `Menu`, `MenuItem`, `MenuLink`, `MenuSeparator` | Menu button (account; `sheet`: phone menu) |
 | `Dialog` | Controlled modal (`open`, `onClose`). A field marked `data-autofocus` takes focus on each opening (React's `autoFocus` fires only on mount). Closes itself, without calling `onClose`, when its page is hidden for Back |
 | `BrandIcon`, `SteamButton` | Community and Steam logos (`colored`: in their own colors); Steam sign-in |
 | `Input`, `SearchField`, `Textarea`, `CountUp` | Text field with optional icon; search, button inside; multi-line field; animated number |
@@ -65,7 +65,7 @@ Named utilities, so pages never write their own transitions:
 - `motion-reveal`: a section rising in as it scrolls into view (scroll-driven; browsers without it show it at once).
 - `motion-settle`: a large picture easing out of a slight zoom as the page opens (the home header).
 - `HeaderDepth` (`features/home/`): the home header's picture leans with the mouse, by a depth map of it (`scripts/header-depth.py`; rerun it when the picture changes). Dust drifts in the light shaft, and a click sends cyan traces crawling over the surfaces (`headerTraces.ts`). WebGL, running only while the header is on screen; off on touch screens and with reduced motion.
-- `motion-pop`: a popover menu fading in with a slight drop and grow, and fading out as it closes (`Menu`).
+- `motion-pop`: a menu fading in with a slight drop and grow (`Menu`); `motion-fade`: its `sheet`'s dim.
 - `CountUp`: counts up when scrolled into view, and from the old value when it changes. A number already in view when the page loads stays as it is.
 - `page-fade`: between pages (see Navigation).
 

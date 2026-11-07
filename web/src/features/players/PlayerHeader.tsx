@@ -11,6 +11,7 @@ import { Badge } from "@/ui/Badge";
 import { Flag } from "@/ui/Flag";
 import { PathTabs } from "@/ui/PathTabs";
 import { formatDate, formatSince, formatTime } from "@/features/runs/time";
+import { classNames } from "@/ui/classNames";
 import { Link } from "@/ui/Link";
 import { Masthead, type MastheadImage } from "@/ui/Masthead";
 import { Medal } from "@/ui/Medal";
@@ -49,14 +50,23 @@ export async function PlayerHeader({ steamid }: { steamid: string }) {
     : [];
 
   return (
-    <Masthead image={image} className={image ? "pt-28 pb-8 sm:pt-40" : "py-10"}>
-      <header className="motion-enter flex flex-wrap items-center gap-x-6 gap-y-4">
+    // Less of the picture above the name on a phone, and a smaller avatar, so the profile starts sooner.
+    <Masthead
+      image={image}
+      // On a phone the avatar overlaps the bottom of the picture band (h-28) and the name starts below it.
+      className={image ? "pt-20 pb-6 sm:pt-40 sm:pb-8" : "py-6 sm:py-10"}
+    >
+      <header className="motion-enter flex flex-wrap items-center gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4">
         <Avatar
           name={player.name}
           src={player.avatar_url ?? undefined}
           size="xl"
+          className={classNames(
+            "max-sm:size-16 max-sm:text-lg",
+            image && "max-sm:border-bg max-sm:border-4",
+          )}
         />
-        <div className="flex min-w-0 flex-1 basis-48 flex-col gap-2">
+        <div className="flex min-w-0 flex-1 basis-48 flex-col gap-2 max-sm:basis-full">
           {/* One line of text, so the flag sits at the middle of the name's letters (`vertical-align: middle`)
               rather than the middle of its line box, which reads as high beside a lowercase name. */}
           <div className="min-w-0 text-2xl font-bold break-words sm:text-4xl">
@@ -78,7 +88,7 @@ export async function PlayerHeader({ steamid }: { steamid: string }) {
             )}
           </div>
           {/* Facts about the player, then the way out to Steam. The run dates count 2.0 runs alone. */}
-          <div className="text-text-muted flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+          <div className="text-text-muted flex flex-wrap items-center gap-x-4 gap-y-1 text-sm sm:gap-x-6">
             <dl className="contents">
               {country && (
                 <div>

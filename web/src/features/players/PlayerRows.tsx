@@ -55,11 +55,13 @@ export function PlayerRows({
             className="group hover:bg-surface-raised flex h-14 items-center gap-3 px-5 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
           >
             <Avatar name={player.name} src={player.avatar_url ?? undefined} />
-            <span className="group-hover:text-accent min-w-0 truncate transition-colors duration-(--duration-fast)">
-              {player.name}
-            </span>
             {/* Most players have no country on Steam; a column of placeholders would only be noise. */}
-            {player.country_code && <Flag code={player.country_code} />}
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="group-hover:text-accent min-w-0 truncate transition-colors duration-(--duration-fast)">
+                {player.name}
+              </span>
+              {player.country_code && <Flag code={player.country_code} />}
+            </span>
             <span className="ml-auto shrink-0 pl-2 text-right text-xs tabular-nums">
               {player.last_run_at ? (
                 <time

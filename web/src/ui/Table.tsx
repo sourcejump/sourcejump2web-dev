@@ -17,7 +17,7 @@ export function Table({
     <div
       className={classNames(
         "relative overflow-x-auto overflow-y-hidden",
-        !flush && "border-border bg-surface rounded-lg border",
+        !flush && "border-border bg-surface rounded-md border",
         className,
       )}
     >
@@ -64,15 +64,20 @@ export function TableRow({
 
 export function TableHeaderCell({
   numeric = false,
+  centered = false,
   className,
   ...props
-}: { numeric?: boolean } & ComponentProps<"th">) {
+}: {
+  numeric?: boolean;
+  /** Over a column of marks narrower than its name (medals, a few digits), centered with them. */
+  centered?: boolean;
+} & ComponentProps<"th">) {
   return (
     <th
       scope="col"
       className={classNames(
         "text-text-muted border-border h-10 border-b px-4 text-xs font-normal tracking-widest whitespace-nowrap uppercase",
-        numeric ? "text-right" : "text-left",
+        centered ? "text-center" : numeric ? "text-right" : "text-left",
         className,
       )}
       {...props}

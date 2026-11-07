@@ -6,17 +6,19 @@ import { Badge } from "@/ui/Badge";
 import { DividedList } from "@/ui/Divided";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
-import { formatDate, formatGap, formatTime, trackName } from "./time";
+import { RecordGap } from "./RecordGap";
+import { formatDate, formatTime, trackName } from "./time";
 
 export function RunDetailList({
   run,
   styleName,
+  gap,
 }: {
   run: Schemas["RunDetail"];
   styleName: string;
+  /** Against the record standing when it finished (`gapWhenFinished`); null for none. */
+  gap: number | null;
 }) {
-  const gap =
-    run.world_record_time == null ? 0 : run.time - run.world_record_time;
   const number = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
   const speed = new Intl.NumberFormat("en", { maximumFractionDigits: 0 });
 
@@ -40,13 +42,11 @@ export function RunDetailList({
           <span className="text-accent flex items-center justify-end gap-2 font-bold tabular-nums">
             {run.invalidated && <Badge tone="danger">Invalidated</Badge>}
             {run.rank === 1 && <Badge tone="accent">WR</Badge>}
-            {/* Behind the record, put before the time as the Activity page does. */}
-            {gap > 0 && (
-              <span className="text-danger text-xs font-normal">
-                {formatGap(gap)}
-              </span>
-            )}
             {formatTime(run.time)}
+            {/* After the time, as on Activity and the run's page. */}
+            {gap != null && (
+              <RecordGap gap={gap} className="text-xs font-normal" />
+            )}
           </span>
         </Row>
         <Row term="Place">
@@ -66,8 +66,10 @@ export function RunDetailList({
               src={run.player.avatar_url ?? undefined}
               size="sm"
             />
-            {run.player.name}
-            <Flag code={run.player.country_code} />
+            <span className="inline-flex items-center gap-1.5">
+              {run.player.name}
+              <Flag code={run.player.country_code} />
+            </span>
           </Link>
         </Row>
         <Row term="Map">

@@ -1,36 +1,59 @@
-// The logos of the services SourceJump's community uses, for links to them and Steam sign-in. Paths from
-// Bootstrap Icons (icons.getbootstrap.com, MIT, © The Bootstrap Authors), drawn in the current text color on a
-// 16 × 16 grid.
-import type { SVGProps } from "react";
+// The logos of the services SourceJump's community uses, for links to them and Steam sign-in: each brand's current
+// mark, paths from Simple Icons (simpleicons.org, CC0), on a 24 × 24 grid. Plain, a logo takes the text color;
+// `colored`, it's drawn as the brand draws it: Discord's blurple, YouTube's red with a white play button, Steam's
+// mark in its light client blue, TikTok's white note over its cyan and pink copies; `round`, as a round badge,
+// the mark in white on a circle of the brand's color (YouTube's, its own round badge).
+import { type SVGProps, useId } from "react";
 import { classNames } from "./classNames";
 
 const paths = {
-  discord: [
-    "M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612",
-  ],
-  youtube: [
-    "M8.051 1.999h.089c.822.003 4.987.033 6.11.335a2.01 2.01 0 0 1 1.415 1.42c.101.38.172.883.22 1.402l.01.104.022.26.008.104c.065.914.073 1.77.074 1.957v.075c-.001.194-.01 1.108-.082 2.06l-.008.105-.009.104c-.05.572-.124 1.14-.235 1.558a2.01 2.01 0 0 1-1.415 1.42c-1.16.312-5.569.334-6.18.335h-.142c-.309 0-1.587-.006-2.927-.052l-.17-.006-.087-.004-.171-.007-.171-.007c-1.11-.049-2.167-.128-2.654-.26a2.01 2.01 0 0 1-1.415-1.419c-.111-.417-.185-.986-.235-1.558L.09 9.82l-.008-.104A31 31 0 0 1 0 7.68v-.123c.002-.215.01-.958.064-1.778l.007-.103.003-.052.008-.104.022-.26.01-.104c.048-.519.119-1.023.22-1.402a2.01 2.01 0 0 1 1.415-1.42c.487-.13 1.544-.21 2.654-.26l.17-.007.172-.006.086-.003.171-.007A100 100 0 0 1 7.858 2zM6.4 5.209v4.818l4.157-2.408z",
-  ],
-  steam: [
-    "M.329 10.333A8.01 8.01 0 0 0 7.99 16C12.414 16 16 12.418 16 8s-3.586-8-8.009-8A8.006 8.006 0 0 0 0 7.468l.003.006 4.304 1.769A2.2 2.2 0 0 1 5.62 8.88l1.96-2.844-.001-.04a3.046 3.046 0 0 1 3.042-3.043 3.046 3.046 0 0 1 3.042 3.043 3.047 3.047 0 0 1-3.111 3.044l-2.804 2a2.223 2.223 0 0 1-3.075 2.11 2.22 2.22 0 0 1-1.312-1.568L.33 10.333Z",
-    "M4.868 12.683a1.715 1.715 0 0 0 1.318-3.165 1.7 1.7 0 0 0-1.263-.02l1.023.424a1.261 1.261 0 1 1-.97 2.33l-.99-.41a1.7 1.7 0 0 0 .882.84Zm3.726-6.687a2.03 2.03 0 0 0 2.027 2.029 2.03 2.03 0 0 0 2.027-2.029 2.03 2.03 0 0 0-2.027-2.027 2.03 2.03 0 0 0-2.027 2.027m2.03-1.527a1.524 1.524 0 1 1-.002 3.048 1.524 1.524 0 0 1 .002-3.048",
-  ],
-  tiktok: [
-    "M9 0h1.98c.144.715.54 1.617 1.235 2.512C12.895 3.389 13.797 4 15 4v2c-1.753 0-3.07-.814-4-1.829V11a5 5 0 1 1-5-5v2a3 3 0 1 0 3 3z",
-  ],
+  discord:
+    "M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z",
+  // The play button is a hole in the red, so a white triangle drawn beneath it shows through when colored.
+  youtube:
+    "M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z",
+  steam:
+    "M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z",
+  tiktok:
+    "M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z",
 } as const;
+
+const YOUTUBE_PLAY = "M9.545 15.568V8.432L15.818 12z";
+/** YouTube's play button alone, centred on the circle and a little larger: the red frame around it is the badge. */
+/**
+ * YouTube's round badge as YouTube draws it: the white play block on a red circle, the play triangle cut out of it.
+ * On a 1000-unit grid, scaled to the icon's 24.
+ */
+const YOUTUBE_ROUND = {
+  circle:
+    "m500 1000c-276.1 0-500-223.9-500-500 0-276.1 223.9-500 500-500 276.1 0 500 223.9 500 500 0 276.1-223.9 500-500 500z",
+  play: "m818.2 339.1c-7.6-28.8-30.1-51.4-58.7-59.1-51.8-14-259.4-14-259.4-14s-207.7 0-259.4 14c-28.6 7.7-51.1 30.3-58.7 59.1-14 52.1-14 160.9-14 160.9s0 108.8 13.9 160.9c7.6 28.8 30.1 51.4 58.7 59.1 51.8 14 259.4 14 259.4 14s207.7 0 259.4-14c28.6-7.7 51.1-30.3 58.7-59.1 13.9-52.1 13.9-160.9 13.9-160.9s0-108.8-13.8-160.9zm-386.1 259.6v-197.4l173.5 98.7z",
+};
+
+/** Each badge's circle, in the brand's own color. */
+const roundFills: Record<"discord" | "steam" | "tiktok", string> = {
+  discord: "#5865f2",
+  // Steam's lighter blue: its darkest, #1b2838, all but vanishes on the footer.
+  steam: "#2a475e",
+  tiktok: "#000",
+};
+
+/**
+ * How large each mark sits in its circle, scaled about the centre. By eye rather than by box: TikTok's narrow note
+ * at Discord's scale looked smaller than the rest.
+ */
+const insets: Record<"discord" | "tiktok", string> = {
+  discord: "translate(12 12) scale(0.58) translate(-12 -12)",
+  tiktok: "translate(12 12) scale(0.68) translate(-12 -12)",
+};
 
 export type Brand = keyof typeof paths;
 
-/** Each logo in its own colors, for where the logos stand alone (the header's community links). */
 const colors: Record<Brand, string> = {
   discord: "text-[#5865f2]",
-  // Red with the play mark in white, drawn under the path's cut-out.
   youtube: "text-[#ff0000]",
   steam: "text-[#c7d5e0]",
-  // White with TikTok's cyan and pink edges split apart.
-  tiktok:
-    "text-[#fff] [filter:drop-shadow(-0.6px_-0.6px_0_#25f4ee)_drop-shadow(0.6px_0.6px_0_#fe2c55)]",
+  tiktok: "text-[#fff]",
 };
 
 /**
@@ -40,23 +63,71 @@ const colors: Record<Brand, string> = {
 export function BrandIcon({
   brand,
   colored = false,
+  round = false,
   className,
   ...props
-}: { brand: Brand; colored?: boolean } & SVGProps<SVGSVGElement>) {
+}: {
+  brand: Brand;
+  colored?: boolean;
+  round?: boolean;
+} & SVGProps<SVGSVGElement>) {
+  const d = paths[brand];
+  // Each Steam badge masks with its own id, so several on one page don't share one.
+  const clip = useId();
+  if (round) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden className={className} {...props}>
+        {brand === "youtube" ? (
+          <g transform="scale(0.024)">
+            <path d={YOUTUBE_ROUND.circle} fill="#f00" />
+            <path d={YOUTUBE_ROUND.play} fill="#fff" />
+          </g>
+        ) : brand === "steam" ? (
+          // Steam's logo is a disc with the mark cut out of it. Drawn as a blue circle with white painted only through
+          // the cut-outs, and only inside a circle short of the rim: white anywhere under the rim showed as a thin
+          // ring where the two edges' soft pixels blended.
+          <>
+            <mask id={clip}>
+              <circle cx="12" cy="12" r="11.2" fill="#fff" />
+              <path d={d} fill="#000" />
+            </mask>
+            <circle cx="12" cy="12" r="12" fill={roundFills.steam} />
+            <rect width="24" height="24" fill="#fff" mask={`url(#${clip})`} />
+          </>
+        ) : (
+          <>
+            <circle cx="12" cy="12" r="12" fill={roundFills[brand]} />
+            <g transform={insets[brand]}>
+              {brand === "tiktok" && (
+                <>
+                  <path d={d} fill="#25f4ee" transform="translate(-1 -0.8)" />
+                  <path d={d} fill="#fe2c55" transform="translate(1 0.8)" />
+                </>
+              )}
+              <path d={d} fill="#fff" />
+            </g>
+          </>
+        )}
+      </svg>
+    );
+  }
   return (
     <svg
-      viewBox="0 0 16 16"
+      viewBox="0 0 24 24"
       fill="currentColor"
       aria-hidden
       className={classNames(colored && colors[brand], className)}
       {...props}
     >
-      {colored && brand === "youtube" && (
-        <path d="M6.4 5.209v4.818l4.157-2.408z" fill="#fff" />
+      {colored && brand === "youtube" && <path d={YOUTUBE_PLAY} fill="#fff" />}
+      {colored && brand === "tiktok" && (
+        // TikTok's logo is three copies of the note: cyan up and left, pink down and right, white on top.
+        <>
+          <path d={d} fill="#25f4ee" transform="translate(-0.9 -0.7)" />
+          <path d={d} fill="#fe2c55" transform="translate(0.9 0.7)" />
+        </>
       )}
-      {paths[brand].map((d) => (
-        <path key={d} d={d} />
-      ))}
+      <path d={d} />
     </svg>
   );
 }

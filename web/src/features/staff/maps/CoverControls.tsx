@@ -50,7 +50,7 @@ export function CoverControls({
       <Button
         size="sm"
         onClick={() => setFocus(cover.focus)}
-        className="motion-enter absolute right-3 bottom-3"
+        className="motion-enter absolute top-3 right-3"
       >
         <MoveVertical aria-hidden />
         Move banner

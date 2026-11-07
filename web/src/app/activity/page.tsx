@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function ActivityPage({ searchParams }: PageProps<"/activity">) {
   return (
     <Page width="medium" className="gap-0">
-      <div className="border-border bg-surface overflow-hidden rounded-lg border">
+      <div className="border-border bg-surface overflow-hidden rounded-md border">
         <DailyTotals kind="runs" heading="Activity" plain />
         {searchParams.then(({ style, track, tier, show, page }) => (
           <RecentRuns
