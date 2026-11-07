@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/ui/Table";
 import { TierBadge } from "@/ui/TierBadge";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 type Run = Schemas["RecentRun"];
 type Query = {
@@ -378,7 +379,7 @@ export function RecentRunTable({
                     >
                       <Avatar
                         name={run.player.name}
-                        src={run.player.avatar_url ?? undefined}
+                        src={avatarSrc(run.player)}
                         size="sm"
                       />
                       {run.player.name}

@@ -18,6 +18,7 @@ import {
 } from "@/ui/Table";
 import { LIST_PAGE_SIZE as PAGE_SIZE } from "./BoardChoices";
 import { useStandingsPages } from "./useStandingsPages";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 const numbers = new Intl.NumberFormat("en");
 const percent = new Intl.NumberFormat("en", { style: "percent" });
@@ -154,7 +155,7 @@ export function StandingsTable({
                   >
                     <Avatar
                       name={standing.player.name}
-                      src={standing.player.avatar_url ?? undefined}
+                      src={avatarSrc(standing.player)}
                       size="sm"
                     />
                     {standing.player.name}

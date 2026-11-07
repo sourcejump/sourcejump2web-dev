@@ -2,10 +2,13 @@
 
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
-use tokio::{sync::Mutex, time::Instant};
+use tokio::{
+    sync::{Mutex, Semaphore},
+    time::Instant,
+};
 use url::Url;
 
-use crate::players::SteamId64;
+use crate::players::{SteamId64, steam_profile};
 
 #[derive(Clone, Debug)]
 pub struct Steam {
@@ -17,6 +20,8 @@ pub struct Steam {
     last_request: Arc<Mutex<Option<Instant>>>,
     /// Players whose profile refresh is waiting or running (`players/steam_profile.rs`).
     pub(crate) profile_refreshes: Arc<std::sync::Mutex<HashSet<SteamId64>>>,
+    /// Slots for profile fetches a request waits on (`players/steam_profile.rs`, `refresh_now`).
+    pub(crate) inline_fetches: Arc<Semaphore>,
 }
 
 impl Steam {
@@ -39,6 +44,7 @@ impl Steam {
             community: base.clone(),
             last_request: Arc::new(Mutex::new(None)),
             profile_refreshes: Arc::default(),
+            inline_fetches: Arc::new(Semaphore::new(steam_profile::INLINE_FETCHES)),
         }
     }
 

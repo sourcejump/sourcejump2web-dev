@@ -22,6 +22,7 @@ import { Avatar } from "@/ui/Avatar";
 import { classNames } from "@/ui/classNames";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 const PAUSE_MS = 110;
 const SHOWN = 5;
@@ -341,7 +342,7 @@ export function HeaderSearch() {
                           picture={
                             <Avatar
                               name={player.name}
-                              src={player.avatar_url ?? undefined}
+                              src={avatarSrc(player)}
                             />
                           }
                           kind="Player"

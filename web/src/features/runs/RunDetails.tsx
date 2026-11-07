@@ -19,6 +19,7 @@ import { loadGapWhenFinished } from "./loadGapWhenFinished";
 import { RecordGap } from "./RecordGap";
 import { formatAge, formatDate, formatTime, trackName } from "./time";
 import { RunComments } from "./RunComments";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 /** One request per run, however many components on the page show it. */
 export const getRun = cache(async (id: string) => {
@@ -105,7 +106,7 @@ function RunHeader({
             >
               <Avatar
                 name={run.player.name}
-                src={run.player.avatar_url ?? undefined}
+                src={avatarSrc(run.player)}
                 size="sm"
               />
               {run.player.name}

@@ -31,6 +31,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from "@/ui/Table";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 const PAGE_SIZE = 50;
 /** The API's largest page, for loading a whole board to sort. */
@@ -309,7 +310,7 @@ export function Leaderboard({
                   >
                     <Avatar
                       name={entry.player.name}
-                      src={entry.player.avatar_url ?? undefined}
+                      src={avatarSrc(entry.player)}
                       size="sm"
                     />
                     <span className="truncate">{entry.player.name}</span>

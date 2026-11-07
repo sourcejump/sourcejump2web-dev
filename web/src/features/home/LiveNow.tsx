@@ -22,6 +22,7 @@ import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
 import { Medal } from "@/ui/Medal";
 import { TierBadge } from "@/ui/TierBadge";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 const RECORDS = 8;
 /**
@@ -282,7 +283,7 @@ function Records({
             <span className="text-text-muted flex min-w-0 items-center gap-2 text-sm">
               <Avatar
                 name={run.player.name}
-                src={run.player.avatar_url ?? undefined}
+                src={avatarSrc(run.player)}
                 size="sm"
               />
               {/* Most players have no country on Steam; a placeholder on every row would only be noise. */}
@@ -357,7 +358,7 @@ function Leaders({ standings }: { standings: Schemas["Standing"][] }) {
             <Medal placement={index + 1} />
             <Avatar
               name={standing.player.name}
-              src={standing.player.avatar_url ?? undefined}
+              src={avatarSrc(standing.player)}
               size="sm"
             />
             <span className="flex min-w-0 items-center gap-1.5">
