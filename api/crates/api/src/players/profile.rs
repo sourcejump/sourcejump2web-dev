@@ -20,6 +20,7 @@ use crate::{
     app::AppState,
     error::{ApiError, ErrorBody},
     leaderboards::standings,
+    maps::tiers,
 };
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -52,6 +53,9 @@ pub struct PlayerProfile {
     /// Maps they have a legacy run on, none for a player banned from records. When there are any, the
     /// normal style's personal bests have the "2.0 + pre-2.0" and "Pre-2.0" views.
     pub legacy_maps: i64,
+    /// Number of tiers in force; None while the community hasn't set tiers, and personal bests then have no
+    /// tier.
+    pub tier_count: Option<i16>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, ToSchema)]
@@ -133,6 +137,7 @@ pub async fn player_profile(
     let map_count = crate::maps::played_count(&state.db).await?;
     let legacy_maps = legacy.as_ref().map_or(0, |legacy| legacy.maps);
     let shown = details::shown(&mut *state.db.acquire().await?, steamid64).await?;
+    let tier_count = tiers::tier_count(&state.db).await?;
 
     let Some(player) = player else {
         // Known only from the old site: its name, avatar and country as it last had them.
@@ -154,6 +159,7 @@ pub async fn player_profile(
                 .await?
                 .draft,
             legacy_maps,
+            tier_count,
         }));
     };
 
@@ -165,7 +171,7 @@ pub async fn player_profile(
     );
 
     let all_styles = totals(&state.db, steamid64).await?;
-    let mut styles = styles_of(&state.db, steamid64).await?;
+    let mut styles = styles_of(&state.db, steamid64, tier_count.is_some()).await?;
     for standing in standings_of(&state.db, steamid64).await? {
         if let Some(style) = styles.iter_mut().find(|s| s.style == standing.style) {
             let place = Some(StyleStanding {
@@ -198,6 +204,7 @@ pub async fn player_profile(
         all_styles,
         points_draft,
         legacy_maps,
+        tier_count,
     }))
 }
 
@@ -251,6 +258,7 @@ async fn totals(db: &sqlx::PgPool, steamid64: SteamId64) -> Result<StyleTotals, 
 async fn styles_of(
     db: &sqlx::PgPool,
     steamid64: SteamId64,
+    tiers_in_force: bool,
 ) -> Result<Vec<PlayerStyle>, sqlx::Error> {
     let counts = sqlx::query!(
         r#"
@@ -275,9 +283,15 @@ async fn styles_of(
             tracks: Some(Tracks::Main),
             ..Selection::default()
         };
-        let first_page =
-            personal_bests::personal_bests(db, steamid64, selection, None, Some(DEFAULT_LIMIT + 1))
-                .await?;
+        let first_page = personal_bests::personal_bests(
+            db,
+            steamid64,
+            selection,
+            None,
+            Some(DEFAULT_LIMIT + 1),
+            tiers_in_force,
+        )
+        .await?;
         let (personal_bests, next_cursor) =
             personal_bests::split_page(first_page, page_size, false);
         styles.push(PlayerStyle {
@@ -416,6 +430,8 @@ mod tests {
             .await
             .json();
         assert_eq!(main_standing(&profile), None, "no points without tiers");
+        assert_eq!(profile.tier_count, None);
+        assert_eq!(profile.styles[0].personal_bests[0].tier, None);
 
         staff::policies::publish_policy(
             &db,
@@ -434,6 +450,13 @@ mod tests {
                 .await
                 .json();
             assert_eq!(main_standing(&profile), Some(rank), "{player}");
+            assert_eq!(profile.tier_count, Some(5));
+            assert_eq!(profile.styles[0].personal_bests[0].tier, Some(1));
+            // The record holder's own time, the faster time for the player behind.
+            assert_eq!(
+                profile.styles[0].personal_bests[0].world_record_time,
+                Some(20.0)
+            );
             assert!(profile.styles[0].bonus_standing.is_none());
             assert!(profile.points_draft);
         }

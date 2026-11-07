@@ -16,6 +16,7 @@ use crate::{
     app::AppState,
     error::{ApiError, ErrorBody},
     legacy::{self, View},
+    maps::tiers,
 };
 
 pub const DEFAULT_LIMIT: i64 = 50;
@@ -66,8 +67,14 @@ pub struct PersonalBest {
     pub map: String,
     /// 0 is the main track, 1 and up are bonuses.
     pub track: i16,
+    /// The board's tier. None while tiers aren't in force or staff haven't set this board's, and for a legacy
+    /// run.
+    pub tier: Option<i16>,
     /// Seconds.
     pub time: f64,
+    /// The board's 2.0 record time, as on its map leaderboard, so a client can show the gap to it. None for a
+    /// legacy run.
+    pub world_record_time: Option<f64>,
     /// Placement on the map's 2.0 leaderboard for this style and track. Equal times share a placement. None
     /// for a legacy run, which has no 2.0 placement.
     pub rank: Option<i64>,
@@ -99,13 +106,14 @@ pub(super) struct Selection<'a> {
 }
 
 /// The player's personal bests with placements, as `selection` asks; `after` continues after a position, and
-/// `limit` caps the count (None for all of them).
+/// `limit` caps the count (None for all of them). `tiers_in_force` is whether a tier count is published.
 pub(super) async fn personal_bests(
     db: &PgPool,
     steamid64: SteamId64,
     selection: Selection<'_>,
     after: Option<&Position>,
     limit: Option<i64>,
+    tiers_in_force: bool,
 ) -> Result<Vec<PersonalBest>, sqlx::Error> {
     let (after_map, after_time) = match after {
         Some(Position::ByMap(map, track)) => (Some((map.as_str(), *track)), None),
@@ -114,14 +122,18 @@ pub(super) async fn personal_bests(
     };
     // The player's own rows are picked and paged first; each one's placement is then one more than the
     // personal bests faster than it on its board, an index range on `personal_bests_board`. Ranking whole
-    // boards and keeping the player's rows read every board they're on.
+    // boards and keeping the player's rows read every board they're on. Record times and tiers too are
+    // looked up for the page's rows alone.
     let rows = sqlx::query!(
         r#"
         SELECT own.style AS "style!", own.map AS "map!", own.track AS "track!", own.time AS "time!",
                1 + (SELECT count(*) FROM personal_bests faster
                     WHERE faster.map_id = own.map_id AND faster.style = own.style
                       AND faster.track = own.track AND faster.time < own.time) AS "rank!",
-               own.run_id AS "run_id!", own.finished_at AS "finished_at!"
+               (SELECT min(best.time) FROM personal_bests best
+                WHERE best.map_id = own.map_id AND best.style = own.style
+                  AND best.track = own.track) AS "world_record_time!",
+               own.run_id AS "run_id!", own.finished_at AS "finished_at!", tier.tier AS "tier?"
         FROM (
             SELECT pb.style, pb.map_id, m.name AS map, pb.track, pb.time, pb.run_id, pb.finished_at
             FROM personal_bests pb
@@ -139,6 +151,8 @@ pub(super) async fn personal_bests(
                      pb.style, m.name, pb.track
             LIMIT $5
         ) own
+        LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = own.map_id AND track = own.track
+                           ORDER BY assigned_at DESC LIMIT 1) tier ON $11
         ORDER BY CASE WHEN $8 THEN own.finished_at END DESC, CASE WHEN $8 THEN own.run_id END DESC,
                  own.style, own.map, own.track
         "#,
@@ -151,7 +165,8 @@ pub(super) async fn personal_bests(
         selection.records_only,
         selection.recent_first,
         after_time.map(|(finished_at, _)| finished_at),
-        after_time.map(|(_, run_id)| run_id)
+        after_time.map(|(_, run_id)| run_id),
+        tiers_in_force
     )
     .fetch_all(db)
     .await?;
@@ -162,7 +177,9 @@ pub(super) async fn personal_bests(
             style: row.style,
             map: row.map,
             track: row.track,
+            tier: row.tier,
             time: row.time,
+            world_record_time: Some(row.world_record_time),
             rank: Some(row.rank),
             legacy: false,
             run_id: row.run_id,
@@ -174,13 +191,14 @@ pub(super) async fn personal_bests(
 /// The player's main-track personal bests in the legacy board's style for the "2.0 + pre-2.0" or "Pre-2.0"
 /// view, sorted by map. With both, each map shows the faster of their 2.0 and legacy runs (the 2.0 one on
 /// equal times). A player banned from records shows no legacy runs, as on the
-/// old site.
+/// old site. Only the 2.0 runs can have a tier and a record time.
 async fn view_personal_bests(
     db: &PgPool,
     steamid64: SteamId64,
     view: View,
     after: Option<(&str, i16)>,
     limit: i64,
+    tiers_in_force: bool,
 ) -> Result<Vec<PersonalBest>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"
@@ -189,7 +207,11 @@ async fn view_personal_bests(
                    SELECT count(*) FROM personal_bests faster
                    WHERE faster.map_id = shown.map_id AND faster.style = $2 AND faster.track = shown.track
                      AND faster.time < shown.time) END AS rank,
-               shown.legacy AS "legacy!", shown.id AS "id!", shown.finished_at
+               CASE WHEN NOT shown.legacy THEN (
+                   SELECT min(best.time) FROM personal_bests best
+                   WHERE best.map_id = shown.map_id AND best.style = $2 AND best.track = shown.track)
+               END AS world_record_time,
+               shown.legacy AS "legacy!", shown.id AS "id!", shown.finished_at, tier.tier AS "tier?"
         FROM (
             SELECT DISTINCT ON (both_kinds.map, both_kinds.track) both_kinds.*
             FROM (
@@ -208,6 +230,9 @@ async fn view_personal_bests(
             ORDER BY both_kinds.map, both_kinds.track, both_kinds.time, both_kinds.legacy
             LIMIT $7
         ) shown
+        -- A legacy row's map_id is NULL, so it finds no tier.
+        LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = shown.map_id AND track = shown.track
+                           ORDER BY assigned_at DESC LIMIT 1) tier ON $8
         ORDER BY shown.map, shown.track
         "#,
         steamid64.get(),
@@ -216,7 +241,8 @@ async fn view_personal_bests(
         legacy::TRACK,
         after.map(|(map, _)| map),
         after.map(|(_, track)| track),
-        limit
+        limit,
+        tiers_in_force
     )
     .fetch_all(db)
     .await?;
@@ -227,7 +253,9 @@ async fn view_personal_bests(
             style: legacy::STYLE.to_owned(),
             map: row.map,
             track: row.track,
+            tier: row.tier,
             time: row.time,
+            world_record_time: row.world_record_time,
             rank: row.rank,
             legacy: row.legacy,
             run_id: row.id,
@@ -333,6 +361,7 @@ pub async fn player_personal_bests(
         return Err(ApiError::NotFound("SourceJump has no such player"));
     }
 
+    let tiers_in_force = tiers::tier_count(&state.db).await?.is_some();
     let rows = if view == View::Current {
         let selection = Selection {
             style: query.style.as_deref(),
@@ -346,6 +375,7 @@ pub async fn player_personal_bests(
             selection,
             after.as_ref(),
             Some(limit + 1),
+            tiers_in_force,
         )
         .await?
     } else {
@@ -358,7 +388,7 @@ pub async fn player_personal_bests(
             }
             None => None,
         };
-        view_personal_bests(&state.db, steamid64, view, after, limit + 1).await?
+        view_personal_bests(&state.db, steamid64, view, after, limit + 1, tiers_in_force).await?
     };
     let (personal_bests, next_cursor) = split_page(
         rows,
