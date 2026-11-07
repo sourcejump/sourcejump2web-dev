@@ -579,8 +579,8 @@ function PersonalBests({
         <TableHead>
           <tr>
             {/* As on a map's board: Place centered over its medals, the play button close beside the time. On a
-                phone the style goes under the map, the gap beside the time and the date becomes an age under it,
-                so the row fits without scrolling. */}
+                phone the style goes under the map and the date becomes an age under the time, so the row fits
+                without scrolling. */}
             <TableHeaderCell
               centered
               className="w-px max-sm:px-2"
@@ -611,13 +611,6 @@ function PersonalBests({
             </TableHeaderCell>
             <TableHeaderCell className="w-px pr-0 pl-0">
               <span className="sr-only">Replay</span>
-            </TableHeaderCell>
-            <TableHeaderCell
-              centered
-              className="max-sm:hidden"
-              aria-sort={ariaSort("gap")}
-            >
-              {heading("gap", "Gap")}
             </TableHeaderCell>
             <TableHeaderCell
               numeric
@@ -698,8 +691,8 @@ function PersonalBests({
                         {formatTime(pb.time)}
                       </RunLink>
                     )}
-                    {/* On a phone, the Gap column's content, as on a map's board. */}
-                    <Gap pb={pb} className="text-xs sm:hidden" brackets />
+                    {/* The gap to the board's record, beside the time at every width. */}
+                    <Gap pb={pb} className="text-xs" />
                   </span>
                   {pb.finished_at && (
                     // Counted from now, which differs between the server's render and the browser's.
@@ -716,9 +709,6 @@ function PersonalBests({
               <TableCell className="pr-0 pl-0">
                 {/* Replays open by 2.0 run ID; a pre-2.0 run's ID is the old site's. */}
                 {!pb.legacy && <ReplayLink runId={pb.run_id} />}
-              </TableCell>
-              <TableCell className="text-center tabular-nums max-sm:hidden">
-                <Gap pb={pb} />
               </TableCell>
               <TableCell numeric className="text-text-muted max-sm:hidden">
                 {pb.finished_at ? (
@@ -771,21 +761,19 @@ function PersonalBests({
 /** The API's largest page, for loading a whole list to sort. */
 const FULL_PAGE_SIZE = 100;
 
-/** The gap to the board's record in red, as on a map's board; nothing for the record or a legacy run. */
+/** The gap to the board's record in brackets, red, as on Activity; nothing for the record or a legacy run. */
 function Gap({
   pb,
-  brackets = false,
   className,
 }: {
   pb: Schemas["PersonalBest"];
-  brackets?: boolean;
   className?: string;
 }) {
   const gap = gapOf(pb);
   if (gap == null || gap <= 0) return null;
   return (
     <span className={classNames("text-danger tabular-nums", className)}>
-      {brackets ? `(${formatGap(gap)})` : formatGap(gap)}
+      ({formatGap(gap)})
     </span>
   );
 }
