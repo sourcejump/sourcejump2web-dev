@@ -74,11 +74,11 @@
   --text-4xl: 3rem;
   --text-4xl--line-height: 3.5rem;
 
-  /* Small for badges, medium for controls and rows, large only for padded cards and dialogs. */
+  /* One radius for every frame (panels, fields, buttons, menus), so edges match side by side; small for badges
+     and rows nested inside a frame (outer minus padding). */
   --radius-*: initial;
   --radius-sm: 4px;
   --radius-md: 8px;
-  --radius-lg: 12px;
   --radius-full: 9999px;
 
   --shadow-*: initial;
@@ -88,6 +88,9 @@
   /* The sheet's edges: a hairline and the old site's soft blue halo. */
   --shadow-sheet:
     0 0 0 1px rgb(61 79 112 / 0.6), 0 0 24px 1px rgb(54 71 100 / 0.45);
+  /* Text laid over a picture (a map's banner), readable without darkening the picture. */
+  --text-shadow-over-image:
+    0 1px 2px rgb(3 8 15 / 0.9), 0 0 12px rgb(3 8 15 / 0.7);
 
   /* Motion. Durations are plain variables; the named motions in motion.css use them. */
   --ease-*: initial;

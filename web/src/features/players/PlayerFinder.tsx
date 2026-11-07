@@ -143,7 +143,7 @@ export function PlayerFinder({
                 setText(event.target.value);
                 search(event.target.value);
               }}
-              className="border-border bg-surface text-text placeholder:text-text-subtle hover:border-border-strong focus:border-accent focus:bg-bg h-10 w-full rounded-lg border pr-10 pl-10 transition-colors duration-(--duration-fast) outline-none"
+              className="border-border bg-surface text-text placeholder:text-text-subtle hover:border-border-strong focus:border-accent focus:bg-bg h-10 w-full rounded-md border pr-10 pl-10 transition-colors duration-(--duration-fast) outline-none"
             />
             {text && (
               <button
@@ -164,7 +164,7 @@ export function PlayerFinder({
 
       <section
         aria-busy={pending}
-        className="border-border bg-surface overflow-hidden rounded-lg border"
+        className="border-border bg-surface overflow-hidden rounded-md border"
       >
         <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
           <h2 className="text-lg font-bold">

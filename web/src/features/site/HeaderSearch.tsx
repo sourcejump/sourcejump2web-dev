@@ -269,7 +269,7 @@ export function HeaderSearch() {
               }, 150);
             }}
             onKeyDown={onKeyDown}
-            className="border-border bg-surface text-text placeholder:text-text-subtle hover:border-border-strong focus:border-accent focus:bg-bg h-9 w-full rounded-lg border pr-14 pl-9 text-sm transition-colors duration-(--duration-fast) outline-none"
+            className="border-border bg-surface text-text placeholder:text-text-subtle hover:border-border-strong focus:border-accent focus:bg-bg h-9 w-full rounded-md border pr-14 pl-9 text-sm transition-colors duration-(--duration-fast) outline-none"
           />
           {text ? (
             <button
@@ -310,7 +310,7 @@ export function HeaderSearch() {
             aria-label="Players and maps"
             // Keeps the field focused while a result is clicked.
             onMouseDown={(event) => event.preventDefault()}
-            className="border-border-strong bg-surface-raised shadow-popover absolute top-full right-0 mt-2 max-h-120 overflow-y-auto overscroll-contain rounded-lg border p-1.5 text-sm max-xl:inset-x-4 xl:w-96"
+            className="border-border-strong bg-surface-raised shadow-popover absolute top-full right-0 mt-2 max-h-120 overflow-y-auto overscroll-contain rounded-md border p-1.5 text-sm max-xl:inset-x-4 xl:w-96"
           >
             {state.status === "searching" && (
               <p className="text-text-muted px-3 py-4 text-center">
@@ -379,10 +379,10 @@ export function HeaderSearch() {
                                 <img
                                   src={map.image.thumbnail_url}
                                   alt=""
-                                  className="border-border size-8 rounded-md border object-cover"
+                                  className="border-border size-8 rounded-sm border object-cover"
                                 />
                               ) : (
-                                <span className="border-border bg-surface text-text-subtle flex size-8 items-center justify-center rounded-md border text-xs">
+                                <span className="border-border bg-surface text-text-subtle flex size-8 items-center justify-center rounded-sm border text-xs">
                                   #
                                 </span>
                               )
@@ -466,14 +466,14 @@ function Option({
       tabIndex={-1}
       onClick={onPick}
       className={classNames(
-        "flex min-h-12 items-center gap-3 rounded-md px-2.5 py-1.5 transition-colors duration-(--duration-fast)",
+        "flex min-h-12 items-center gap-3 rounded-sm px-2.5 py-1.5 transition-colors duration-(--duration-fast)",
         active ? "bg-text/8" : "hover:bg-text/6",
       )}
     >
       <span className="shrink-0">{picture}</span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-text-subtle text-xs leading-4">{kind}</span>
-        <span className="text-text flex min-w-0 items-center gap-2 font-bold">
+        <span className="text-text flex min-w-0 items-center gap-1.5 font-bold">
           {name}
         </span>
       </span>

@@ -21,7 +21,7 @@ const nativePlacement = {
 /** A static import, so Next.js knows the size, serves modern formats at the screen's width, and blurs in. */
 export function HomeHeader() {
   return (
-    <header className="border-border relative flex h-80 overflow-hidden rounded-lg border sm:h-72">
+    <header className="border-border relative flex h-80 overflow-hidden rounded-md border sm:h-72">
       {/* On a phone the text takes the lower half, so the picture fills only the top two thirds and fades out
           there: the jumper then sits between the top edge and the text instead of behind it. The settle zoom is
           on this box so the depth canvas moves with the picture. */}

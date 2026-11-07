@@ -11,7 +11,7 @@ import {
   boardFrom,
   boardQuery,
   completedLabel,
-  OVERVIEW_CHUNK as CHUNK,
+  STANDINGS_CHUNK as CHUNK,
   OVERVIEW_PAGE_SIZE as PAGE_SIZE,
 } from "./BoardChoices";
 import { PointsNote } from "./PointsNote";
@@ -92,7 +92,7 @@ export async function Leaderboards({
   );
 }
 
-/** The hundred players around the page asked for; undefined when they can't be loaded. */
+/** The chunk of players the page asked for falls in; undefined when it can't be loaded. */
 function load(ranking: Ranking, board: Board, chunk: number) {
   return api
     .GET("/v1/leaderboards/{ranking}", {

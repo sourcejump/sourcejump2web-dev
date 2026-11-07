@@ -37,6 +37,7 @@ export async function MapZones({ name }: { name: string }) {
           zones={zones.data}
           viewerFile={map.viewer_file ?? null}
           tracks={map.tracks.map((track) => track.track)}
+          cover={map.images[0]}
         />
       )}
     </Card>

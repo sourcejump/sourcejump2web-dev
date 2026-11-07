@@ -1,5 +1,5 @@
 // A page's full-width top band, edge to edge under the site header: on its own surface, or over a picture
-// (a map's) darkened enough to read over. Its content lines up with the page's own width below it.
+// (a map's), its text shadowed to read over it; on a phone, the picture is a band above the text. Its content lines up with the page's own width below it.
 import type { ReactNode } from "react";
 import { classNames } from "./classNames";
 
@@ -39,18 +39,19 @@ export function Masthead({
             sizes="100vw"
             alt=""
             fetchPriority="high"
-            className="motion-settle absolute inset-0 -z-10 size-full object-cover"
+            className="motion-settle absolute inset-x-0 top-0 -z-10 h-28 w-full object-cover sm:h-full"
             style={{ objectPosition: `center ${image.focus}%` }}
           />
-          {/* Scrims, as on the home header: the page's own color rising from the bottom, where the text sits,
-              and from the left, where it starts. Map pictures are often bright sky. */}
-          <div className="from-bg via-bg/70 to-bg/30 absolute inset-0 -z-10 bg-linear-to-t" />
-          <div className="from-bg/80 absolute inset-0 -z-10 bg-linear-to-r to-transparent to-70%" />
+          {/* From sm up, a light fade into the page at the bottom, where the text sits, and the text's own shadow does
+              the rest, so the picture stays clearly visible. On a phone the picture is only a band at the top that
+              fades fully into the page, and the text sits below it on the page, where it's always readable. */}
+          <div className="from-bg sm:from-bg/70 absolute inset-x-0 top-0 -z-10 h-28 bg-linear-to-t to-transparent to-50% sm:h-full sm:to-60%" />
         </>
       )}
       <div
         className={classNames(
           "mx-auto w-full max-w-6xl px-4 sm:px-8",
+          image && "sm:text-shadow-over-image",
           className,
         )}
       >

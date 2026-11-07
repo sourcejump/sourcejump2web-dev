@@ -13,8 +13,9 @@ export const tabStyles: Record<
     active: "border-accent text-accent",
   },
   segmented: {
-    list: "inline-flex gap-1 rounded-md border border-border bg-surface p-1",
-    tab: "h-7 rounded-sm px-3 text-sm",
+    list: "inline-flex gap-1 rounded-md border border-border bg-surface p-0.5 sm:p-1",
+    // Smaller on phones, as tall as the menus beside it (32px) and narrow enough to share their line.
+    tab: "h-[26px] rounded-sm px-2 text-xs sm:h-7 sm:px-3 sm:text-sm",
     idle: "text-text-muted hover:bg-surface-raised hover:text-text",
     // Accent, like the underline variant: the chosen option has to be obvious at a glance (lead, 2026-10-20).
     active: "bg-accent-soft text-accent",

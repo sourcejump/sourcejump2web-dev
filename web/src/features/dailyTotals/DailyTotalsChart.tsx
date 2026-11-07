@@ -85,7 +85,7 @@ export function DailyTotalsChart({
   const stats = shown && (
     <p
       aria-live="polite"
-      className="text-text-muted flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums max-sm:justify-center"
+      className="text-text-muted flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums max-sm:order-3 max-sm:w-full"
     >
       {data.kind === "players" ? (
         <Stat value={shown.y}>
@@ -103,10 +103,8 @@ export function DailyTotalsChart({
           </Stat>
         </>
       )}
-      <Dot className="max-sm:hidden" />
-      <span className="text-text-subtle max-sm:w-full max-sm:text-center">
-        {when(shown.day, bucketDays)}
-      </span>
+      <Dot />
+      <span className="text-text-subtle">{when(shown.day, bucketDays)}</span>
     </p>
   );
 
@@ -156,15 +154,17 @@ export function DailyTotalsChart({
 
   const frame = (
     <>
+      {/* On a phone: the title and the range on one line, the totals on the next, so the board starts sooner.
+          The title's column dissolves there (`contents`) so its two parts can take those places. */}
       <div
         className={classNames(
-          "flex flex-wrap items-center justify-between gap-3 max-sm:justify-center",
+          "flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-y-3",
           plain && "px-4",
         )}
       >
         {heading ? (
-          <div className="flex min-w-0 flex-col gap-1 max-sm:items-center">
-            <h1 className="text-xl font-bold">{heading}</h1>
+          <div className="flex min-w-0 flex-col gap-1 max-sm:contents">
+            <h1 className="text-xl font-bold max-sm:order-1">{heading}</h1>
             {stats}
           </div>
         ) : (
@@ -172,7 +172,7 @@ export function DailyTotalsChart({
         )}
         <Segmented
           label="Range"
-          fillOnPhones
+          className="max-sm:order-2"
           options={ranges}
           value={range}
           onChange={(value) => {

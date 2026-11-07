@@ -16,7 +16,7 @@ export function ReplayPoster({ run }: { run: Schemas["RunDetail"] }) {
   const start = points[0];
   const finish = points.at(-1);
   return (
-    <div className="bg-surface border-border relative aspect-video w-full overflow-hidden rounded-lg border">
+    <div className="bg-surface border-border relative aspect-video w-full overflow-hidden rounded-md border">
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="absolute inset-0 size-full"

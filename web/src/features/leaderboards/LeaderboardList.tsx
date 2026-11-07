@@ -13,6 +13,7 @@ import {
   boardQuery,
   completedLabel,
   LIST_PAGE_SIZE,
+  STANDINGS_CHUNK,
 } from "./BoardChoices";
 import { PointsNote } from "./PointsNote";
 import { StandingsTable } from "./StandingsTable";
@@ -36,6 +37,8 @@ export async function LeaderboardList({
   page?: string;
 }) {
   const page = Math.max(1, Math.floor(Number(requested)) || 1);
+  // The chunk of players the page falls in; the table turns pages within it, and loads the chunks beside it ahead.
+  const chunk = Math.floor(((page - 1) * LIST_PAGE_SIZE) / STANDINGS_CHUNK);
   const styles = await currentStyles();
   const board = boardFrom(params, styles);
   const list = await api
@@ -44,8 +47,8 @@ export async function LeaderboardList({
         path: { ranking },
         query: {
           ...boardApiQuery(board),
-          limit: LIST_PAGE_SIZE,
-          offset: (page - 1) * LIST_PAGE_SIZE,
+          limit: STANDINGS_CHUNK,
+          offset: chunk * STANDINGS_CHUNK,
         },
       },
     })
@@ -77,7 +80,7 @@ export async function LeaderboardList({
         <p>This leaderboard couldn&apos;t be loaded. Try again in a moment.</p>
       ) : list.standings.length === 0 ? (
         <Card className="text-text-muted">
-          {page > 1
+          {chunk > 0
             ? "There's no page this far."
             : ranking === "points"
               ? !board.legacy && !list.points.tiers
@@ -86,16 +89,17 @@ export async function LeaderboardList({
               : "Nobody has finished one yet."}
         </Card>
       ) : (
+        // Keyed by the board, so another choice starts again from what the server sent.
         <StandingsTable
-          key={`${query}-${page}`}
-          list={list}
-          page={page}
-          href={(to) => {
-            const search = new URLSearchParams(query);
-            if (to > 1) search.set("page", String(to));
-            const text = search.toString();
-            return `/leaderboards/${ranking}${text ? `?${text}` : ""}`;
-          }}
+          key={query}
+          ranking={ranking}
+          apiQuery={boardApiQuery(board)}
+          first={list.standings}
+          firstChunk={chunk}
+          total={list.total}
+          outOf={list.out_of}
+          legacy={list.view === "legacy"}
+          path={`/leaderboards/${ranking}`}
           completedLabel={label}
         />
       )}

@@ -4,6 +4,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { api, type Schemas } from "@/api/client";
 import { currentStyles } from "@/features/ruleset/styles";
+import { RecordGap } from "@/features/runs/RecordGap";
 import { RunLink } from "@/features/runs/RunLink";
 import { ReplayLink } from "@/features/replays/ReplayLink";
 import {
@@ -23,6 +24,12 @@ import { Medal } from "@/ui/Medal";
 import { TierBadge } from "@/ui/TierBadge";
 
 const RECORDS = 8;
+/**
+ * Records fetched to find RECORDS boards among: a board's record often falls several times in a row, and only the
+ * latest shows. shortcut: fewer than RECORDS show if the last 100 records were set on fewer boards; a `distinct`
+ * option on the API would end that.
+ */
+const RECORDS_SCANNED = 100;
 const LEADERS = 10;
 const SERVERS = 4;
 const numbers = new Intl.NumberFormat("en");
@@ -31,7 +38,9 @@ export async function LiveNow() {
   // Each part shows what it has; one that can't be loaded says so, or (the strip) leaves its number out.
   const [records, servers, leaders, runs, styles] = await Promise.all([
     api
-      .GET("/v1/runs", { params: { query: { records: true, limit: RECORDS } } })
+      .GET("/v1/runs", {
+        params: { query: { records: true, limit: RECORDS_SCANNED } },
+      })
       .catch(() => undefined),
     api.GET("/v1/servers").catch(() => undefined),
     api
@@ -86,7 +95,7 @@ export async function LiveNow() {
         >
           {records?.data ? (
             <Records
-              runs={records.data.runs}
+              runs={latestPerBoard(records.data.runs).slice(0, RECORDS)}
               tierCount={records.data.tier_count ?? null}
               styleName={styles.keys.length > 1 ? styles.name : undefined}
             />
@@ -165,7 +174,7 @@ function Pulse({
   return (
     <section
       aria-label="SourceJump now"
-      className="border-border bg-surface divide-border grid overflow-hidden rounded-lg border max-sm:divide-y sm:grid-cols-3 sm:divide-x"
+      className="border-border bg-surface divide-border grid overflow-hidden rounded-md border max-sm:divide-y sm:grid-cols-3 sm:divide-x"
     >
       {shown.map((cell) => (
         <Link
@@ -210,7 +219,7 @@ function Panel({
   return (
     <section
       className={classNames(
-        "border-border bg-surface min-w-0 overflow-hidden rounded-lg border",
+        "border-border bg-surface min-w-0 overflow-hidden rounded-md border",
         className,
       )}
     >
@@ -276,16 +285,18 @@ function Records({
                 src={run.player.avatar_url ?? undefined}
                 size="sm"
               />
-              <Link
-                href={`/players/${run.player.steamid64}`}
-                className="hover:text-accent truncate"
-              >
-                {run.player.name}
-              </Link>
               {/* Most players have no country on Steam; a placeholder on every row would only be noise. */}
-              {run.player.country_code && (
-                <Flag code={run.player.country_code} />
-              )}
+              <span className="flex min-w-0 items-center gap-1.5">
+                <Link
+                  href={`/players/${run.player.steamid64}`}
+                  className="hover:text-accent truncate"
+                >
+                  {run.player.name}
+                </Link>
+                {run.player.country_code && (
+                  <Flag code={run.player.country_code} />
+                )}
+              </span>
               {(run.track > 0 || styleName) && (
                 <span className="text-text-subtle shrink-0">
                   {[
@@ -309,9 +320,7 @@ function Records({
                 {formatTime(run.time)}
               </RunLink>
               {run.gap != null && run.gap < 0 && (
-                <span className="text-success text-xs tabular-nums">
-                  (−{formatTime(-run.gap)})
-                </span>
+                <RecordGap gap={run.gap} className="text-xs" />
               )}
             </span>
             {/* Counted from now, which differs between the server's render and the browser's. */}
@@ -344,18 +353,21 @@ function Leaders({ standings }: { standings: Schemas["Standing"][] }) {
             href={`/players/${standing.player.steamid64}`}
             className="group hover:bg-surface-raised flex h-14 items-center gap-3 px-5 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
           >
-            <Medal placement={standing.rank} />
+            {/* Counted down the list, not the shared rank of a tie, as on the Leaderboards page. */}
+            <Medal placement={index + 1} />
             <Avatar
               name={standing.player.name}
               src={standing.player.avatar_url ?? undefined}
               size="sm"
             />
-            <span className="group-hover:text-accent min-w-0 truncate transition-colors duration-(--duration-fast)">
-              {standing.player.name}
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="group-hover:text-accent min-w-0 truncate transition-colors duration-(--duration-fast)">
+                {standing.player.name}
+              </span>
+              {standing.player.country_code && (
+                <Flag code={standing.player.country_code} />
+              )}
             </span>
-            {standing.player.country_code && (
-              <Flag code={standing.player.country_code} />
-            )}
             <span className="ml-auto shrink-0 pl-2 text-right tabular-nums">
               <span className="font-bold">
                 {numbers.format(standing.points)}
@@ -369,4 +381,15 @@ function Leaders({ standings }: { standings: Schemas["Standing"][] }) {
       ))}
     </ol>
   );
+}
+
+/** Each board's latest record only, newest first: one map's record falling seven times reads as seven maps' news. */
+function latestPerBoard(runs: Schemas["RecentRun"][]): Schemas["RecentRun"][] {
+  const seen = new Set<string>();
+  return runs.filter((run) => {
+    const board = `${run.map}/${run.style}/${run.track}`;
+    if (seen.has(board)) return false;
+    seen.add(board);
+    return true;
+  });
 }

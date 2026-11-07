@@ -246,7 +246,7 @@ export function ServerRowFrame({
     <div
       className={classNames(
         // A card on a phone; a cell of the Servers board from sm up, which then draws the lines between rows.
-        "border-border @container h-full overflow-hidden rounded-lg border sm:rounded-none sm:border-0",
+        "border-border @container h-full overflow-hidden rounded-md border sm:rounded-none sm:border-0",
         className,
       )}
     >

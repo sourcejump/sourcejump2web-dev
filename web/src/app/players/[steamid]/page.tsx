@@ -10,7 +10,7 @@ export default function PlayerPage({
   params,
 }: PageProps<"/players/[steamid]">) {
   return (
-    <PageView className="gap-8">
+    <PageView className="gap-5 sm:gap-8">
       {params.then(({ steamid }) => (
         <PlayerProfile steamid={decodeURIComponent(steamid)} />
       ))}

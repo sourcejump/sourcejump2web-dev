@@ -1,4 +1,5 @@
-// Maps page: every map with a finished run, searchable, with its world record in a chosen style.
+// Maps page: every map with a finished run, searchable, with its world record in a chosen style. MapList sets out
+// the page, title included, since the count beside the title comes with the list.
 import type { Metadata } from "next";
 import { MapList } from "@/features/maps/MapList";
 import { Page } from "@/ui/Page";
@@ -10,8 +11,7 @@ export const metadata: Metadata = {
 
 export default function MapsPage({ searchParams }: PageProps<"/maps">) {
   return (
-    <Page className="gap-6">
-      <h1 className="text-3xl font-bold">Maps</h1>
+    <Page className="gap-4">
       {searchParams.then((params) => (
         <MapList params={firstValues(params)} />
       ))}

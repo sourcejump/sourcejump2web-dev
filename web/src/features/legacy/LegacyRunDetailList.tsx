@@ -54,8 +54,10 @@ export function LegacyRunDetailList({
               src={run.player.avatar_url ?? undefined}
               size="sm"
             />
-            {run.player.name}
-            <Flag code={run.player.country_code} />
+            <span className="inline-flex items-center gap-1.5">
+              {run.player.name}
+              <Flag code={run.player.country_code} />
+            </span>
           </Link>
         </Row>
         {run.player_name !== run.player.name && (

@@ -33,7 +33,9 @@ export function TierBadge({
     <span
       style={style}
       title={`Tier ${tier} of ${tierCount}`}
-      className="inline-flex h-5 items-center rounded-sm border border-(color:--tier) px-1.5 text-xs font-bold text-(color:--tier)"
+      // The width fits T1 to T9 alike and grows only for two digits; it never stretches to a grid column, where
+      // one T10 would widen every badge beside it. Centered both ways, so the label sits in the middle of the box.
+      className="inline-flex h-5 min-w-7 shrink-0 items-center justify-center self-center justify-self-start rounded-sm border border-(color:--tier) px-1 text-xs leading-none font-bold text-(color:--tier) tabular-nums"
     >
       T{tier}
     </span>
