@@ -1,5 +1,5 @@
 //! What players say about themselves on their profile, `PUT /v1/players/{player}/details`: their setup (mouse,
-//! DPI, sensitivity, mouse pad, keyboard, monitor, aspect ratio) and a country to show instead of Steam's.
+//! DPI, sensitivity, mouse pad, keyboard, monitor, aspect ratio) and a country to show (order: `docs/site-api.md`).
 //!
 //! Anyone can type anything here, so every field is checked once, at this boundary: short single lines of
 //! text with no links or invisible characters, numbers in a sensible range, a ratio from a fixed list and a
@@ -216,7 +216,8 @@ pub struct DetailsInput {
     pub monitor: Option<String>,
     #[serde(default)]
     pub aspect: Option<Aspect>,
-    /// An ISO 3166-1 alpha-2 code to show instead of the Steam profile's country; null to show Steam's.
+    /// An ISO 3166-1 alpha-2 code to show instead of Steam's or a game server's, until a run's server finds one;
+    /// null to stop showing the player's pick.
     #[serde(default)]
     pub country_code: Option<String>,
     /// Required when staff change someone else's details: why, for the staff log.
@@ -346,12 +347,13 @@ async fn store(
     )
     .execute(&mut *tx)
     .await?;
-    // Going back to Steam's country clears ours and marks the Steam profile stale, so the next view of the
-    // profile fetches it again.
+    // A pick replaces a game server's country. Dropping a pick clears it and marks the Steam profile stale, so
+    // the next view of the profile fetches Steam's again; dropping a pick the player doesn't have changes nothing.
     sqlx::query!(
         r#"
         UPDATE players SET
             country_chosen = $2::text IS NOT NULL,
+            country_from_server = country_from_server AND $2::text IS NULL,
             country_code = CASE WHEN $2::text IS NOT NULL THEN $2
                                 WHEN country_chosen THEN NULL ELSE country_code END,
             steam_profile_fetched_at = CASE WHEN $2::text IS NULL AND country_chosen THEN NULL
@@ -537,6 +539,37 @@ mod tests {
             (shown["details"].clone(), shown["country_chosen"].clone()),
             (Value::Null, json!(false))
         );
+    }
+
+    #[sqlx::test]
+    async fn a_pick_replaces_a_servers_country_and_saving_without_one_keeps_it(db: PgPool) {
+        let token = player(&db, GABE, &[]).await;
+        sqlx::query("UPDATE players SET country_code = 'SE', country_from_server = true")
+            .execute(&db)
+            .await
+            .unwrap();
+        let country = || async {
+            sqlx::query_as::<_, (Option<String>, bool, bool)>(
+                "SELECT country_code, country_from_server, country_chosen FROM players",
+            )
+            .fetch_one(&db)
+            .await
+            .unwrap()
+        };
+
+        assert_eq!(
+            save(&db, &token, GABE, json!({ "dpi": 800 })).await.status,
+            204
+        );
+        assert_eq!(country().await, (Some("SE".into()), true, false));
+
+        sqlx::query("UPDATE player_details SET updated_at = now() - interval '1 minute'")
+            .execute(&db)
+            .await
+            .unwrap();
+        let body = json!({ "country_code": "fi" });
+        assert_eq!(save(&db, &token, GABE, body).await.status, 204);
+        assert_eq!(country().await, (Some("FI".into()), false, true));
     }
 
     #[sqlx::test]

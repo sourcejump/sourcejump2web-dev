@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE players SET\n            country_chosen = $2::text IS NOT NULL,\n            country_from_server = country_from_server AND $2::text IS NULL,\n            country_code = CASE WHEN $2::text IS NOT NULL THEN $2\n                                WHEN country_chosen THEN NULL ELSE country_code END,\n            steam_profile_fetched_at = CASE WHEN $2::text IS NULL AND country_chosen THEN NULL\n                                            ELSE steam_profile_fetched_at END\n        WHERE steamid64 = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4d15f7b63cc1357d0f7bd08a497b0201d51891b09b5a2e8451c269958c283cb1"
+}
