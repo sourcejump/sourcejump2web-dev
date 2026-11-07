@@ -477,6 +477,8 @@ async fn shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c().await.ok();
     };
+    // SIGTERM exists only on Unix; elsewhere (a contributor's Windows machine) Ctrl+C is the only way to stop.
+    #[cfg(unix)]
     let terminate = async {
         if let Ok(mut sig) =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
@@ -484,6 +486,8 @@ async fn shutdown_signal() {
             sig.recv().await;
         }
     };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
     tokio::select! {
         () = ctrl_c => {},
         () = terminate => {},
