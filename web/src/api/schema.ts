@@ -1537,7 +1537,10 @@ export interface components {
         /** @description New details for a profile. Every field is replaced: leave one out or null to clear it. */
         DetailsInput: {
             aspect?: components["schemas"]["Aspect"] | null;
-            /** @description An ISO 3166-1 alpha-2 code to show instead of the Steam profile's country; null to show Steam's. */
+            /**
+             * @description An ISO 3166-1 alpha-2 code to show instead of Steam's or a game server's, until a run's server finds one;
+             *     null to stop showing the player's pick.
+             */
             country_code?: string | null;
             /**
              * Format: int32
@@ -2267,6 +2270,12 @@ export interface components {
             run_id: number;
             style: string;
             /**
+             * Format: int32
+             * @description The board's tier. None while tiers aren't in force or staff haven't set this board's, and for a legacy
+             *     run.
+             */
+            tier?: number | null;
+            /**
              * Format: double
              * @description Seconds.
              */
@@ -2276,6 +2285,12 @@ export interface components {
              * @description 0 is the main track, 1 and up are bonuses.
              */
             track: number;
+            /**
+             * Format: double
+             * @description The board's 2.0 record time, as on its map leaderboard, so a client can show the gap to it. None for a
+             *     legacy run.
+             */
+            world_record_time?: number | null;
         };
         PersonalBestPage: {
             /** @description Pass as `cursor` for the personal bests after these. None at the end. */
@@ -2335,9 +2350,12 @@ export interface components {
              */
             all_styles: components["schemas"]["StyleTotals"];
             avatar_url?: string | null;
-            /** @description Whether the player picked `country_code` themselves, rather than it coming from Steam. */
+            /** @description Whether the player picked `country_code` themselves, rather than it coming from a game server or Steam. */
             country_chosen: boolean;
-            /** @description ISO 3166-1 alpha-2: the one the player picked, or else their Steam profile's. None if neither has one. */
+            /**
+             * @description ISO 3166-1 alpha-2: the latest one a game server found for them, the player's pick if they made it
+             *     since, or else their Steam profile's. None if none has one.
+             */
             country_code?: string | null;
             details?: components["schemas"]["PlayerDetails"] | null;
             /** @description Whether `details` are what they had on the old site, shown until they save their own. */
@@ -2368,6 +2386,12 @@ export interface components {
             steamid64: string;
             /** @description One entry per style they hold a personal best in, sorted by style key. Counts are 2.0 alone. */
             styles: components["schemas"]["PlayerStyle"][];
+            /**
+             * Format: int32
+             * @description Number of tiers in force; None while the community hasn't set tiers, and personal bests then have no
+             *     tier.
+             */
+            tier_count?: number | null;
         };
         /**
          * @description A player as leaderboards, records and runs show them: enough to draw their name, avatar and flag, and to
@@ -2657,6 +2681,11 @@ export interface components {
              * @description Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier.
              */
             tier_count?: number | null;
+            /**
+             * Format: int64
+             * @description How many runs match the filters, across all pages.
+             */
+            total: number;
         };
         Record: {
             /** Format: date-time */
@@ -2992,6 +3021,14 @@ export interface components {
             world_record_time?: number | null;
         };
         RunPlayer: {
+            /**
+             * @description The player's country, as the game server found it from their address with SourceMod's `GeoipCode2`: an ISO
+             *     3166-1 alpha-2 code. Leave it out when the lookup finds nothing; send only the code, never the address. It
+             *     becomes the player's flag. A code SourceJump doesn't know as a country is ignored and the run is stored
+             *     anyway. Runs only: detections ignore it.
+             * @example SE
+             */
+            country_code?: string | null;
             name: string;
             /** @example 76561197960287930 */
             steamid64: string;
@@ -4688,6 +4725,8 @@ export interface operations {
                 records?: boolean | null;
                 /** @description 1 to 100. Default 50. */
                 limit?: number | null;
+                /** @description Runs to skip, for going straight to a page. Default 0. Counted after `cursor` when both are given. */
+                offset?: number | null;
                 /** @description Continue after this point: a `next_cursor` from an earlier page with the same filters. */
                 cursor?: string | null;
             };
@@ -4705,7 +4744,7 @@ export interface operations {
                     "application/json": components["schemas"]["RecentRuns"];
                 };
             };
-            /** @description Not a valid tier, limit or cursor */
+            /** @description Not a valid tier, limit, offset or cursor */
             422: {
                 headers: {
                     [name: string]: unknown;

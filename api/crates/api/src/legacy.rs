@@ -176,8 +176,10 @@ mod tests {
     use sqlx::PgPool;
 
     use crate::{
+        maps::MapName,
+        policies::{Policy, TiersPolicy},
         runs::tests::{run, setup},
-        test_client,
+        staff, test_client,
     };
 
     const GABE: &str = "76561197960287930";
@@ -362,6 +364,19 @@ mod tests {
             0
         );
 
+        staff::policies::publish_policy(
+            &db,
+            None,
+            None,
+            &Policy::Tiers(TiersPolicy { count: 5 }),
+            None,
+        )
+        .await
+        .unwrap();
+        let badges = MapName::try_from("bhop_badges".to_owned()).unwrap();
+        staff::maps::set_tier(&db, None, &badges, 0, 3)
+            .await
+            .unwrap();
         let pbs = get(
             &db,
             &format!("/v1/players/{ALICE}/personal-bests?style=normal&view=legacy"),
@@ -374,6 +389,14 @@ mod tests {
             .map(|pb| (pb["map"].as_str().unwrap(), pb["time"].as_f64().unwrap()))
             .collect();
         assert_eq!(maps, [("bhop_badges", 25.0), ("bhop_oldonly", 40.0)]);
+        // Legacy runs have no tier or record time, even on a map whose board has both.
+        assert!(
+            pbs["personal_bests"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|pb| pb["tier"].is_null() && pb["world_record_time"].is_null())
+        );
 
         let gabe = get(
             &db,
@@ -386,6 +409,8 @@ mod tests {
             (Some(30.0), Some(false))
         );
         assert_eq!(pb["rank"], 1);
+        assert_eq!(pb["tier"], 3);
+        assert_eq!(pb["world_record_time"], 30.0);
 
         let found = get(&db, "/v1/players?q=alic").await;
         assert_eq!(found["players"][0]["steamid64"], ALICE);
