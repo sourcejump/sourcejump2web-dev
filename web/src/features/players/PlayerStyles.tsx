@@ -19,9 +19,11 @@ import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { ChoiceBar } from "@/ui/ChoiceBar";
 import { ChoiceMenu } from "@/ui/ChoiceMenu";
+import { Label } from "@/ui/Card";
+import { classNames } from "@/ui/classNames";
+import { CountUp } from "@/ui/CountUp";
 import { Link } from "@/ui/Link";
 import { Medal } from "@/ui/Medal";
-import { StatCard } from "@/ui/StatCard";
 import {
   Table,
   TableBody,
@@ -160,11 +162,12 @@ export function PlayerStyles({
         />
       </ChoiceBar>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {/* Each card opens what its number comes from. The rank is the style's points leaderboard place, on
-            main tracks unless bonuses are shown; styles count apart, so any style has none. */}
+      {/* One panel of the style's standing, split into what each number opens: rank, completed maps and world
+          records. The rank is the style's points leaderboard place, on main tracks unless bonuses are shown;
+          styles count apart, so any style has none. */}
+      <div className="motion-enter border-border bg-surface grid grid-cols-2 overflow-hidden rounded-lg border sm:grid-cols-3">
         <StatLink
-          index={0}
+          className="border-border col-span-2 border-b sm:col-span-1 sm:border-r sm:border-b-0"
           href={withQuery(
             "/leaderboards/points",
             view === "legacy"
@@ -175,41 +178,92 @@ export function PlayerStyles({
                 },
           )}
         >
-          <StatCard
-            label="Rank"
-            value={standing?.rank ?? null}
-            detail={
-              standing &&
-              `${numbers.format(standing.points)} points${player.points_draft ? " · draft" : ""}`
-            }
-          />
+          <Label>Rank</Label>
+          <span
+            className={classNames(
+              "text-4xl font-bold",
+              standing && medalText[standing.rank - 1],
+            )}
+          >
+            {standing ? <CountUp value={standing.rank} /> : "—"}
+          </span>
+          <span className="text-text-muted mt-auto text-sm">
+            {standing
+              ? `${numbers.format(standing.points)} points${player.points_draft ? " · draft" : ""}`
+              : anyStyle
+                ? "Ranked per style"
+                : "No points yet"}
+          </span>
         </StatLink>
         <StatLink
-          index={1}
+          className="border-border border-r"
           href={withQuery("/maps", {
             player: player.steamid64,
             completed: "yes",
             ...boardStyle,
           })}
         >
-          <StatCard
-            label="Completed maps"
-            value={maps}
-            detail={`of ${player.map_count}${bonuses > 0 ? ` · ${bonuses} ${bonuses === 1 ? "bonus" : "bonuses"}` : ""}`}
-          />
+          <Label>Completed maps</Label>
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-4xl font-bold">
+              <CountUp value={maps} />
+            </span>
+            <span className="text-text-muted text-lg">
+              / {numbers.format(player.map_count)}
+            </span>
+          </span>
+          {/* How far through the map list they are, with any bonuses beside; the numbers say it for screen
+              readers. */}
+          <span className="mt-auto flex items-center gap-3 text-sm">
+            <span
+              aria-hidden
+              className="bg-surface-overlay block h-1 flex-1 overflow-hidden rounded-full"
+            >
+              <span
+                className="bg-accent block h-full rounded-full"
+                style={{
+                  width: `${player.map_count ? Math.min(100, (maps / player.map_count) * 100) : 0}%`,
+                }}
+              />
+            </span>
+            {bonuses > 0 && (
+              <span className="text-text-muted shrink-0">
+                + {bonuses} {bonuses === 1 ? "bonus" : "bonuses"}
+              </span>
+            )}
+          </span>
         </StatLink>
-        {/* Every world record, newest first: any style, any track, 2.0 runs. */}
+        {/* Every world record, newest first: any style, any track, 2.0 runs; pressed again, back to the opening view. A
+            player without one has nothing to open. */}
         <StatLink
-          index={2}
-          onClick={() =>
-            choose({
-              style: ANY,
-              tracks: ANY,
-              records: true,
-            })
+          pressed={records}
+          onClick={
+            counts?.world_records || records
+              ? () =>
+                  records
+                    ? choose({
+                        style: styleKeys.find(hasTimes) ?? styleKeys[0],
+                        tracks: "main",
+                        records: false,
+                      })
+                    : choose({ style: ANY, tracks: ANY, records: true })
+              : undefined
           }
         >
-          <StatCard label="World records" value={counts?.world_records ?? 0} />
+          <Label>World records</Label>
+          <span
+            className={classNames(
+              "text-4xl font-bold",
+              counts?.world_records ? "text-accent" : undefined,
+            )}
+          >
+            <CountUp value={counts?.world_records ?? 0} />
+          </span>
+          {counts?.world_records ? (
+            <span className="text-text-muted mt-auto text-sm">
+              {records ? "Showing every record" : "Show every record"}
+            </span>
+          ) : null}
         </StatLink>
       </div>
 
@@ -263,31 +317,55 @@ function withQuery(
   return text ? `${path}?${text}` : path;
 }
 
-/** A stat card that opens a page or changes the view, entering with the cards beside it. */
+/** Rank 1 to 3 in the medal colors, as on the boards. */
+const medalText = ["text-gold", "text-silver", "text-bronze"];
+
+/**
+ * One cell of the standing panel: opens the page its number comes from, or changes the view. With neither,
+ * it's a plain cell.
+ */
 function StatLink({
   href,
   onClick,
-  index,
+  pressed,
+  className,
   children,
 }: {
-  index: number;
+  href?: string;
+  onClick?: () => void;
+  /** For a cell that switches a view: whether that view is showing. */
+  pressed?: boolean;
+  className?: string;
   children: ReactNode;
-} & (
-  { href: string; onClick?: never } | { href?: never; onClick: () => void }
-)) {
-  // Each card fills its grid cell, so a card whose detail wraps on a phone doesn't leave its neighbor shorter.
-  const className =
-    "motion-lift motion-enter flex flex-col rounded-lg text-left *:flex-1";
-  const style = { "--motion-delay": `${index * 40}ms` } as CSSProperties;
-  return href ? (
-    <Link href={href} className={className} style={style}>
-      {children}
-    </Link>
-  ) : (
-    <button type="button" onClick={onClick} className={className} style={style}>
-      {children}
-    </button>
+}) {
+  const classes = classNames("flex flex-col gap-1 p-5 text-left", className);
+  // The panel clips its corners, so the focus ring is drawn inside the cell.
+  const clickable = classNames(
+    classes,
+    "hover:bg-surface-raised transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2",
+    // On, in the accent, as a pressed ghost button shows it.
+    pressed && "bg-accent-soft hover:bg-accent-soft",
   );
+  if (href) {
+    return (
+      <Link href={href} className={clickable}>
+        {children}
+      </Link>
+    );
+  }
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={pressed}
+        className={clickable}
+      >
+        {children}
+      </button>
+    );
+  }
+  return <div className={classes}>{children}</div>;
 }
 
 /** Give it a `key` per style, tracks, view and show choice, so switching starts again from the top. */
@@ -372,7 +450,12 @@ function PersonalBests({
       <p className="text-danger text-sm">
         These personal bests couldn&apos;t be loaded. Try again.
       </p>
-    ) : null;
+    ) : (
+      // Held in the table's place, so choosing a view that wasn't loaded with the page doesn't leave a blank.
+      <p role="status" className="text-text-muted text-sm">
+        Loading…
+      </p>
+    );
   }
   const count = total ?? personalBests.length;
   // World records count bonuses with main tracks, so one kind of track can have none while the count doesn't.
