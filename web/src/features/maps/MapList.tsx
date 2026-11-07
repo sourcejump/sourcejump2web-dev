@@ -1,7 +1,7 @@
 // The Maps page's totals (maps, tiered maps, maps per tier), its search, sort, style and completion choices,
 // and one row per map with its picture, tier and world record. Staff who manage maps also get a "No runs yet" tab
 // and a "Map files" tab for uploading viewer files in bulk, and can set up a map by name before its first run.
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
 import Form from "next/form";
 import type { CSSProperties } from "react";
 import { api, type Schemas } from "@/api/client";
@@ -12,10 +12,10 @@ import { formatSince, formatTime } from "@/features/runs/time";
 import { BulkUpload } from "@/features/staff/maps/BulkUpload";
 import { UnplayedMaps } from "@/features/staff/maps/UnplayedMaps";
 import { Avatar } from "@/ui/Avatar";
-import { Button, ButtonLink } from "@/ui/Button";
+import { ButtonLink } from "@/ui/Button";
 import { Card } from "@/ui/Card";
 import { Flag } from "@/ui/Flag";
-import { Input } from "@/ui/Input";
+import { SearchField } from "@/ui/SearchField";
 import { Link } from "@/ui/Link";
 import { ChoiceBar } from "@/ui/ChoiceBar";
 import { ChoiceMenu } from "@/ui/ChoiceMenu";
@@ -213,7 +213,7 @@ export async function MapList({ params }: { params: MapListParams }) {
           newestHref={href({ sort: "newest", tier: null, page: 1 })}
         />
       )}
-      <Form action="/maps" prefetch={false} className="flex max-w-xl gap-2">
+      <Form action="/maps" prefetch={false} className="max-w-xl">
         {/* Searching keeps the chosen tab, sort, style and completion filter. */}
         {unplayed && <input type="hidden" name="view" value="unplayed" />}
         {completion !== "all" && filterPlayer && (
@@ -229,16 +229,12 @@ export async function MapList({ params }: { params: MapListParams }) {
           <input type="hidden" name="style" value={requestedStyle} />
         )}
         {tier != null && <input type="hidden" name="tier" value={tier} />}
-        <Input
-          icon={Search}
-          type="search"
+        <SearchField
           name="q"
           defaultValue={q}
           placeholder="Map name, or a SteamID for their maps"
-          aria-label="Search maps, or enter a SteamID"
-          className="flex-1"
+          label="Search maps, or enter a SteamID"
         />
-        <Button type="submit">Search</Button>
       </Form>
 
       <ChoiceBar>

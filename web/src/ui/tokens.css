@@ -1,4 +1,4 @@
-/* Design tokens: every color, size, radius, shadow and motion value the site uses. Direction "Navy" (docs/design-system.md). */
+/* Design tokens: every color, size, radius, shadow and motion value the site uses. Direction "Classic" (docs/design-system.md). */
 
 /*
  * Tailwind's default palette, radii, type scale and shadows are cleared (`initial`) so that only
@@ -8,17 +8,21 @@
 @theme {
   --color-*: initial;
 
-  /* Surfaces, darkest to lightest. */
-  --color-bg: #0e1622;
-  --color-surface: #152030;
-  --color-surface-raised: #1b2a3e;
-  --color-surface-overlay: #213249;
-  --color-border: #24354b;
-  --color-border-strong: #34496a;
+  /*
+   * The old sourcejump.net's colors, brought up to date. `gutter` is the window either side of the page's
+   * sheet; `bg` is the sheet itself, what every page sits on. Then surfaces on it, darkest to lightest.
+   */
+  --color-gutter: #121822;
+  --color-bg: #1d2636;
+  --color-surface: #222c40;
+  --color-surface-raised: #29354b;
+  --color-surface-overlay: #303d57;
+  --color-border: #2e3b54;
+  --color-border-strong: #3d4f70;
 
-  --color-text: #e3eaf3;
-  --color-text-muted: #8a9bb3;
-  --color-text-subtle: #64758d;
+  --color-text: #e1e9f5;
+  --color-text-muted: #9db0cc;
+  --color-text-subtle: #7387a5;
 
   /* The one accent. `on-accent` is text on an accent fill. */
   --color-accent: #00c8f0;
@@ -81,6 +85,9 @@
   --shadow-popover: 0 8px 24px rgb(3 8 15 / 0.5), 0 2px 6px rgb(3 8 15 / 0.4);
   --shadow-dialog: 0 24px 64px rgb(3 8 15 / 0.6);
   --shadow-glow: 0 0 0 1px var(--color-accent), 0 0 16px rgb(0 200 240 / 0.35);
+  /* The sheet's edges: a hairline and the old site's soft blue halo. */
+  --shadow-sheet:
+    0 0 0 1px rgb(61 79 112 / 0.6), 0 0 24px 1px rgb(54 71 100 / 0.45);
 
   /* Motion. Durations are plain variables; the named motions in motion.css use them. */
   --ease-*: initial;

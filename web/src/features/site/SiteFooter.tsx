@@ -1,38 +1,37 @@
-// The footer on every page: the ruleset, and SourceJump's community elsewhere.
+// The footer on every page, one quiet line: the ruleset, what the site is, and SourceJump's community by their
+// logos in their own colors.
+import { ScrollText } from "lucide-react";
+import { BrandIcon } from "@/ui/BrandIcon";
 import { Link } from "@/ui/Link";
-
-/** SourceJump's own pages on other sites. The Discord invite is the one the plugin spec links to. */
-const communityLinks = [
-  { label: "Discord", href: "https://discord.gg/RYP5G4tuwX" },
-  { label: "YouTube", href: "https://www.youtube.com/user/SourceJump" },
-  {
-    label: "Steam group",
-    href: "https://steamcommunity.com/groups/SourceJump",
-  },
-  { label: "TikTok", href: "https://www.tiktok.com/@sourcejump.net" },
-];
+import { communityLinks } from "./navigation";
 
 export function SiteFooter() {
   return (
-    <footer className="border-border border-t">
-      <div className="text-text-muted mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm">
-        <p>SourceJump: global records for Counter-Strike: Source bunnyhop.</p>
-        <nav aria-label="Footer">
-          <ul className="flex flex-wrap gap-6">
-            <li>
-              <Link href="/ruleset" className="hover:text-text">
-                Ruleset
-              </Link>
-            </li>
-            {communityLinks.map(({ label, href }) => (
+    <footer className="border-border bg-gutter/50 border-t">
+      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 px-4 py-5 text-sm">
+        <Link
+          href="/ruleset"
+          className="text-accent hover:text-accent-hover inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
+        >
+          <ScrollText aria-hidden className="size-4" />
+          Ruleset
+        </Link>
+        <p className="text-text-subtle text-xs">
+          SourceJump: global records for Counter-Strike: Source bunnyhop.
+        </p>
+        <nav aria-label="Community">
+          <ul className="flex items-center gap-1">
+            {communityLinks.map(({ label, brand, href }) => (
               <li key={label}>
                 <a
                   href={href}
                   rel="noreferrer"
                   target="_blank"
-                  className="hover:text-text"
+                  aria-label={label}
+                  title={label}
+                  className="hover:bg-text/8 flex size-8 items-center justify-center rounded-md transition-colors duration-(--duration-fast)"
                 >
-                  {label}
+                  <BrandIcon brand={brand} colored className="size-4.5" />
                 </a>
               </li>
             ))}

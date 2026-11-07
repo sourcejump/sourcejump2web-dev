@@ -25,7 +25,7 @@ export function Page({
       <main
         className={classNames(
           "flex w-full flex-1 flex-col",
-          width === "fill" ? "min-w-0" : "mx-auto px-4 py-10",
+          width === "fill" ? "min-w-0" : "mx-auto px-4 pt-6 pb-10 sm:px-8",
           width === "narrow" && "max-w-3xl",
           width === "medium" && "max-w-4xl",
           width === "wide" && "max-w-6xl",

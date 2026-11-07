@@ -19,19 +19,22 @@ export function SiteNavLinks({ pathname }: { pathname: string | null }) {
   return (
     <>
       <nav aria-label="Main" className="hidden h-full lg:block">
-        <ul className="flex h-full items-stretch gap-6">
+        <ul className="flex h-full items-stretch">
           {sections.map(({ href, label }) => {
             const current = isCurrent(href, pathname);
             return (
               <li key={href} className="flex">
+                {/* A bar along the header's bottom edge marks the current section; on hover one grows in under
+                    the others. */}
                 <Link
                   href={href}
                   aria-current={current ? "page" : undefined}
                   className={classNames(
-                    "flex items-center border-b-2 pt-0.5 text-sm transition-colors duration-(--duration-fast)",
+                    "relative flex items-center px-3.5 text-base transition-colors duration-(--duration-fast)",
+                    "after:absolute after:inset-x-3.5 after:-bottom-px after:h-0.5 after:rounded-full after:transition-transform after:duration-(--duration-base) after:ease-out",
                     current
-                      ? "border-accent text-accent"
-                      : "text-text-muted hover:text-text border-transparent",
+                      ? "text-accent after:bg-accent"
+                      : "text-text-muted hover:text-text after:bg-border-strong after:scale-x-0 hover:after:scale-x-100",
                   )}
                 >
                   {label}
