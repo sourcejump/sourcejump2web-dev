@@ -5930,13 +5930,19 @@
         "required": [
           "at",
           "servers",
-          "players"
+          "players",
+          "peak_players"
         ],
         "properties": {
           "at": {
             "type": "string",
             "format": "date-time",
             "description": "Where the bucket starts."
+          },
+          "peak_players": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The most players online at once during the bucket, across listed servers: each server's latest\nheartbeat count, summed at the same moment. Up to a month, sampled every 5 minutes; for a year, the\nday's highest total at any heartbeat."
           },
           "players": {
             "type": "integer",
@@ -9950,12 +9956,18 @@
         "required": [
           "range",
           "bucket_minutes",
+          "peak_players",
           "points"
         ],
         "properties": {
           "bucket_minutes": {
             "type": "integer",
             "format": "int32"
+          },
+          "peak_players": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The most players online at once across listed servers over the whole range, from the start of its\nfirst point up to now, the bucket in progress included: no point reads higher, and a shorter range never\nreads higher than a longer one."
           },
           "points": {
             "type": "array",

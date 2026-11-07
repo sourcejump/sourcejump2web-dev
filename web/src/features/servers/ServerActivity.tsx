@@ -67,7 +67,11 @@ export function ServerActivity({
   // Without a chart to draw, the board still opens with its title.
   if (!current || !now || points.length < 2)
     return <div className="px-4 py-4">{title}</div>;
-  const peak = Math.max(...points.map((point) => point.players));
+  // The most players online at once over the whole range, from the API (which counts the bucket still in
+  // progress, so a shorter range never reads higher). An API without it yet falls back to the points.
+  const peak =
+    current.peak_players ??
+    Math.max(...points.map((point) => point.peak_players ?? point.players));
 
   return (
     <div className="border-border bg-surface flex flex-col gap-3 rounded-md border p-5 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:pt-4">
