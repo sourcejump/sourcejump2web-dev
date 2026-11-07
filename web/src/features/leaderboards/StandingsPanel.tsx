@@ -9,6 +9,7 @@ import { Medal } from "@/ui/Medal";
 import { Pager } from "@/ui/Pager";
 import { OVERVIEW_PAGE_SIZE as PAGE_SIZE } from "./BoardChoices";
 import { useStandingsPages } from "./useStandingsPages";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 type Standing = Schemas["ListedStanding"];
 type Ranking = Schemas["Ranking"];
@@ -177,10 +178,7 @@ function Row({
       className="group hover:bg-surface-raised flex h-14 items-center gap-3 px-5 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
     >
       <Medal placement={place} />
-      <Avatar
-        name={standing.player.name}
-        src={standing.player.avatar_url ?? undefined}
-      />
+      <Avatar name={standing.player.name} src={avatarSrc(standing.player)} />
       {/* The flag sits close to the name it belongs to; most players have no country on Steam, and a
           placeholder on every row would only be noise. */}
       <span className="flex min-w-0 items-center gap-1.5">

@@ -353,6 +353,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/players/{player}/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Redirects to the player's Steam avatar. Takes a `SteamID64`, `SteamID2` or `SteamID3`. Only players
+         *     SourceJump knows are looked up on Steam; a player known only from the old site gets the avatar it had.
+         */
+        get: operations["player_avatar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/players/{player}/details": {
         parameters: {
             query?: never;
@@ -4174,6 +4194,56 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PlayerProfile"];
                 };
+            };
+            /** @description SourceJump has no such player */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a SteamID */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    player_avatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description SteamID64, SteamID2 (STEAM_0:1:2) or SteamID3 ([U:1:4]) */
+                player: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No avatar yet: a placeholder with the player's initials, cached five minutes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": string;
+                };
+            };
+            /** @description To the avatar on Steam's CDN; cached a day */
+            302: {
+                headers: {
+                    /** @description The avatar's URL */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description SourceJump has no such player */
             404: {

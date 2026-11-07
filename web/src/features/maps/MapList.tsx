@@ -28,6 +28,7 @@ import { managesMaps } from "./MapHeader";
 import { MapImage } from "./MapImage";
 import { MAP_NAME } from "./mapName";
 import { tierParam } from "./tierParam";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 const PAGE_SIZE = 50;
 /** In groups (players, name, tier, record), each starting below a line in the menu. */
@@ -527,11 +528,7 @@ function FilterPlayer({
           href={`/players/${player.steamid64}`}
           className="hover:text-accent flex items-center gap-2"
         >
-          <Avatar
-            name={player.name}
-            src={player.avatar_url ?? undefined}
-            size="sm"
-          />
+          <Avatar name={player.name} src={avatarSrc(player)} size="sm" />
           {player.name}
         </Link>
       ) : (

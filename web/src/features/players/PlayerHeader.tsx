@@ -17,6 +17,7 @@ import { Masthead, type MastheadImage } from "@/ui/Masthead";
 import { Medal } from "@/ui/Medal";
 import { currentStyles } from "@/features/ruleset/styles";
 import { getPlayer } from "./playerDetail";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 export async function PlayerHeader({ steamid }: { steamid: string }) {
   const [result, me] = await Promise.all([
@@ -59,7 +60,7 @@ export async function PlayerHeader({ steamid }: { steamid: string }) {
       <header className="motion-enter flex flex-wrap items-center gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4">
         <Avatar
           name={player.name}
-          src={player.avatar_url ?? undefined}
+          src={avatarSrc(player)}
           size="xl"
           className={classNames(
             "max-sm:size-16 max-sm:text-lg",

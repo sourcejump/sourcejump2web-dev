@@ -9,6 +9,7 @@ import { Avatar } from "@/ui/Avatar";
 import { classNames } from "@/ui/classNames";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 /**
  * Players asked for per search, so a full answer can say there may be more. Here, in a module both sides import,
@@ -54,7 +55,7 @@ export function PlayerRows({
             href={`/players/${player.steamid64}`}
             className="group hover:bg-surface-raised flex h-14 items-center gap-3 px-5 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
           >
-            <Avatar name={player.name} src={player.avatar_url ?? undefined} />
+            <Avatar name={player.name} src={avatarSrc(player)} />
             {/* Most players have no country on Steam; a column of placeholders would only be noise. */}
             <span className="flex min-w-0 items-center gap-1.5">
               <span className="group-hover:text-accent min-w-0 truncate transition-colors duration-(--duration-fast)">

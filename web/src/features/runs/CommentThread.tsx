@@ -15,6 +15,7 @@ import { Tooltip } from "@/ui/Tooltip";
 import { CommentForm } from "./CommentForm";
 import { RemoveComment } from "./RemoveComment";
 import { formatDateTime, formatSince } from "./time";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 type Comment = Schemas["RunComment"];
 
@@ -212,7 +213,7 @@ function CommentRow({
       >
         <Avatar
           name={author.name}
-          src={author.avatar_url ?? undefined}
+          src={avatarSrc(author)}
           size={small ? "sm" : "md"}
         />
       </Link>

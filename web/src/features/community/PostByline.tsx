@@ -3,6 +3,7 @@ import type { Schemas } from "@/api/client";
 import { formatDate } from "@/features/runs/time";
 import { Avatar } from "@/ui/Avatar";
 import { Link } from "@/ui/Link";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 export function PostByline({ post }: { post: Schemas["PostSummary"] }) {
   const edited = post.updated_at.slice(0, 10) !== post.created_at.slice(0, 10);
@@ -14,7 +15,7 @@ export function PostByline({ post }: { post: Schemas["PostSummary"] }) {
       >
         <Avatar
           name={post.author.name}
-          src={post.author.avatar_url ?? undefined}
+          src={avatarSrc(post.author)}
           size="sm"
         />
         {post.author.name}

@@ -1,4 +1,7 @@
-// A player's picture, or their initials when there is none.
+"use client";
+// A player's picture, or their initials when there is none or it doesn't load (the API's avatar route before an
+// API that has it is deployed, or Steam's CDN failing).
+import { useState } from "react";
 import { classNames } from "./classNames";
 
 type Size = "sm" | "md" | "lg" | "xl";
@@ -26,10 +29,19 @@ export function Avatar({
     sizes[size],
     className,
   );
-  if (src) {
+  // The picture this element failed to load, so a new `src` gets its own try.
+  const [failed, setFailed] = useState<string>();
+  if (src && src !== failed) {
     // Steam serves avatars pre-sized from its CDN, so next/image's resizing would add nothing.
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt="" className={classes} />;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        className={classes}
+        onError={() => setFailed(src)}
+      />
+    );
   }
   return (
     <span aria-hidden className={classes}>

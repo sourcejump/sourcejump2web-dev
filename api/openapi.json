@@ -1189,6 +1189,69 @@
         }
       }
     },
+    "/v1/players/{player}/avatar": {
+      "get": {
+        "tags": [
+          "players"
+        ],
+        "summary": "Redirects to the player's Steam avatar. Takes a `SteamID64`, `SteamID2` or `SteamID3`. Only players\nSourceJump knows are looked up on Steam; a player known only from the old site gets the avatar it had.",
+        "operationId": "player_avatar",
+        "parameters": [
+          {
+            "name": "player",
+            "in": "path",
+            "description": "SteamID64, SteamID2 (STEAM_0:1:2) or SteamID3 ([U:1:4])",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No avatar yet: a placeholder with the player's initials, cached five minutes",
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "To the avatar on Steam's CDN; cached a day",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The avatar's URL"
+              }
+            }
+          },
+          "404": {
+            "description": "SourceJump has no such player",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a SteamID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/players/{player}/details": {
       "put": {
         "tags": [

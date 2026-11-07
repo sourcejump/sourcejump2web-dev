@@ -13,6 +13,7 @@ import { DividedList } from "@/ui/Divided";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
 import { LegacyBadge } from "./LegacyBadge";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 export function LegacyRunDetailList({
   run,
@@ -51,7 +52,7 @@ export function LegacyRunDetailList({
           >
             <Avatar
               name={run.player.name}
-              src={run.player.avatar_url ?? undefined}
+              src={avatarSrc(run.player)}
               size="sm"
             />
             <span className="inline-flex items-center gap-1.5">

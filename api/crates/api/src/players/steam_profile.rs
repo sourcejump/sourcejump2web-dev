@@ -22,6 +22,12 @@ const MIN_GAP: StdDuration = StdDuration::from_secs(2);
 /// At most this many refreshes wait their turn; more are dropped, and a later view asks again. With `MIN_GAP`,
 /// the last in line waits under two minutes however many profiles are viewed.
 const MAX_QUEUED: usize = 50;
+/// Fetches a waiting page may make at once, process-wide (`refresh_now`), and how long each may take: a picture
+/// that isn't there within seconds shows the placeholder instead.
+pub(crate) const INLINE_FETCHES: usize = 4;
+const INLINE_TIMEOUT: StdDuration = StdDuration::from_secs(4);
+/// How long a page's request waits for a free slot before showing the placeholder.
+const SLOT_WAIT: StdDuration = StdDuration::from_secs(4);
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SteamProfile {
@@ -97,13 +103,21 @@ fn read_field(path: &[String], text: String, profile: &mut SteamProfile) {
     }
 }
 
+/// Waits for Steam's pacing (`MIN_GAP`), then asks for the profile.
 pub async fn fetch(steam: &Steam, steamid64: SteamId64) -> Result<SteamProfile, FetchError> {
     steam.wait_for_turn(MIN_GAP).await;
-    let url = steam
+    request(steam.http.get(profile_url(steam, steamid64))).await
+}
+
+fn profile_url(steam: &Steam, steamid64: SteamId64) -> url::Url {
+    steam
         .community
         .join(&format!("profiles/{steamid64}/?xml=1"))
-        .expect("a valid path");
-    let response = steam.http.get(url).send().await.map_err(FetchError::Http)?;
+        .expect("a valid path")
+}
+
+async fn request(request: reqwest::RequestBuilder) -> Result<SteamProfile, FetchError> {
+    let response = request.send().await.map_err(FetchError::Http)?;
     if !response.status().is_success() {
         return Err(FetchError::Status(response.status().as_u16()));
     }
@@ -113,7 +127,81 @@ pub async fn fetch(steam: &Steam, steamid64: SteamId64) -> Result<SteamProfile, 
 /// Fetches the profile and stores it. The Steam name is used only while no run has given the player a name:
 /// on SourceJump, the name players see is the one they play under.
 pub async fn refresh(db: &PgPool, steam: &Steam, steamid64: SteamId64) -> Result<(), sqlx::Error> {
-    let profile = match fetch(steam, steamid64).await {
+    store(db, steamid64, fetch(steam, steamid64).await).await
+}
+
+/// Fetches the profile now, for a page waiting on it (`players/avatar.rs`), and stores it as `refresh` does.
+/// False, without asking Steam, when no `INLINE_FETCHES` slot frees up within `SLOT_WAIT`, or the player's
+/// refresh is already queued or running.
+///
+/// Skips `MIN_GAP`: waiting behind up to `MAX_QUEUED` paced refreshes (100 s) would leave a list of 50
+/// never-seen players without pictures. With 4 at once and Steam answering in well under a second, those 50
+/// take a few seconds. Steam still sees little: a player is fetched inline only while we have no avatar for
+/// them and no fetch in the last day (an hour after a failed one), so each is asked about once, never more
+/// than `INLINE_FETCHES` at a time, as ok-website does against the same pages.
+pub async fn refresh_now(
+    db: &PgPool,
+    steam: &Steam,
+    steamid64: SteamId64,
+) -> Result<bool, sqlx::Error> {
+    let slot = steam.inline_fetches.clone().acquire_owned();
+    let Ok(Ok(slot)) = tokio::time::timeout(SLOT_WAIT, slot).await else {
+        return Ok(false);
+    };
+    // No cap here, unlike `queue`: the slots bound it. Holding the player's place keeps a background refresh,
+    // or the same picture requested twice at once, from asking Steam a second time.
+    if !lock_queue(steam).insert(steamid64) {
+        return Ok(false);
+    }
+    let (db, steam) = (db.clone(), steam.clone());
+    // Its own task, so a browser giving up on the picture can't cut this short and leave the player's place
+    // taken, or a failure unrecorded. The timeout is on the request, not around this, for the same reason.
+    tokio::spawn(async move {
+        let fetched = fetch_now_if_stale(&db, &steam, steamid64).await;
+        lock_queue(&steam).remove(&steamid64);
+        drop(slot);
+        fetched
+    })
+    .await
+    .expect("the fetch doesn't panic")
+}
+
+/// True once the stored profile is as fresh as it gets for now. A request that waited for its slot may find
+/// the profile fetched meanwhile, and asks Steam only if it's still stale.
+async fn fetch_now_if_stale(
+    db: &PgPool,
+    steam: &Steam,
+    steamid64: SteamId64,
+) -> Result<bool, sqlx::Error> {
+    let Some(fetched_at) = sqlx::query_scalar!(
+        "SELECT steam_profile_fetched_at FROM players WHERE steamid64 = $1",
+        steamid64.get()
+    )
+    .fetch_optional(db)
+    .await?
+    else {
+        return Ok(false);
+    };
+    if !is_fresh(fetched_at) {
+        let url = profile_url(steam, steamid64);
+        let fetched = request(steam.http.get(url).timeout(INLINE_TIMEOUT)).await;
+        store(db, steamid64, fetched).await?;
+    }
+    Ok(true)
+}
+
+/// Whether a profile fetched at `fetched_at` is recent enough to leave alone. A failed fetch counts as fresh
+/// for `RETRY_AFTER`.
+pub fn is_fresh(fetched_at: Option<chrono::DateTime<Utc>>) -> bool {
+    fetched_at.is_some_and(|fetched| Utc::now() - fetched < FRESH_FOR)
+}
+
+async fn store(
+    db: &PgPool,
+    steamid64: SteamId64,
+    fetched: Result<SteamProfile, FetchError>,
+) -> Result<(), sqlx::Error> {
+    let profile = match fetched {
         Ok(profile) => profile,
         Err(error) => {
             tracing::warn!(%steamid64, %error, "couldn't fetch a Steam profile");
@@ -156,7 +244,7 @@ pub fn refresh_if_stale(
     steamid64: SteamId64,
     fetched_at: Option<chrono::DateTime<Utc>>,
 ) {
-    if fetched_at.is_some_and(|fetched| Utc::now() - fetched < FRESH_FOR) {
+    if is_fresh(fetched_at) {
         return;
     }
     if !queue(&steam, steamid64) {
@@ -183,7 +271,7 @@ fn lock_queue(steam: &Steam) -> std::sync::MutexGuard<'_, std::collections::Hash
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     // Shaped like Steam's response, with invented values.
@@ -222,12 +310,28 @@ mod tests {
 
     /// A stand-in for Steam that answers every profile with `PUBLIC`.
     async fn fake_steam() -> Steam {
-        let app =
-            axum::Router::new().route("/profiles/{id}/", axum::routing::get(|| async { PUBLIC }));
+        stand_in_steam(axum::http::StatusCode::OK, PUBLIC).await.0
+    }
+
+    /// A stand-in for Steam that answers every profile with `status` and `body`, and counts the requests.
+    pub(crate) async fn stand_in_steam(
+        status: axum::http::StatusCode,
+        body: &'static str,
+    ) -> (Steam, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        let requests = std::sync::Arc::<std::sync::atomic::AtomicUsize>::default();
+        let counted = requests.clone();
+        let app = axum::Router::new().route(
+            "/profiles/{id}/",
+            axum::routing::get(move || async move {
+                counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                (status, body)
+            }),
+        );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        Steam::with_base(&url::Url::parse(&format!("http://{address}/")).unwrap())
+        let steam = Steam::with_base(&url::Url::parse(&format!("http://{address}/")).unwrap());
+        (steam, requests)
     }
 
     #[sqlx::test]
