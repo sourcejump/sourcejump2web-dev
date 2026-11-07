@@ -132,8 +132,8 @@ pub async fn refresh(db: &PgPool, steam: &Steam, steamid64: SteamId64) -> Result
         r#"
         UPDATE players SET
             avatar_url = $2,
-            -- A country the player picked on their profile stays.
-            country_code = CASE WHEN country_chosen THEN country_code ELSE $3 END,
+            -- Steam's country comes last: one a game server found or the player picked stays.
+            country_code = CASE WHEN country_chosen OR country_from_server THEN country_code ELSE $3 END,
             steam_profile_fetched_at = now(),
             name = CASE WHEN name_seen_at = '-infinity' AND $4::text IS NOT NULL THEN $4 ELSE name END
         WHERE steamid64 = $1
@@ -218,6 +218,51 @@ mod tests {
         );
         lock_queue(&steam).remove(&first);
         assert!(queue(&steam, first), "a finished refresh frees its place");
+    }
+
+    /// A stand-in for Steam that answers every profile with `PUBLIC`.
+    async fn fake_steam() -> Steam {
+        let app =
+            axum::Router::new().route("/profiles/{id}/", axum::routing::get(|| async { PUBLIC }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        Steam::with_base(&url::Url::parse(&format!("http://{address}/")).unwrap())
+    }
+
+    #[sqlx::test]
+    async fn steams_country_comes_after_a_servers_and_the_players_own(db: PgPool) {
+        // Steam's own (none yet), a game server's, and the player's pick.
+        let players = [
+            ("[U:1:1]", None, false, false, Some("NO")),
+            ("[U:1:2]", Some("SE"), true, false, Some("SE")),
+            ("[U:1:3]", Some("FI"), false, true, Some("FI")),
+        ];
+        for (id, code, from_server, chosen, expected) in players {
+            let steamid64 = SteamId64::parse_any(id).unwrap();
+            sqlx::query(
+                "INSERT INTO players (steamid64, name, name_seen_at, country_code, country_from_server, country_chosen)
+                 VALUES ($1, 'nova', now(), $2, $3, $4)",
+            )
+            .bind(steamid64.get())
+            .bind(code)
+            .bind(from_server)
+            .bind(chosen)
+            .execute(&db)
+            .await
+            .unwrap();
+            // A Steam each, so no refresh waits its turn behind another.
+            refresh(&db, &fake_steam().await, steamid64).await.unwrap();
+
+            let (country, avatar): (Option<String>, Option<String>) =
+                sqlx::query_as("SELECT country_code, avatar_url FROM players WHERE steamid64 = $1")
+                    .bind(steamid64.get())
+                    .fetch_one(&db)
+                    .await
+                    .unwrap();
+            assert!(avatar.is_some(), "{id}: the profile was stored");
+            assert_eq!(country.as_deref(), expected, "{id}");
+        }
     }
 
     #[sqlx::test]

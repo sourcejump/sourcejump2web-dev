@@ -1,30 +1,31 @@
 # Site API
-What the endpoints behind the website do: sign-in, players, maps, the server list and community posts; the staff tools are in `staff-api.md`. Rules for every client (errors, retries, SteamIDs) and game servers' endpoints: `api.md`.
+What the endpoints behind the website do: sign-in, players, maps, the server list and community posts; staff tools: `staff-api.md`. Rules for every client (errors, retries, SteamIDs) and game servers' endpoints: `api.md`.
 
 ## Sign-in and sessions
 Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirects, cookies) via the site's origin (Caddy in production, Next.js locally).
 - Steam must confirm its answer (`check_authentication`). Only signed fields are read, the return URL must be our callback, a nonce works once, under 5 minutes old (`openid_nonces`). The callback URL must carry the value `/v1/auth/steam` put in the `sj_sign_in` cookie, tying sign-in to its browser. Refused: `/sign-in/failed`; cancelled: back where they were.
 - `return_to` must be a path on our site; anything else becomes `/`.
 - A session is 32 random bytes in the `sj_session` cookie (`HttpOnly; Secure; SameSite=Lax`). Only the SHA-256 is stored. It lasts 30 days from last use (expiry moves at most daily).
-- Sign-out also requires our `Origin` header. A missing session answers `401` without `WWW-Authenticate`.
+- Sign-out also needs our `Origin` header. A missing session answers `401` without `WWW-Authenticate`.
 - `SJ_PUBLIC_URL` is where players reach the site; redirects and the origin check use it.
 
 ## Players and privileges
 - Profiles take a SteamID64, SteamID2 or SteamID3 and answer with a SteamID64.
 - Per style, a profile counts completed maps (main tracks, out of the map list's count), completed bonuses and world records, and carries the first 50 main-track personal bests by map; `…/personal-bests?style=&tracks=main|bonuses&cursor=` pages on; `records=true` keeps only 2.0 world records. Without `style`, every style, newest first; `all_styles` counts across styles. Ranks: `main_standing`, `bonus_standing` (lead, 2026-11-04). Personal bests have a placement (ties share one), `tier` and `world_record_time`; profiles `tier_count`.
-- `PUT /v1/players/{player}/details` (rules in `players/details.rs`): setup and a country (`GET /v1/countries`), a save per 5 s; others' need `manage_bans` and a logged reason. Old-site setup shows first.
-- Avatar, country (unless the player picked one) and (until a run gives one) name come from their public Steam profile XML, fetched at sign-in, and when a day old after a run or a view (an hour after a failed one): one request per 2 s, 50 queued, one per player. Country names map to ISO codes in `players/countries.rs`.
-- Staff privileges are a bitmap in `players.privileges` (`players/privileges.rs`). Bit positions never change; the API names privileges and never sends numbers. `players.restrictions` is unused (bans hold restrictions). The CLI's `privileges grant <steamid> <name>…`, `revoke`, `list` and the staff tools share `staff/privileges.rs`.
+- `PUT /v1/players/{player}/details` (`players/details.rs`): setup and a country (`GET /v1/countries`), a save per 5 s; others' need `manage_bans` and a logged reason. Old-site setup shows first.
+- Country: a run's server GeoIP code, else the player's pick (shown until the next such run), else Steam's.
+- Avatar, country and (until a run gives one) name come from their public Steam profile XML, fetched at sign-in, and when a day old after a run or a view (an hour after a failed one): one request per 2 s, 50 queued, one per player. Country names map to ISO codes in `players/countries.rs`.
+- Staff privileges are a bitmap in `players.privileges` (`players/privileges.rs`). Bit positions never change; the API names privileges, never numbers. `players.restrictions` is unused (bans hold restrictions). The CLI's `privileges grant <steamid> <name>…`, `revoke`, `list` and the staff tools share `staff/privileges.rs`.
 
 ## Maps and leaderboards
 - The map list holds every map with a run (`maps.last_run_at`, set by the ingest); whether one is ranked is open. Sorts: name, players, last/first run (`listed_at`), tier, main-track record; `tier` keeps one tier. `player` (any SteamID form) with `completed=true|false` keeps maps whose main track they have or haven't finished in the list's style; `completed` counts them. `stats`: tiers, 5 newest, 5 most players this week.
-- Leaderboards rank personal bests per map, style and track; equal times share a place, and the earlier run is listed first. The world record of a tie belongs to whoever set it first.
-- `GET /v1/maps/{map}` carries every style and track's top 25, `next_cursor` and WR history, so a map page switches between them without another request. `…/leaderboard?cursor=` pages on from there; cursors are opaque.
-- WR history is every run faster than all runs that finished before it on that leaderboard, by `finished_at`. Ties don't count.
+- Leaderboards rank personal bests per map, style and track; equal times share a place, the earlier run listed first. A tie's world record belongs to whoever set it first.
+- `GET /v1/maps/{map}` carries every style and track's top 25, `next_cursor` and WR history, so a map page switches between them without a request. `…/leaderboard?cursor=` pages on from there; cursors are opaque.
+- WR history is every run faster than all runs that finished before it on that board, by `finished_at`. Ties don't count.
 - Tiers: the `tiers` policy holds the tier count, `map_tiers` the tier per map and track (append-only, newest in force). The API serves no tier until a count is published.
-- Any run opens by ID with stats, server and place (while it's a personal best); compliance and keys stay private.
+- Any run opens by ID with stats, server and place (while a personal best); compliance and keys stay private.
 - Pre-2.0 runs (`legacy_*` tables, `legacy.rs`) count toward no 2.0 standing: not WRs, WR histories, placements or `…/records`. The normal style's main track has two more views, `view=all` (each player's faster of 2.0 and legacy) and `view=legacy`, on `…/leaderboard` and `…/personal-bests`; entries carry `legacy`; a legacy `run_id` is the old site's, at `GET /v1/legacy-runs/{id}` (no run page). A map's `legacy_record_history` charts the Pre-2.0 view. Banned players' legacy runs are left out. Legacy-only maps and players get pages and show in search.
-- The tier count is published with the CLI's `tiers count` (it can't drop below a tier a map holds). Staff rate tracks and set images and descriptions on the map's Manage view (`/maps/{map}/manage`), or with the CLI's `maps tier` and `maps image`, logged.
+- The CLI's `tiers count` publishes the tier count (never below a tier a map holds). Staff rate tracks and set images and descriptions on the map's Manage view (`/maps/{map}/manage`), or with the CLI's `maps tier` and `maps image`, logged.
 - A map holds up to 10 pictures (`map_images`, in order; the first is the cover). The API reads PNG, JPEG or WebP up to 15 MB, crops to 16:9, centred (at least 1920×1080), and stores 1920×1080 and 480×270 WebP at quality 80 (`maps/image.rs`), named by content hash, cached for good, deleted with the picture. `GET /v1/maps/{map}` carries `images`, each with both URLs and `focus` (0–100, the strip a banner shows); lists carry the cover as `image`. Browsers read the files from `SJ_S3_PUBLIC_URL`; the API only writes them (ADR 0006).
 - Staff set `description` (≤1000 chars), `released` (year, month or day) and `mapper` (made if new)
 

@@ -6204,7 +6204,7 @@
               "string",
               "null"
             ],
-            "description": "An ISO 3166-1 alpha-2 code to show instead of the Steam profile's country; null to show Steam's."
+            "description": "An ISO 3166-1 alpha-2 code to show instead of Steam's or a game server's, until a run's server finds one;\nnull to stop showing the player's pick."
           },
           "dpi": {
             "type": [
@@ -8164,14 +8164,14 @@
           },
           "country_chosen": {
             "type": "boolean",
-            "description": "Whether the player picked `country_code` themselves, rather than it coming from Steam."
+            "description": "Whether the player picked `country_code` themselves, rather than it coming from a game server or Steam."
           },
           "country_code": {
             "type": [
               "string",
               "null"
             ],
-            "description": "ISO 3166-1 alpha-2: the one the player picked, or else their Steam profile's. None if neither has one."
+            "description": "ISO 3166-1 alpha-2: the latest one a game server found for them, the player's pick if they made it\nsince, or else their Steam profile's. None if none has one."
           },
           "details": {
             "oneOf": [
@@ -9720,6 +9720,14 @@
           "name"
         ],
         "properties": {
+          "country_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The player's country, as the game server found it from their address with SourceMod's `GeoipCode2`: an ISO\n3166-1 alpha-2 code. Leave it out when the lookup finds nothing; send only the code, never the address. It\nbecomes the player's flag. A code SourceJump doesn't know as a country is ignored and the run is stored\nanyway. Runs only: detections ignore it.",
+            "example": "SE"
+          },
           "name": {
             "type": "string"
           },
