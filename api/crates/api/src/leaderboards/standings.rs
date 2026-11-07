@@ -150,8 +150,8 @@ async fn refresh(
             SELECT b.map_id, b.style, b.track,
                    (SELECT min(pb.time) FROM personal_bests pb
                     WHERE pb.map_id = b.map_id AND pb.style = b.style AND pb.track = b.track) AS best,
-                   CASE WHEN $5 THEN (SELECT t.tier FROM map_tiers t WHERE t.map_id = b.map_id AND t.track = b.track
-                                      ORDER BY t.assigned_at DESC LIMIT 1) END AS tier
+                   CASE WHEN $5 THEN (SELECT t.tier FROM current_map_tiers t
+                                      WHERE t.map_id = b.map_id AND t.track = b.track) END AS tier
             FROM unnest($1::int8[], $2::text[], $3::int2[]) AS b (map_id, style, track)
         ), runners AS MATERIALIZED (
             SELECT DISTINCT player_steamid64, style, track > 0 AS bonus FROM runs WHERE id = ANY($4)
@@ -262,14 +262,10 @@ pub async fn refresh_all(conn: &mut PgConnection) -> Result<(), sqlx::Error> {
         .await?;
     sqlx::query!(
         r#"
-        WITH tiers AS (
-            SELECT DISTINCT ON (map_id, track) map_id, track, tier FROM map_tiers
-            WHERE $1 ORDER BY map_id, track, assigned_at DESC
-        )
         INSERT INTO standings_boards (map_id, style, track, best, tier)
         SELECT b.map_id, b.style, b.track, b.best, t.tier
         FROM (SELECT map_id, style, track, min(time) AS best FROM personal_bests GROUP BY 1, 2, 3) b
-        LEFT JOIN tiers t ON t.map_id = b.map_id AND t.track = b.track
+        LEFT JOIN current_map_tiers t ON $1 AND t.map_id = b.map_id AND t.track = b.track
         "#,
         formula.tiers
     )

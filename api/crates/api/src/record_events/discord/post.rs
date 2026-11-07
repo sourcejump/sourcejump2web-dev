@@ -133,8 +133,7 @@ async fn records(
                   AND o.player_steamid64 = r.player_steamid64
                   AND o.invalidated_at IS NULL AND (o.finished_at, o.id) < (r.finished_at, r.id))
                  AS previous_personal_best,
-               (SELECT tier FROM map_tiers WHERE map_id = r.map_id AND track = r.track
-                ORDER BY assigned_at DESC LIMIT 1) AS tier,
+               (SELECT tier FROM current_map_tiers WHERE map_id = r.map_id AND track = r.track) AS tier,
                (SELECT key FROM map_images WHERE map_id = r.map_id AND position = 0) AS image_key,
                (SELECT host(h.ip) || ':' || h.port FROM server_heartbeats h
                 JOIN server_listings l ON l.ip = h.ip AND l.port = h.port

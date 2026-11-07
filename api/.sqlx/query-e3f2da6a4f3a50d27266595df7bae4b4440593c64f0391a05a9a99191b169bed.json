@@ -1,15 +1,15 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT tier FROM map_tiers WHERE map_id = $1 AND track = $2 ORDER BY assigned_at DESC LIMIT 1",
+  "query": "SELECT tier AS \"tier!\" FROM current_map_tiers WHERE map_id = $1 AND track = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "tier",
+        "name": "tier!",
         "type_info": "Int2",
         "origin": {
           "Table": {
-            "table": "map_tiers",
+            "table": "current_map_tiers",
             "name": "tier"
           }
         }
@@ -22,8 +22,8 @@
       ]
     },
     "nullable": [
-      false
+      true
     ]
   },
-  "hash": "193e0dc6d22809860b4dea9586b0edf496fe92c72a15be5c2b8948824a3d8b8f"
+  "hash": "e3f2da6a4f3a50d27266595df7bae4b4440593c64f0391a05a9a99191b169bed"
 }

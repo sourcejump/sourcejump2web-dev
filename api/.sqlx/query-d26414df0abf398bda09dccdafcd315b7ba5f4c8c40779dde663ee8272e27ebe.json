@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT m.name, week.players AS \"players!\",\n                  (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0 ORDER BY assigned_at DESC LIMIT 1)\n                      AS tier\n           FROM (SELECT map_id, count(DISTINCT player_steamid64) AS players FROM runs\n                 WHERE invalidated_at IS NULL AND finished_at > now() - interval '7 days'\n                 GROUP BY map_id) week\n           JOIN maps m ON m.id = week.map_id\n           ORDER BY week.players DESC, m.name LIMIT $1",
+  "query": "SELECT m.name, week.players AS \"players!\",\n                  (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0) AS tier\n           FROM (SELECT map_id, count(DISTINCT player_steamid64) AS players FROM runs\n                 WHERE invalidated_at IS NULL AND finished_at > now() - interval '7 days'\n                 GROUP BY map_id) week\n           JOIN maps m ON m.id = week.map_id\n           ORDER BY week.players DESC, m.name LIMIT $1",
   "describe": {
     "columns": [
       {
@@ -38,5 +38,5 @@
       null
     ]
   },
-  "hash": "f59c5bfdd8ebefa4312bf431ce8f63aedc42365c6b6809b13146ec436ca8f7c2"
+  "hash": "d26414df0abf398bda09dccdafcd315b7ba5f4c8c40779dde663ee8272e27ebe"
 }
