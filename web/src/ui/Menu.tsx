@@ -5,6 +5,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
   type ToggleEvent,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -36,6 +37,7 @@ export function Menu({
 }) {
   const id = useId();
   const menu = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
   // Mirrored onto the trigger, so its open look can follow the popover.
   const [open, setOpen] = useState(false);
   const items = () =>
@@ -47,8 +49,47 @@ export function Menu({
 
   function onToggle(event: ToggleEvent<HTMLDivElement>) {
     setOpen(event.newState === "open");
-    if (event.newState === "open") items()[0]?.focus();
+    if (event.newState === "open") {
+      placeWithoutAnchors();
+      items()[0]?.focus();
+    }
   }
+
+  /**
+   * Browsers without CSS anchor positioning (Firefox, Safari before 26) ignore the placement styles and pin the
+   * menu to the window's top-left corner, where on a phone it covers the menu button: a second tap then lands
+   * on the menu and it can't be closed. There, it's placed under its trigger by hand as it opens.
+   */
+  function placeWithoutAnchors() {
+    const element = menu.current;
+    const trigger = button.current;
+    if (!element || !trigger || CSS.supports("position-area: bottom")) return;
+    const at = trigger.getBoundingClientRect();
+    Object.assign(element.style, {
+      position: "fixed",
+      inset: "auto",
+      top: `${at.bottom}px`,
+      ...(align === "end"
+        ? { right: `${document.documentElement.clientWidth - at.right}px` }
+        : { left: `${at.left}px` }),
+      ...(matchTriggerWidth && { minWidth: `${at.width}px` }),
+    });
+  }
+
+  // The browser closes the menu on a press outside it, but not on every phone: iOS Safari doesn't count a tap
+  // on something that isn't clickable. Any press outside the menu and its trigger closes it here too.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (menu.current?.contains(target) || button.current?.contains(target))
+        return;
+      if (menu.current?.matches(":popover-open")) menu.current.hidePopover();
+    }
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () =>
+      document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [open]);
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const all = items();
@@ -68,6 +109,7 @@ export function Menu({
   return (
     <>
       <button
+        ref={button}
         type="button"
         popoverTarget={id}
         aria-haspopup="menu"
