@@ -1,5 +1,5 @@
 // One server on the Servers page: a card on phones, a compact row wider. Staff rows add badges and tools.
-import { Check, ImageOff } from "lucide-react";
+import { Check, ImageOff, Power } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Schemas } from "@/api/client";
 import { formatAgo } from "@/features/runs/time";
@@ -14,14 +14,11 @@ type Server = Schemas["ListedServer"];
 
 export function ServerRow({
   server,
-  unlisted = false,
   badges,
   tools,
   eager = false,
 }: {
   server: Server;
-  /** Shown to staff only: the public list never has unlisted servers. */
-  unlisted?: boolean;
   badges?: ReactNode;
   /** Staff controls after Join, kept at full strength when the row is dimmed. */
   tools?: ReactNode;
@@ -32,30 +29,28 @@ export function ServerRow({
   // Each part is dimmed on its own, not inside one wrapper, so the staff tools stay at full strength.
   const dim = classNames(
     "transition-opacity duration-(--duration-base)",
-    unlisted ? "opacity-50" : !server.online && "opacity-60",
+    // Only a server that's down is dimmed; staff marks like Unlisted are badges.
+    !server.online && "opacity-45",
   );
   const connected = "Runs on this server count on SourceJump";
   return (
     <ServerRowFrame
-      unlisted={unlisted}
-      className="relative flex flex-col sm:h-full sm:flex-row sm:items-center sm:gap-3 sm:p-3"
+      className={classNames(
+        "relative flex flex-col sm:h-full sm:flex-row sm:items-center sm:gap-3 sm:p-3",
+        // A step darker than the board, like a panel switched off; the red is kept for the OFFLINE label alone.
+        !server.online ? "bg-bg/60" : "bg-surface sm:bg-transparent",
+      )}
     >
-      <span
-        className={classNames(
-          "absolute inset-y-0 left-0 z-10 w-1",
-          server.online ? "bg-success" : "bg-danger",
-        )}
-      >
-        <span className="sr-only">{server.online ? "Online" : "Offline"}</span>
-      </span>
       <span
         className={classNames(
           "border-border bg-surface-raised relative flex h-28 shrink-0 items-end justify-between gap-3 overflow-hidden border-b p-3",
           "sm:h-18 sm:w-32 sm:rounded-sm sm:border sm:p-0",
-          dim,
+          !server.online && "[&_img]:grayscale",
         )}
       >
         <MapPicture image={server.map_image} eager={eager} />
+        {!server.online && <span className="bg-bg/50 absolute inset-0" />}
+
         <span className="relative min-w-0 sm:hidden">
           <OnPicture>
             <MapName server={server} />
@@ -109,12 +104,7 @@ export function ServerRow({
           <ServerAddress address={address} />
         </span>
       </span>
-      <span
-        className={classNames(
-          "flex shrink-0 flex-col items-center justify-center gap-1 max-sm:hidden",
-          dim,
-        )}
-      >
+      <span className="flex shrink-0 flex-col items-center justify-center gap-1 max-sm:hidden">
         <Players server={server} stacked />
         {server.online && (
           <a
@@ -197,17 +187,30 @@ function Players({
   stacked?: boolean;
 }) {
   if (!server.online) {
-    return (
-      <span
-        className={classNames(
-          "text-text-muted text-sm whitespace-nowrap",
-          stacked && "flex flex-col items-center text-center text-xs",
-        )}
-      >
-        <span>Last seen</span>{" "}
-        <time dateTime={server.last_seen_at}>
-          {formatAgo(server.seen_minutes_ago)}
-        </time>
+    const ago = (
+      <time dateTime={server.last_seen_at}>
+        {formatAgo(server.seen_minutes_ago)}
+      </time>
+    );
+    const offline = (
+      <span className="text-danger flex items-center gap-1.5 font-bold tracking-wide uppercase">
+        <Power aria-hidden className="size-4" />
+        Offline
+      </span>
+    );
+    return stacked ? (
+      <span className="flex flex-col items-center gap-1 text-center">
+        <span className="text-sm whitespace-nowrap">{offline}</span>
+        {/* Two short lines rather than one long one, so the column stays narrow next to the name and badges. */}
+        <span className="text-text-muted flex flex-col text-xs whitespace-nowrap">
+          <span>Last seen</span>
+          {ago}
+        </span>
+      </span>
+    ) : (
+      <span className="flex items-center gap-1.5 text-sm whitespace-nowrap">
+        {offline}
+        <span className="text-text-muted">· {ago}</span>
       </span>
     );
   }
@@ -233,19 +236,17 @@ function Players({
 
 /** The row's box, shared with the staff-only row of a server listed before it was ever heard from. */
 export function ServerRowFrame({
-  unlisted = false,
   className,
   children,
 }: {
-  unlisted?: boolean;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <div
       className={classNames(
-        "border-border bg-surface @container overflow-hidden rounded-lg border",
-        unlisted && "border-dashed",
+        // A card on a phone; a cell of the Servers board from sm up, which then draws the lines between rows.
+        "border-border @container h-full overflow-hidden rounded-lg border sm:rounded-none sm:border-0",
         className,
       )}
     >
