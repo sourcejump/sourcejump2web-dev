@@ -1448,6 +1448,13 @@ export interface components {
             at: string;
             /**
              * Format: int32
+             * @description The most players online at once during the bucket, across listed servers: each server's latest
+             *     heartbeat count, summed at the same moment. Up to a month, sampled every 5 minutes; for a year, the
+             *     day's highest total at any heartbeat.
+             */
+            peak_players: number;
+            /**
+             * Format: int32
              * @description The average player count of each of those servers during the bucket, summed.
              */
             players: number;
@@ -3147,6 +3154,13 @@ export interface components {
         ServerActivity: {
             /** Format: int32 */
             bucket_minutes: number;
+            /**
+             * Format: int32
+             * @description The most players online at once across listed servers over the whole range, from the start of its
+             *     first point up to now, the bucket in progress included: no point reads higher, and a shorter range never
+             *     reads higher than a longer one.
+             */
+            peak_players: number;
             /**
              * @description Oldest first, one per bucket, empty buckets included. The bucket still in progress is left out, so the
              *     last point isn't a partial count.

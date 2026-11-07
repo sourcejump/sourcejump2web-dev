@@ -1,5 +1,5 @@
 # Site API
-What the endpoints behind the website do: sign-in, players, maps, the server list and community posts; staff tools: `staff-api.md`. Rules for every client (errors, retries, SteamIDs) and game servers' endpoints: `api.md`.
+The website's endpoints: sign-in, players, maps, server list, community posts; staff tools: `staff-api.md`. Rules for every client (errors, retries, SteamIDs) and game servers' endpoints: `api.md`.
 
 ## Sign-in and sessions
 Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirects, cookies) via the site's origin (Caddy in production, Next.js locally).
@@ -20,8 +20,8 @@ Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirect
 ## Maps and leaderboards
 - The map list holds every map with a run (`maps.last_run_at`, set by the ingest); whether one is ranked is open. Sorts: name, players, last/first run (`listed_at`), tier, main-track record; `tier` keeps one tier. `player` (any SteamID form) with `completed=true|false` keeps maps whose main track they have or haven't finished in the list's style; `completed` counts them. `stats`: tiers, 5 newest, 5 most players this week.
 - Leaderboards rank personal bests per map, style and track; equal times share a place, the earlier run listed first. A tie's world record belongs to whoever set it first.
-- `GET /v1/maps/{map}` carries every style and track's top 25, `next_cursor` and WR history, so a map page switches between them without a request. `…/leaderboard?cursor=` pages on from there; cursors are opaque.
-- WR history is every run faster than all runs that finished before it on that board, by `finished_at`. Ties don't count.
+- `GET /v1/maps/{map}` carries every style and track's top 25, `next_cursor` and WR history, so a map page switches between them locally. `…/leaderboard?cursor=` pages on from there; cursors are opaque.
+- WR history: every run faster than all runs finished before it on that board, by `finished_at`. Ties don't count.
 - Tiers: the `tiers` policy holds the tier count, `map_tiers` the tier per map and track (append-only, newest in force). The API serves no tier until a count is published.
 - Any run opens by ID with stats, server and place (while a personal best); compliance and keys stay private.
 - Pre-2.0 runs (`legacy_*` tables, `legacy.rs`) count toward no 2.0 standing: not WRs, WR histories, placements or `…/records`. The normal style's main track has two more views, `view=all` (each player's faster of 2.0 and legacy) and `view=legacy`, on `…/leaderboard` and `…/personal-bests`; entries carry `legacy`; a legacy `run_id` is the old site's, at `GET /v1/legacy-runs/{id}` (no run page). A map's `legacy_record_history` charts the Pre-2.0 view. Banned players' legacy runs are left out. Legacy-only maps and players get pages and show in search.
@@ -41,15 +41,15 @@ Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirect
 - `GET /v1/daily-totals/players|runs?range=month|year|all` (`daily_totals.rs`, hourly): players with a time (incl. pre-2.0), 2.0 runs and WRs per UTC day.
 
 ## Server list
-- `GET /v1/servers` shows only addresses in `server_listings`, kept by staff (lead, 2026-10-20), heard from within the `servers` policy's `listed_hours` (24); `online` means within `online_minutes` (25). Without the policy the list is empty. *Connected*: the latest heartbeat had a still-valid key. Compliance and versions aren't public. `whitelist` (staff-set: only approved players join) puts it under the Whitelist tab.
-- Listed servers' heartbeats also go to `server_heartbeat_log` (players, 30 days) and `server_activity_daily` (per-server UTC-day totals, 400 days). `…/activity?range=day|week|month` buckets the log (20 min, 2 h, 8 h); `year` reads the daily totals. Per bucket: servers heard from, and their average players summed.
-- Staff with `manage_servers` see every server on `/servers`: unlisted ones dimmed, toggles to list or unlist and to mark whitelist, and a dialog with its last report (versions, plugins, compliance, reported IP, key), loaded in the browser, never in the server render. The CLI's `servers seen`, `servers list <ip:port>` and `servers unlist <ip:port>` do the same.
+- `GET /v1/servers` shows only addresses in `server_listings`, kept by staff (lead, 2026-10-20), heard from within the `servers` policy's `listed_hours` (24); `online` means within `online_minutes` (25). No policy, no list. *Connected*: the latest heartbeat had a still-valid key. Compliance and versions aren't public. `whitelist` (staff-set: only approved players join) puts it under the Whitelist tab.
+- Listed servers' heartbeats also go to `server_heartbeat_log` (players, 30 days) and, per UTC day for 400 days, `server_activity_daily` (per-server totals) and `server_activity_peaks`. `…/activity?range=day|week|month` buckets the log (20 min, 2 h, 8 h), `year` the daily tables. Per bucket: servers heard from, their average players summed, and `peak_players`, most online at once; the top-level one, the whole range through now (never above a longer range's).
+- Staff with `manage_servers` see every server on `/servers`: unlisted ones dimmed, toggles for listing and whitelist, and a dialog with its last report (versions, plugins, compliance, reported IP, key), browser-loaded, never server-rendered. The CLI's `servers seen` and `servers list|unlist <ip:port>` do the same.
 
 ## Community posts
-- Articles (Markdown) and YouTube videos (a link with an optional note; the site links out and embeds nothing, lead 2026-10-20). Players with `post_community` post and change or remove their own; `manage_posts` edits anyone's, with a `reason` and logged (`edit_post`, fields changed) when it's someone else's and changes something. Every write needs a session and our `Origin`.
+- Articles (Markdown) and YouTube videos (a link with an optional note; the site links out and embeds nothing, lead 2026-10-20). Players with `post_community` post and change or remove their own; `manage_posts` edits anyone's, with a `reason`, logged (`edit_post`, fields changed) if someone else's and changed. Every write needs a session and our `Origin`.
 - `body_html` is rendered on each read by `posts/markdown.rs`, the only place deciding what HTML a post may contain: raw HTML becomes text, images their alt text, and links keep only web, mail and on-site addresses, opening `nofollow noopener`.
-- A video link in any common form is stored as its YouTube ID (`posts/youtube.rs`), served back as a watch link.
-- Pages link to `/community/{id}-{slug}`; only the ID counts, so a new title doesn't break links. Removing a post hides it and keeps the row. `DELETE /v1/posts/{post}` is for the author only.
+- A video link in any common form is stored as its YouTube ID (`posts/youtube.rs`), served as a watch link.
+- Pages link to `/community/{id}-{slug}`; only the ID counts, so retitling keeps links. Removal hides a post, keeping the row. `DELETE /v1/posts/{post}` is for the author only.
 
 ## Run comments
 - `/v1/runs/{id}/comments` (`runs/comments.rs`): players not banned from posting comment and reply one level deep (plain text, one per 30 s); the runner pins one; authors `DELETE` theirs (lead 2026-10-29). 25 threads a page, 3 replies each; more at `…/replies`.
