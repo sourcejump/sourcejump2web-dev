@@ -55,10 +55,10 @@ export function TierSpread({
                       } as CSSProperties)
                 }
                 className={classNames(
-                  "flex h-9 items-center justify-between gap-2 rounded-sm border px-2 text-xs transition-colors duration-(--duration-fast)",
+                  "flex h-9 items-center justify-between gap-2 border-b-2 px-1 text-sm transition-colors duration-(--duration-fast)",
                   active
-                    ? "border-text-muted bg-text/6 text-text"
-                    : "border-border text-text-muted hover:border-text-muted hover:text-text",
+                    ? "border-text text-text"
+                    : "text-text-muted hover:border-text-subtle hover:text-text border-transparent",
                 )}
               >
                 <span
@@ -69,7 +69,7 @@ export function TierSpread({
                 >
                   {tier == null ? "All tiers" : `T${tier}`}
                 </span>
-                <span className="text-text-subtle tabular-nums">
+                <span className="text-text-subtle text-xs tabular-nums">
                   {number.format(count)}
                 </span>
               </Link>
