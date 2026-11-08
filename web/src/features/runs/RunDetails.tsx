@@ -16,10 +16,12 @@ import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
 import { TierBadge } from "@/ui/TierBadge";
 import { loadGapWhenFinished } from "./loadGapWhenFinished";
+import type { Gap } from "./gapWhenFinished";
 import { RecordGap } from "./RecordGap";
 import { formatAge, formatDate, formatTime, trackName } from "./time";
 import { RunComments } from "./RunComments";
 import { avatarSrc } from "@/features/players/avatarSrc";
+import { Dot } from "@/ui/Dot";
 
 /** One request per run, however many components on the page show it. */
 export const getRun = cache(async (id: string) => {
@@ -77,12 +79,17 @@ function RunHeader({
   run: Schemas["RunDetail"];
   styleName: string;
   board: string;
-  gap: number | null;
+  gap: Gap | null;
 }) {
   return (
     <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-center gap-4">
-        <Link href={board} className="shrink-0" aria-label={run.map}>
+        {/* Left out on the narrowest phones, where it would squeeze the map's name to a few letters. */}
+        <Link
+          href={board}
+          className="max-xs:hidden shrink-0"
+          aria-label={run.map}
+        >
           <MapImage image={run.map_image} size="tile" />
         </Link>
         <div className="flex min-w-0 flex-col gap-2">
@@ -98,25 +105,27 @@ function RunHeader({
             <Badge>{styleName}</Badge>
             <Badge>{trackName(run.track)}</Badge>
           </div>
-          <p className="text-text-muted flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm">
-            Run by
-            <Link
-              href={`/players/${run.player.steamid64}`}
-              className="text-text hover:text-accent inline-flex items-center gap-1.5 font-medium"
-            >
-              <Avatar
-                name={run.player.name}
-                src={avatarSrc(run.player)}
-                size="sm"
-              />
-              {run.player.name}
-              <Flag code={run.player.country_code} />
-            </Link>
-            <span aria-hidden>·</span>
+          <p className="text-text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm sm:gap-x-1.5">
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <span className="whitespace-nowrap">Run by</span>
+              <Link
+                href={`/players/${run.player.steamid64}`}
+                className="text-text hover:text-accent inline-flex items-center gap-1.5 font-medium"
+              >
+                <Avatar
+                  name={run.player.name}
+                  src={avatarSrc(run.player)}
+                  size="sm"
+                />
+                {run.player.name}
+                <Flag code={run.player.country_code} />
+              </Link>
+            </span>
+            <Dot />
             <time dateTime={run.finished_at}>
               {formatDate(run.finished_at)}
             </time>
-            <span aria-hidden>·</span>
+            <Dot />
             {/* Counted from now, which differs between the server's render and the browser's. */}
             <span suppressHydrationWarning>{formatAge(run.finished_at)}</span>
           </p>
@@ -156,7 +165,7 @@ const speed = new Intl.NumberFormat("en", { maximumFractionDigits: 0 });
 function RunNumbers({ run }: { run: Schemas["RunDetail"] }) {
   return (
     <section className="border-border bg-surface rounded-md border">
-      <dl className="grid grid-cols-4 gap-x-4 gap-y-4 px-5 py-4 sm:gap-x-6 lg:grid-cols-7">
+      <dl className="grid grid-cols-3 gap-x-4 gap-y-4 px-5 py-4 sm:grid-cols-4 sm:gap-x-6 lg:grid-cols-7">
         <Stat term="Place">{run.rank == null ? "–" : `#${run.rank}`}</Stat>
         <Stat term="Jumps">{run.jumps}</Stat>
         <Stat term="Strafes">{run.strafes}</Stat>

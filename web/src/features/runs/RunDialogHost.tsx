@@ -12,6 +12,7 @@ import { REPLAY_ANCHOR } from "@/features/replays/anchor";
 import { Button, ButtonLink } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
 import { Tooltip } from "@/ui/Tooltip";
+import type { Gap } from "./gapWhenFinished";
 import { loadGapWhenFinished } from "./loadGapWhenFinished";
 import { RunDetailList } from "./RunDetailList";
 import { closeRun, PRE_RUN_PARAM, REPLAY_PARAM, RUN_PARAM } from "./runDialog";
@@ -23,7 +24,7 @@ const ReplayPlayer = dynamic(
 );
 
 type Run =
-  | { legacy: false; run: Schemas["RunDetail"]; gap: number | null }
+  | { legacy: false; run: Schemas["RunDetail"]; gap: Gap | null }
   | { legacy: true; run: Schemas["LegacyRunDetail"] };
 type Loaded = { key: string } & (Run | { error: string });
 
