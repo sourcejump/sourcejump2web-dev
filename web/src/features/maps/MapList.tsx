@@ -457,12 +457,15 @@ function MapStatsList({
           <li key={map.name}>
             <Link
               href={`/maps/${map.name}`}
-              className="hover:bg-surface-raised -mx-2 flex items-center gap-2 rounded-md px-2 py-0.5"
+              className="group flex items-center gap-2 rounded-sm py-0.5"
             >
               {map.tier != null && tierCount != null && (
                 <TierBadge tier={map.tier} tierCount={tierCount} />
               )}
-              <span className="min-w-0 flex-1 truncate" title={map.name}>
+              <span
+                className="group-hover:text-accent min-w-0 flex-1 truncate transition-colors duration-(--duration-fast)"
+                title={map.name}
+              >
                 {map.name}
               </span>
               <span className="text-text-subtle shrink-0">{map.detail}</span>
@@ -520,7 +523,7 @@ function MapRow({
   return (
     <Link
       href={`/maps/${map.name}`}
-      className="border-border bg-surface group hover:bg-surface-raised flex h-full min-w-0 flex-col overflow-hidden rounded-md border transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
+      className="border-border bg-surface group hover:border-border-strong flex h-full min-w-0 flex-col overflow-hidden rounded-md border transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
     >
       <span className="relative block">
         <MapImage image={map.image} size="card" />
