@@ -1118,6 +1118,7 @@ mod tests {
     async fn revoking_a_key_can_invalidate_every_run_its_server_sent(db: PgPool) {
         let key = setup(&db).await;
         let other = keys::issue(&db, "Other server").await.unwrap();
+        crate::runs::tests::backdate(&db).await;
         submit(&db, &key, "g1", GABE, 30.0, 0).await;
         submit(&db, &other.key, "z1", ZED, 35.0, 0).await;
         // A run sent with the server's earlier key goes too.

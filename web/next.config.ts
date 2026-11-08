@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Self-contained server build for the VPS (ADR 0005).
   output: "standalone",
+  // Where players reach the site, for the whole addresses link previews need (`metadataBase` in the root
+  // layout). Fixed at build time, which `just deploy` does per environment from its SITE_ADDRESS.
+  env: { SJ_SITE_URL: process.env.SJ_SITE_URL ?? "http://localhost:3000" },
   cacheComponents: true,
   partialPrefetching: true,
   images: {

@@ -9,13 +9,14 @@ use sqlx::PgPool;
 
 use crate::{
     anticheat::DetectionAccepted, error::ErrorBody, plugin_releases::PluginRelease,
-    record_events::RecordEvents, records::MapRecords, ruleset::Ruleset, runs::RunAccepted,
+    record_events::RecordEvents, records::MapRecords,
+    records::personal_bests::PlayersPersonalBests, ruleset::Ruleset, runs::RunAccepted,
     servers::heartbeat::HeartbeatResponse, servers::keys, test_client, zones::Zone,
 };
 
 type ResponseCheck = fn(&str, &Value);
 
-const EXAMPLES: [(&str, &str, ResponseCheck); 9] = [
+const EXAMPLES: [(&str, &str, ResponseCheck); 10] = [
     (
         "ruleset",
         include_str!("../../../contract/ruleset.json"),
@@ -40,6 +41,11 @@ const EXAMPLES: [(&str, &str, ResponseCheck); 9] = [
         "maps-records",
         include_str!("../../../contract/maps-records.json"),
         round_trips::<MapRecords>,
+    ),
+    (
+        "maps-personal-bests",
+        include_str!("../../../contract/maps-personal-bests.json"),
+        round_trips::<PlayersPersonalBests>,
     ),
     (
         "records-events",
@@ -81,6 +87,8 @@ async fn examples_match_the_api(db: PgPool) {
         .await
         .unwrap();
     let key = keys::issue(&db, "Example server").await.unwrap().key;
+    // The examples' runs carry fixed times.
+    crate::runs::tests::backdate(&db).await;
 
     for (name, text, check_response) in EXAMPLES {
         let example: Value = serde_json::from_str(text).unwrap();

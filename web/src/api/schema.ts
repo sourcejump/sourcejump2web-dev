@@ -55,6 +55,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/sign-out-everywhere": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ends every session of the signed-in player, in every browser, and signs this one out. A form on the
+         *     website posts here. Without a live session it only clears this browser's cookie, as signing out does.
+         */
+        post: operations["sign_out_everywhere"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/steam": {
         parameters: {
             query?: never;
@@ -237,6 +257,26 @@ export interface paths {
          *     a style or track nobody has finished is an empty leaderboard.
          */
         get: operations["map_leaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/maps/{map}/personal-bests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * These players' SourceJump personal bests on the map, every style and track. An unknown map, or players
+         *     without runs on it, give an empty list.
+         */
+        get: operations["players_personal_bests"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2048,6 +2088,12 @@ export interface components {
              */
             all_players: number;
             /**
+             * @description The picture a link to the map shows (1200×630 JPEG): the cover with the map's name and tier in force.
+             *     None while the map has no cover; a new cover or tier gets a new card within a minute or two
+             *     (`maps/card.rs`).
+             */
+            card_url?: string | null;
+            /**
              * Format: date-time
              * @description When SourceJump first saw the map: its first run or zone import. None for a map known only from
              *     legacy records.
@@ -2324,6 +2370,30 @@ export interface components {
         PlayerList: {
             players: components["schemas"]["PlayerSummary"][];
         };
+        PlayerPersonalBest: {
+            /** Format: date-time */
+            finished_at: string;
+            /**
+             * Format: int64
+             * @description Place on the leaderboard; equal times share a place, as in `…/records`.
+             */
+            rank: number;
+            /** Format: int64 */
+            run_id: number;
+            /** @description SteamID64, as a string. */
+            steamid64: string;
+            style: string;
+            /**
+             * Format: double
+             * @description Seconds.
+             */
+            time: number;
+            /**
+             * Format: int32
+             * @description 0 is the main track, 1 and up are bonuses.
+             */
+            track: number;
+        };
         PlayerPrivileges: {
             /** @description What the player holds after the change. */
             privileges: components["schemas"]["Privilege"][];
@@ -2443,6 +2513,14 @@ export interface components {
              * @description Players with at least one recorded time, 2.0 or pre-2.0, at the end of the point's last day.
              */
             players: number;
+        };
+        PlayersPersonalBests: {
+            map: string;
+            /**
+             * @description Sorted by player, style and track. A player with no personal best on the map has no entries. One flat
+             *     list keeps it simple to read in SourcePawn.
+             */
+            personal_bests: components["schemas"]["PlayerPersonalBest"][];
         };
         /** @description A published `sourcejump.smx` build. */
         PluginRelease: {
@@ -2922,6 +3000,8 @@ export interface components {
             /** Format: int32 */
             jumps: number;
             map: string;
+            /** @description The picture a link to the map shows (1200×630 JPEG), which links to its runs show too; see `MapDetail`. */
+            map_card_url?: string | null;
             map_image?: components["schemas"]["MapImage"] | null;
             /**
              * Format: float
@@ -3559,6 +3639,36 @@ export interface operations {
             };
         };
     };
+    sign_out_everywhere: {
+        parameters: {
+            query?: {
+                /** @description The page to come back to: a path on this site, such as `/maps`. Anything else means `/`. */
+                return_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Back to the page the player came from, signed out everywhere */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not sent from SourceJump's own pages */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     start: {
         parameters: {
             query?: {
@@ -3908,6 +4018,40 @@ export interface operations {
                 };
             };
             /** @description Not a valid map name, track, limit or cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    players_personal_bests: {
+        parameters: {
+            query: {
+                /** @description Players by SteamID64, comma-separated: 1 to 64 of them. Repeats count once. */
+                players: string;
+            };
+            header?: never;
+            path: {
+                /** @description Map name */
+                map: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayersPersonalBests"];
+                };
+            };
+            /** @description Not a valid map name, or `players` isn't 1 to 64 SteamID64s */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Play } from "next/font/google";
 import { Suspense } from "react";
 import { RunDialogHost } from "@/features/runs/RunDialogHost";
+import { SITE_CARD } from "@/features/site/linkPreview";
 import { SiteFooter } from "@/features/site/SiteFooter";
 import { SiteHeader } from "@/features/site/SiteHeader";
 import { NavigationProgress } from "@/ui/NavigationProgress";
@@ -15,9 +16,14 @@ const play = Play({
 });
 
 export const metadata: Metadata = {
+  // Link previews need whole addresses, such as the site card's; `SJ_SITE_URL` is set when building (next.config).
+  metadataBase: new URL(process.env.SJ_SITE_URL ?? "http://localhost:3000"),
   title: { default: "SourceJump", template: "%s · SourceJump" },
   description:
     "Global records for the Counter-Strike: Source bunnyhop community.",
+  // Pages without a link preview of their own show the site's card, under their own title.
+  openGraph: { siteName: "SourceJump", type: "website", images: [SITE_CARD] },
+  twitter: { card: "summary_large_image", images: [SITE_CARD] },
 };
 
 // Pages wait for their data and arrive whole; the progress bar covers the wait.

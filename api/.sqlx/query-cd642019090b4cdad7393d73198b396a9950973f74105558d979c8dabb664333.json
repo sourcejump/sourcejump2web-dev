@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO standings_boards (map_id, style, track, best, tier)\n        SELECT b.map_id, b.style, b.track, b.best, t.tier\n        FROM (SELECT map_id, style, track, min(time) AS best FROM personal_bests GROUP BY 1, 2, 3) b\n        LEFT JOIN current_map_tiers t ON $1 AND t.map_id = b.map_id AND t.track = b.track\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cd642019090b4cdad7393d73198b396a9950973f74105558d979c8dabb664333"
+}

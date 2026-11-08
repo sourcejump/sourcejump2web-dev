@@ -1,0 +1,28 @@
+{
+  "method": "GET",
+  "path": "/v1/maps/bhop_badges/personal-bests?players=76561197960287930,76561197960287931",
+  "status": 200,
+  "response": {
+    "map": "bhop_badges",
+    "personal_bests": [
+      {
+        "steamid64": "76561197960287930",
+        "style": "normal",
+        "track": 0,
+        "time": 42.42,
+        "rank": 1,
+        "run_id": 1,
+        "finished_at": "2026-10-19T08:53:20Z"
+      },
+      {
+        "steamid64": "76561197960287930",
+        "style": "normal",
+        "track": 1,
+        "time": 12.5,
+        "rank": 3,
+        "run_id": 2,
+        "finished_at": "2026-10-19T08:55:00Z"
+      }
+    ]
+  }
+}
