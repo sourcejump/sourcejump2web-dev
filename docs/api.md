@@ -8,7 +8,7 @@ How the `/v1/` API behaves for game servers, and rules for every client. The web
 | `GET /v1/maps/{map}/zones` | no | `zones.rs` |
 | `GET /v1/maps/{map}/records` | no | `records.rs` |
 | `GET /v1/maps/{map}/personal-bests` | yes | `records/` |
-| `GET /v1/records/events`, `GET /v1/records/stream` | no | `record_events.rs`, `record_events/stream.rs` |
+| `GET /v1/records/events`, `…/stream` | no | `record_events.rs`, `record_events/stream.rs` |
 | `GET /v1/maps`, `GET /v1/maps/{map}`, `…/leaderboard`, `…/wr-history` | no | `maps/` |
 | `GET /v1/runs/{id}` | no | `runs/detail.rs` |
 | `GET /v1/plugin/latest` | no | `plugin_releases.rs` |
@@ -17,10 +17,10 @@ How the `/v1/` API behaves for game servers, and rules for every client. The web
 | `POST /v1/runs` | yes | `runs.rs`, `replays.rs` |
 | `GET /v1/replays/{run_id}` | no | `replays/download.rs` |
 | `POST /v1/anticheat/detections` | yes | `anticheat.rs` |
-| `GET /v1/players`, `GET /v1/players/{player}`, `…/personal-bests` | no | `players/` |
+| `GET /v1/players`, `…/{player}`, `…/personal-bests` | no | `players/` |
 | `GET /v1/auth/steam`, `…/callback`, `POST /v1/auth/sign-out` | browser | `auth.rs`, `auth/openid.rs` |
-| `GET /v1/me` | session | `auth.rs`, `auth/sessions.rs` |
-| `GET /v1/posts`, `GET /v1/posts/{post}`; `POST`, `PUT`, `DELETE` to write | no; session to write | `posts.rs`, `posts/` |
+| `GET /v1/me`, `POST /v1/auth/sign-out-everywhere` | session | `auth.rs`, `auth/sessions.rs` |
+| `GET /v1/posts`, `…/{post}`; `POST`, `PUT`, `DELETE` to write | no; session to write | `posts.rs`, `posts/` |
 | `/v1/staff/…`: log, keys, servers, listings | staff session | `staff.rs`, `staff/` |
 
 ## Rules every client can rely on
