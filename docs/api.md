@@ -1,5 +1,5 @@
 # API
-How the `/v1/` API behaves for game servers, and rules for every client. The website's own endpoints (sign-in, players, maps, servers, posts): `site-api.md`. The exact schema is `api/openapi.json`. Examples, checked by `cargo test`: `api/contract/`.
+How the `/v1/` API behaves for game servers, and rules for every client. The website's own endpoints: `site-api.md`. The exact schema is `api/openapi.json`. Examples, checked by `cargo test`: `api/contract/`.
 
 ## Endpoints
 | Endpoint | Key | Code |
@@ -7,7 +7,8 @@ How the `/v1/` API behaves for game servers, and rules for every client. The web
 | `GET /v1/ruleset` | no | `ruleset.rs` |
 | `GET /v1/maps/{map}/zones` | no | `zones.rs` |
 | `GET /v1/maps/{map}/records` | no | `records.rs` |
-| `GET /v1/records/events`, `GET /v1/records/stream` | no | `record_events.rs`, `record_events/stream.rs` |
+| `GET /v1/maps/{map}/personal-bests` | yes | `records/` |
+| `GET /v1/records/events`, `…/stream` | no | `record_events.rs`, `record_events/stream.rs` |
 | `GET /v1/maps`, `GET /v1/maps/{map}`, `…/leaderboard`, `…/wr-history` | no | `maps/` |
 | `GET /v1/runs/{id}` | no | `runs/detail.rs` |
 | `GET /v1/plugin/latest` | no | `plugin_releases.rs` |
@@ -16,10 +17,10 @@ How the `/v1/` API behaves for game servers, and rules for every client. The web
 | `POST /v1/runs` | yes | `runs.rs`, `replays.rs` |
 | `GET /v1/replays/{run_id}` | no | `replays/download.rs` |
 | `POST /v1/anticheat/detections` | yes | `anticheat.rs` |
-| `GET /v1/players`, `GET /v1/players/{player}`, `…/personal-bests` | no | `players/` |
-| `GET /v1/auth/steam`, `GET /v1/auth/steam/callback`, `POST /v1/auth/sign-out` | browser | `auth.rs`, `auth/openid.rs` |
-| `GET /v1/me` | session | `auth.rs`, `auth/sessions.rs` |
-| `GET /v1/posts`, `GET /v1/posts/{post}`; `POST`, `PUT`, `DELETE` to write | no; session to write | `posts.rs`, `posts/` |
+| `GET /v1/players`, `…/{player}`, `…/personal-bests` | no | `players/` |
+| `GET /v1/auth/steam`, `…/callback`, `POST /v1/auth/sign-out` | browser | `auth.rs`, `auth/openid.rs` |
+| `GET /v1/me`, `POST /v1/auth/sign-out-everywhere` | session | `auth.rs`, `auth/sessions.rs` |
+| `GET /v1/posts`, `…/{post}`; `POST`, `PUT`, `DELETE` to write | no; session to write | `posts.rs`, `posts/` |
 | `/v1/staff/…`: log, keys, servers, listings | staff session | `staff.rs`, `staff/` |
 
 ## Rules every client can rely on
@@ -43,21 +44,22 @@ How the `/v1/` API behaves for game servers, and rules for every client. The web
 - Over 64 KB gets `413`. Hostnames lose control characters, cut to 64. An IP (IPv6: /64) may send 120 at once, then 30 a minute; more get `429`, before any key check (`heartbeat_limit.rs`).
 
 ## Runs
-- Accepted only if the run's ruleset version exists, its style is ranked there, its tickrate matches the ruleset's `tickrate` if set, and the plugin reports the server as compliant. Field ranges are checked once, at the boundary.
+- Accepted only if the run's ruleset version exists, its style is ranked there, its tickrate matches the ruleset's `tickrate` if set, and the plugin reports the server as compliant.
 - Optional `player.country_code`: the server's `GeoipCode2` for the player (never their IP) sets their flag; unknown codes are ignored.
 - `personal_bests` holds each player's fastest run per map, style and track, updated in the same transaction. A tie keeps the earlier run.
 - Any keyed server adds a map by submitting a run on it; ranking it is a separate decision.
 
 ## Replays
 - The `replays` policy decides which replays are wanted (`request`: `new_personal_best`, the lead's call on 2026-10-19; `every_run` or `nothing`) and which styles' replays are public (`public_styles`: every ranked style, lead 2026-11-03). A missing policy asks for nothing and makes nothing public.
-- A wanted replay gets a presigned `PUT` link, valid for an hour, to `uploads/replays/<run id>-<random>.replay` in a private bucket. The server uploads there directly. A resend returns a fresh link, with `last_refusal` (reason, time) if the last upload was refused, or no link once the replay is stored (delete the local copy).
+- A wanted replay gets a presigned `PUT` link, valid for an hour, to `uploads/replays/<run id>-<random>.replay` in a private bucket. A resend returns a fresh link, with `last_refusal` (reason, time) if the last upload was refused, or no link once the replay is stored (delete the local copy).
 - Every 30 s a job (`replays/processing.rs`) lists the uploads and checks each against its run: shavit format 12 only, frames fill the file exactly, same map (any case), track, player and tickrate, and the time within half a tick. Over 128 MB is refused. A good file is stored as SJR (`replays/sjr.rs`, a fifth the size) at `replays/<run id>-<random>.sjr`; the upload is deleted. A bad one is deleted, its reason kept on the `replays` row; the server may upload again. A stored replay never changes; a failing upload is retried.
 - The bucket is public; random keys mean only the API reveals files. `GET /v1/runs/{id}` gives the SJR link (`replay.sjr_url`; invalidated runs too, lead 2026-11-03), its route from above (`replay.route`, `replay-viewer.md`), and `GET /v1/replays/{run_id}` the shavit file, rebuilt byte for byte at its first download and kept (own random key), only while the run is valid and its style is public.
-- `GET /v1/maps/{map}/records` marks each record `has_replay` by the same rule, so servers ask only for files they'll get.
+- `…/records` marks each record `has_replay` by the same rule, so servers ask only for files they'll get.
 
 ## Map records for `/wr`
 - `GET /v1/maps/{map}/leaderboard?style=&track=` pages one board (`total`, `next_cursor`); `player=` (any SteamID) adds their best and rank as `player_entry`. Opaque cursors name where a page ended, so paging survives that player improving; old run-ID ones work while the run is a PB. Its rows and `…/records`' carry `points` and `has_replay`.
-- Both send an `ETag` (`etag.rs`, a body hash); `If-None-Match` with it gets a bodiless `304` until the answer changes. So do `/v1/ruleset`, `…/zones` and `/v1/plugin/latest`.
+- `…/personal-bests?players=` (1–64 SteamID64s): their bests on every board, with `rank`.
+- All three send an `ETag` (`etag.rs`, a body hash); `If-None-Match` with it gets a bodiless `304` until it changes. So do `/v1/ruleset`, `…/zones` and `/v1/plugin/latest`.
 
 ## Record events
 - `GET /v1/records/events` lists what happened to records, for servers announcing them or playing them on their bot: `run` (a new personal best, or a restored run that is one again), `replay` (its replay stored) and `invalidated` (staff took a run off a board; read the map's records again). Events are written with their change, kept a week. `previous_time` is the player's best on the board before that run, as it stood then (null: none; migration 0043). The same events feed the Discord posts of records and personal bests (`record_events/discord.rs`).

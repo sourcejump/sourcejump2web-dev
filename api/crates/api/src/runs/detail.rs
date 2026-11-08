@@ -93,8 +93,7 @@ pub async fn run_detail(
                EXISTS (SELECT 1 FROM personal_bests WHERE run_id = r.id) AS "personal_best!",
                (SELECT min(time) FROM personal_bests
                 WHERE map_id = r.map_id AND style = r.style AND track = r.track) AS world_record_time,
-               (SELECT tier FROM map_tiers WHERE map_id = r.map_id AND track = r.track
-                ORDER BY assigned_at DESC LIMIT 1) AS tier,
+               (SELECT tier FROM current_map_tiers WHERE map_id = r.map_id AND track = r.track) AS tier,
                ci.id AS "image_id?", ci.key AS "image_key?", ci.focus AS "image_focus?",
                (SELECT host(h.ip) || ':' || h.port FROM server_heartbeats h
                 JOIN server_listings l ON l.ip = h.ip AND l.port = h.port

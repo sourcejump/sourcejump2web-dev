@@ -31,19 +31,19 @@ One visual language for every page, so pages can't drift apart. See it at `/dev/
 | `TierBadge` | `tier` and `tierCount` from the API |
 | `Avatar` | Steam avatar or initials; `sm` to `xl` |
 | `Flag` | Country flag from an ISO code, a grey placeholder without one; `hint` replaces its tooltip |
-| `Table` + `TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/`TableCell` | `numeric` cells right-align, `centered` heads center on narrow marks, `wrap` cells wrap. Scrolls sideways if too wide; `phoneLead` + `phoneFill` size a phone's first view to end at a column's edge |
+| `Table` + `TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/`TableCell` | `numeric` cells right-align, `centered` heads center on narrow marks, `wrap` cells wrap, `separated` rows start a group. Scrolls sideways if too wide; `phoneLead` + `phoneFill` size a phone's first view to end at a column's edge |
 | `Tabs` | Panels on one page; `underline` or `segmented` |
 | `LinkTabs` | Looks like `Tabs`, but each tab is a link: a view the server renders, such as the Maps page's sort |
 | `Segmented` | Looks like segmented `Tabs`, for a choice that changes the view in place, e.g. a chart range. The chosen option is in the accent |
 | `ChoiceMenu` | "Label  Value ▾": one choice from a list, in a `Menu` of radio items, changing the view in place, or following each option's `href` on a server page. Boards, profiles and the Maps page use a row of them (lead, 2026-10-26); Style lists Autosync after Normal (`menuOrder`); quiet options are dimmed but choosable, disabled ones dimmed and kept in place. Word-width on phones too, so they sit side by side |
 | `ChoiceBar` | The row those menus sit in, with any tabs beside them. Every page uses it, so the spacing between choices stays the same everywhere |
-| `Pager` | Page links under a paged list; `param`: its address key. Reserves its widest row, so turning a page never moves it |
+| `Pager` | Page links under a paged list; `param`: its address key. Holds its widest row, so turning pages never moves it |
 | `DividedList`, `DividedSection` | Rows with lines between them, and a part set off by a line above, inside a `Card` or `Dialog`. The lines run to the surface's edges |
 | `StepChart` | A value that changes in steps over time (WR history). Hover snaps a crosshair to the nearest point; points take focus and open their link |
-| `LineChart` | One count over time from zero (players online). Drawn in a CSS-stretched box, so it fills its container before scripts load. Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
+| `LineChart` | One count over time from zero (players online). CSS-stretched, so it fills its box before scripts load. Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
 | `TierSpread` | Maps per tier: a donut beside each tier's count and share; slices and rows link to that tier's maps, the rest dim; "All tiers" goes back (Maps page) |
 | `Dot` | "·" in a wrapping line; hidden on phones, where it could end one |
-| `Tooltip` | Hint on hover and focus; its child must take focus |
+| `Tooltip` | Hint on hover and focus; child takes focus |
 | `Menu`, `MenuItem`, `MenuLink`, `MenuSeparator` | Menu button (account; `sheet`: phone menu) |
 | `Dialog` | Controlled modal (`open`, `onClose`). A field marked `data-autofocus` takes focus on each opening, not just the first. Closes itself, without calling `onClose`, when its page is hidden for Back |
 | `BrandIcon`, `SteamButton` | Community and Steam logos (`colored`: in their own colors); Steam sign-in |

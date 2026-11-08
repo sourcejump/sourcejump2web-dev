@@ -57,9 +57,14 @@ export function TableBody(props: ComponentProps<"tbody">) {
 
 export function TableRow({
   highlight = false,
+  separated = false,
   className,
   ...props
-}: { highlight?: boolean } & ComponentProps<"tr">) {
+}: {
+  highlight?: boolean;
+  /** Starts a group apart from the rows above, such as a player's own place pinned under a board's top. */
+  separated?: boolean;
+} & ComponentProps<"tr">) {
   return (
     <tr
       className={classNames(
@@ -67,6 +72,7 @@ export function TableRow({
         // color, so the lines above and below the row vanished. Lists of rows elsewhere use the same hover.
         "hover:bg-text/4 transition-colors duration-(--duration-fast)",
         highlight && "bg-surface-raised",
+        separated && "[&>td]:border-border [&>td]:border-t-2",
         className,
       )}
       {...props}

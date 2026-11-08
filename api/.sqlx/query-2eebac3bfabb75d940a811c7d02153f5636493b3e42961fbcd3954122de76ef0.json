@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT shown.map AS \"map!\", shown.track AS \"track!\", shown.time AS \"time!\",\n               CASE WHEN NOT shown.legacy THEN 1 + (\n                   SELECT count(*) FROM personal_bests faster\n                   WHERE faster.map_id = shown.map_id AND faster.style = $2 AND faster.track = shown.track\n                     AND faster.time < shown.time) END AS rank,\n               CASE WHEN NOT shown.legacy THEN (\n                   SELECT min(best.time) FROM personal_bests best\n                   WHERE best.map_id = shown.map_id AND best.style = $2 AND best.track = shown.track)\n               END AS world_record_time,\n               shown.legacy AS \"legacy!\", shown.id AS \"id!\", shown.finished_at, tier.tier AS \"tier?\"\n        FROM (\n            SELECT DISTINCT ON (both_kinds.map, both_kinds.track) both_kinds.*\n            FROM (\n                SELECT m.name AS map, pb.map_id, pb.track, pb.time, false AS legacy, pb.run_id AS id,\n                       pb.finished_at\n                FROM personal_bests pb\n                JOIN maps m ON m.id = pb.map_id\n                WHERE $3 AND pb.player_steamid64 = $1 AND pb.style = $2 AND pb.track = $4\n                UNION ALL\n                SELECT lm.name, NULL::bigint, $4::smallint, l.time, true, l.id::bigint, l.finished_at\n                FROM legacy_personal_bests l\n                JOIN legacy_maps lm ON lm.id = l.map_id\n                WHERE l.player_steamid64 = $1 AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = $1)\n            ) both_kinds\n            WHERE $5::text IS NULL OR (both_kinds.map, both_kinds.track) > ($5, $6::smallint)\n            ORDER BY both_kinds.map, both_kinds.track, both_kinds.time, both_kinds.legacy\n            LIMIT $7\n        ) shown\n        -- A legacy row's map_id is NULL, so it finds no tier.\n        LEFT JOIN current_map_tiers tier ON $8 AND tier.map_id = shown.map_id AND tier.track = shown.track\n        ORDER BY shown.map, shown.track\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "map!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "track!",
+        "type_info": "Int2",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "time!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "rank",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "world_record_time",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "legacy!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "id!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "finished_at",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "tier?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "current_map_tiers",
+            "name": "tier"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Bool",
+        "Int2",
+        "Text",
+        "Int2",
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true
+    ]
+  },
+  "hash": "2eebac3bfabb75d940a811c7d02153f5636493b3e42961fbcd3954122de76ef0"
+}

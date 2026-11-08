@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT m.name, ci.id AS \"image_id?\", ci.key AS \"image_key?\", ci.focus AS \"image_focus?\", m.last_run_at,\n               (SELECT tier FROM map_tiers t WHERE t.map_id = m.id AND t.track = 0\n                ORDER BY assigned_at DESC LIMIT 1) AS tier,\n               (SELECT max(version) FROM map_zones z WHERE z.map_id = m.id) AS zone_version\n        FROM maps m\n        LEFT JOIN map_images ci ON ci.map_id = m.id AND ci.position = 0\n        WHERE m.name ILIKE $1 ESCAPE '\\' AND (NOT $4 OR m.last_run_at IS NULL)\n        ORDER BY m.name\n        LIMIT $2 OFFSET $3\n        ",
+  "query": "\n        SELECT m.name, ci.id AS \"image_id?\", ci.key AS \"image_key?\", ci.focus AS \"image_focus?\", m.last_run_at,\n               (SELECT tier FROM current_map_tiers t WHERE t.map_id = m.id AND t.track = 0) AS tier,\n               (SELECT max(version) FROM map_zones z WHERE z.map_id = m.id) AS zone_version\n        FROM maps m\n        LEFT JOIN map_images ci ON ci.map_id = m.id AND ci.position = 0\n        WHERE m.name ILIKE $1 ESCAPE '\\' AND (NOT $4 OR m.last_run_at IS NULL)\n        ORDER BY m.name\n        LIMIT $2 OFFSET $3\n        ",
   "describe": {
     "columns": [
       {
@@ -89,5 +89,5 @@
       null
     ]
   },
-  "hash": "8154635f139165e32da730d724f8884f499df1fa7fbf249e5bce5a8d99d8c7c4"
+  "hash": "724fdf8d089f3e5c7c055d7d2840e391bbbcadf1e56576c65f8d24b88330aa5b"
 }
