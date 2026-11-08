@@ -1,8 +1,7 @@
 // Map difficulty filters with matching controls for all tiers and individual tiers.
-import type { CSSProperties } from "react";
 import { classNames } from "./classNames";
 import { Link } from "./Link";
-import { tierColor } from "./TierBadge";
+import { TierBadge } from "./TierBadge";
 
 const number = new Intl.NumberFormat("en");
 
@@ -24,59 +23,57 @@ export function TierSpread({
   const total = byTier.reduce((sum, count) => sum + count, untiered);
   if (total === 0) return null;
   const tierCount = byTier.length;
-  const choices = [
-    { tier: null, count: total },
-    ...byTier.map((count, index) => ({ tier: index + 1, count })),
-  ];
-
   return (
     <section aria-label="Maps by tier" className="flex min-w-0 flex-col gap-3">
       <h2 className="text-sm font-bold">Difficulty</h2>
-      <ul className="flex flex-wrap gap-2">
-        {choices.map(({ tier, count }) => {
-          const active = tier === (selected ?? null);
-          return (
-            <li key={tier ?? "all"} className="min-w-0">
-              <Link
-                href={tierHref(tier)}
-                scroll={false}
-                aria-current={active ? "true" : undefined}
-                aria-label={`${tier == null ? "All tiers" : `Tier ${tier}`}: ${number.format(count)} maps`}
-                style={
-                  tier == null
-                    ? undefined
-                    : ({
-                        "--tier": tierColor(tier, tierCount),
-                      } as CSSProperties)
-                }
-                className={classNames(
-                  "inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm transition-colors duration-(--duration-fast)",
-                  active
-                    ? "border-accent/50 bg-accent-soft text-accent"
-                    : "border-border-strong text-text-muted hover:bg-text/4 hover:text-text",
-                )}
-              >
-                <span
+      <div className="flex flex-col gap-1">
+        <Link
+          href={tierHref(null)}
+          scroll={false}
+          aria-current={selected == null ? "true" : undefined}
+          className={classNames(
+            "flex h-7 items-center justify-between rounded-sm px-2 text-sm transition-colors duration-(--duration-fast)",
+            selected == null
+              ? "bg-text/8 text-text"
+              : "text-text-muted hover:text-accent",
+          )}
+        >
+          <span>All tiers</span>
+          <span className="text-text-muted text-xs tabular-nums">
+            {number.format(total)}
+          </span>
+        </Link>
+        <ul
+          className="grid grid-flow-col grid-cols-2 gap-x-4 gap-y-1"
+          style={{
+            gridTemplateRows: `repeat(${Math.ceil(tierCount / 2)}, minmax(0, 1fr))`,
+          }}
+        >
+          {byTier.map((count, index) => {
+            const tier = index + 1;
+            const active = tier === selected;
+            return (
+              <li key={tier} className="min-w-0">
+                <Link
+                  href={tierHref(tier)}
+                  scroll={false}
+                  aria-current={active ? "true" : undefined}
+                  aria-label={`Tier ${tier}: ${number.format(count)} maps`}
                   className={classNames(
-                    "font-medium",
-                    tier != null && !active && "text-(color:--tier)",
+                    "group flex h-6 items-center justify-between rounded-sm px-2 transition-colors duration-(--duration-fast)",
+                    active && "bg-text/8",
                   )}
                 >
-                  {tier == null ? "All tiers" : `T${tier}`}
-                </span>
-                <span
-                  className={classNames(
-                    "text-xs tabular-nums",
-                    active ? "text-accent" : "text-text-subtle",
-                  )}
-                >
-                  {number.format(count)}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+                  <TierBadge tier={tier} tierCount={tierCount} />
+                  <span className="text-text-muted group-hover:text-accent text-xs tabular-nums transition-colors duration-(--duration-fast)">
+                    {number.format(count)}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
       {untiered > 0 && (
         <p className="text-text-subtle text-xs">
           {number.format(untiered)} without a tier
