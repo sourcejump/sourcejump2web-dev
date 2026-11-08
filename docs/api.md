@@ -6,7 +6,8 @@ How the `/v1/` API behaves for game servers, and rules for every client. The web
 |---|---|---|
 | `GET /v1/ruleset` | no | `ruleset.rs` |
 | `GET /v1/maps/{map}/zones` | no | `zones.rs` |
-| `GET /v1/maps/{map}/records`, `…/personal-bests` | no | `records.rs`, `records/` |
+| `GET /v1/maps/{map}/records` | no | `records.rs` |
+| `GET /v1/maps/{map}/personal-bests` | yes | `records/` |
 | `GET /v1/records/events`, `GET /v1/records/stream` | no | `record_events.rs`, `record_events/stream.rs` |
 | `GET /v1/maps`, `GET /v1/maps/{map}`, `…/leaderboard`, `…/wr-history` | no | `maps/` |
 | `GET /v1/runs/{id}` | no | `runs/detail.rs` |
@@ -17,7 +18,7 @@ How the `/v1/` API behaves for game servers, and rules for every client. The web
 | `GET /v1/replays/{run_id}` | no | `replays/download.rs` |
 | `POST /v1/anticheat/detections` | yes | `anticheat.rs` |
 | `GET /v1/players`, `GET /v1/players/{player}`, `…/personal-bests` | no | `players/` |
-| `GET /v1/auth/steam`, `GET /v1/auth/steam/callback`, `POST /v1/auth/sign-out` | browser | `auth.rs`, `auth/openid.rs` |
+| `GET /v1/auth/steam`, `…/callback`, `POST /v1/auth/sign-out` | browser | `auth.rs`, `auth/openid.rs` |
 | `GET /v1/me` | session | `auth.rs`, `auth/sessions.rs` |
 | `GET /v1/posts`, `GET /v1/posts/{post}`; `POST`, `PUT`, `DELETE` to write | no; session to write | `posts.rs`, `posts/` |
 | `/v1/staff/…`: log, keys, servers, listings | staff session | `staff.rs`, `staff/` |
@@ -57,7 +58,7 @@ How the `/v1/` API behaves for game servers, and rules for every client. The web
 
 ## Map records for `/wr`
 - `GET /v1/maps/{map}/leaderboard?style=&track=` pages one board (`total`, `next_cursor`); `player=` (any SteamID) adds their best and rank as `player_entry`. Opaque cursors name where a page ended, so paging survives that player improving; old run-ID ones work while the run is a PB. Its rows and `…/records`' carry `points` and `has_replay`.
-- `…/personal-bests?players=` (1–64 SteamID64s): their bests in every style and track, with `rank`.
+- `…/personal-bests?players=` (1–64 SteamID64s): their bests on every board, with `rank`.
 - All three send an `ETag` (`etag.rs`, a body hash); `If-None-Match` with it gets a bodiless `304` until it changes. So do `/v1/ruleset`, `…/zones` and `/v1/plugin/latest`.
 
 ## Record events

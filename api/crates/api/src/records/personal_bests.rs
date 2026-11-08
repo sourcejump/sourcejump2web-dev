@@ -1,7 +1,8 @@
 //! Players' personal bests on one map, `GET /v1/maps/{map}/personal-bests?players=`: what a game server reads
 //! on map change for everyone connected, so it skips submitting runs that aren't faster than the player's
 //! SourceJump PB (`docs/domain.md`). One request covers every player, style and track, instead of one per
-//! leaderboard.
+//! leaderboard. Keyed, unlike `…/records`: its only reader is a server deciding what to submit, which takes a key
+//! anyway, and a key keeps a bulk lookup of 64 players at a time to servers we know.
 
 use axum::{
     Json,
@@ -16,6 +17,7 @@ use crate::{
     error::{ApiError, ErrorBody},
     maps::MapName,
     players::SteamId64,
+    servers::keys::ServerKey,
 };
 
 /// A server holds at most 64 players, so one request covers everyone on it.
@@ -59,11 +61,14 @@ pub struct PlayerPersonalBest {
     params(("map" = String, Path, description = "Map name"), PersonalBestsQuery),
     responses(
         (status = OK, body = PlayersPersonalBests),
+        (status = UNAUTHORIZED, description = "Missing, unknown or revoked API key", body = ErrorBody),
         (status = UNPROCESSABLE_ENTITY, description = "Not a valid map name, or `players` isn't 1 to 64 SteamID64s", body = ErrorBody),
     ),
+    security(("server_key" = [])),
 )]
 pub async fn players_personal_bests(
     State(state): State<AppState>,
+    _key: ServerKey,
     Path(map): Path<String>,
     Query(query): Query<PersonalBestsQuery>,
 ) -> Result<Json<PlayersPersonalBests>, ApiError> {
@@ -105,15 +110,17 @@ fn parse_players(players: &str) -> Result<Vec<i64>, String> {
         if !parsed.contains(&steamid64) {
             parsed.push(steamid64);
         }
-    }
-    if parsed.len() > MAX_PLAYERS {
-        return Err(format!("players takes at most {MAX_PLAYERS} SteamID64s"));
+        // Checked as it goes, so a huge list is refused without being read to the end.
+        if parsed.len() > MAX_PLAYERS {
+            return Err(format!("players takes at most {MAX_PLAYERS} SteamID64s"));
+        }
     }
     Ok(parsed)
 }
 
 #[cfg(test)]
 mod tests {
+    use axum::{body::Body, http::Request};
     use serde_json::json;
     use sqlx::PgPool;
 
@@ -121,8 +128,16 @@ mod tests {
     use crate::{
         error::ErrorBody,
         runs::tests::{run, setup},
-        test_client,
+        test_client::{self, TestResponse},
     };
+
+    async fn get(db: &PgPool, path: &str, key: Option<&str>) -> TestResponse {
+        let mut request = Request::get(path);
+        if let Some(key) = key {
+            request = request.header("authorization", format!("Bearer {key}"));
+        }
+        test_client::send(db, request.body(Body::empty()).unwrap()).await
+    }
 
     const GABE: &str = "76561197960287930";
     const SECOND: &str = "76561197960287931";
@@ -146,9 +161,10 @@ mod tests {
             assert_eq!(status, 201);
         }
 
-        let answer: PlayersPersonalBests = test_client::get(
+        let answer: PlayersPersonalBests = get(
             &db,
             &format!("/v1/maps/bhop_badges/personal-bests?players={GABE},{THIRD},{GABE}"),
+            Some(&key),
         )
         .await
         .json();
@@ -175,33 +191,46 @@ mod tests {
             format!("/v1/maps/bhop_none/personal-bests?players={GABE}"),
             format!("/v1/maps/bhop_badges/personal-bests?players={SECOND}"),
         ] {
-            let answer: PlayersPersonalBests = test_client::get(&db, &path).await.json();
+            let answer: PlayersPersonalBests = get(&db, &path, Some(&key)).await.json();
             assert!(answer.personal_bests.is_empty(), "{path}");
         }
     }
 
     #[sqlx::test]
     async fn refuses_anything_but_1_to_64_steamid64s(db: PgPool) {
+        let key = setup(&db).await;
         let too_many = (0..=MAX_PLAYERS as u64)
             .map(|n| (76_561_197_960_287_930 + n).to_string())
             .collect::<Vec<_>>()
             .join(",");
         for players in ["", "STEAM_0:0:1", "76561197960287930,,", too_many.as_str()] {
-            let response = test_client::get(
+            let response = get(
                 &db,
                 &format!("/v1/maps/bhop_badges/personal-bests?players={players}"),
+                Some(&key),
             )
             .await;
             assert_eq!(response.status, 422, "{players}");
             let _: ErrorBody = response.json();
         }
         assert_eq!(
-            test_client::get(&db, "/v1/maps/bhop_badges/personal-bests")
+            get(&db, "/v1/maps/bhop_badges/personal-bests", Some(&key))
                 .await
                 .status,
             400,
             "players is required"
         );
+    }
+
+    #[sqlx::test]
+    async fn refuses_a_request_without_a_valid_key(db: PgPool) {
+        setup(&db).await;
+        let path = format!("/v1/maps/bhop_badges/personal-bests?players={GABE}");
+        for key in [None, Some("sj_not_a_key")] {
+            let response = get(&db, &path, key).await;
+            assert_eq!(response.status, 401, "{key:?}");
+            let _: ErrorBody = response.json();
+        }
     }
 
     #[test]
