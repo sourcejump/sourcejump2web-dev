@@ -175,7 +175,7 @@ function Row({
   return (
     <Link
       href={`/players/${standing.player.steamid64}`}
-      className="group hover:bg-surface-raised flex h-14 items-center gap-3 px-5 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
+      className="group hover:bg-text/4 flex h-14 items-center gap-3 px-5 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
     >
       <Medal placement={place} />
       <Avatar name={standing.player.name} src={avatarSrc(standing.player)} />

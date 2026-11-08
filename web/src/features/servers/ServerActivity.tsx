@@ -8,6 +8,7 @@ import type { Schemas } from "@/api/client";
 import { classNames } from "@/ui/classNames";
 import { LineChart } from "@/ui/LineChart";
 import { Segmented } from "@/ui/Segmented";
+import { Dot } from "@/ui/Dot";
 
 type Range = Schemas["ActivityRange"];
 
@@ -82,7 +83,7 @@ export function ServerActivity({
           {title}
           <p
             aria-live="polite"
-            className="text-text-muted flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums max-sm:order-3 max-sm:w-full"
+            className="text-text-muted flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm tabular-nums max-sm:order-3 max-sm:w-full sm:gap-x-2"
           >
             {hovered ? (
               <>
@@ -161,14 +162,6 @@ function Stat({
   return (
     <span>
       <span className={classNames("font-bold", tone)}>{value}</span> {children}
-    </span>
-  );
-}
-
-function Dot() {
-  return (
-    <span aria-hidden className="text-text-subtle">
-      ·
     </span>
   );
 }

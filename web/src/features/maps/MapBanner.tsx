@@ -59,13 +59,10 @@ export function MapBanner({
         )}
       </div>
       {title && (
-        // On wide screens, laid over the picture on a dark plate like the tabs and the picture count beside it, rather
-        // than a scrim over the whole picture: a shadow alone left grey text unreadable on pale maps.
-        <div className="pt-3 lg:pointer-events-none lg:absolute lg:inset-0 lg:flex lg:flex-col lg:justify-end lg:p-4 [&_a]:pointer-events-auto">
+        // On wide screens, laid straight over the picture, readable by its own shadow rather than a plate or a scrim.
+        <div className="lg:text-shadow-over-image pt-3 lg:pointer-events-none lg:absolute lg:inset-0 lg:flex lg:flex-col lg:justify-end lg:p-5 [&_a]:pointer-events-auto">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-            <div className="lg:bg-bg/80 min-w-0 lg:rounded-md lg:px-4 lg:py-3">
-              {title}
-            </div>
+            <div className="min-w-0">{title}</div>
             {tabs && <div className="max-lg:hidden">{tabs}</div>}
           </div>
         </div>

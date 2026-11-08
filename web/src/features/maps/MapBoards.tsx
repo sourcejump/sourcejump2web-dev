@@ -115,83 +115,86 @@ export function MapBoards({
 
   // The board comes first, so it starts within the first screen; the record and totals sit on the choices' line,
   // and the history follows the board.
+  // The choices sit close to the board they pick; the history, a separate thing, stands a step further off.
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <ChoiceBar>
-          <ChoiceMenu
-            label="Style"
-            options={styleKeys.map((key) => ({
-              value: key,
-              label: name(key),
-              quiet: !hasRuns(key),
-            }))}
-            value={styleKey}
-            onChange={(style) => choose({ style })}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <ChoiceBar>
+            <ChoiceMenu
+              label="Style"
+              options={styleKeys.map((key) => ({
+                value: key,
+                label: name(key),
+                quiet: !hasRuns(key),
+              }))}
+              value={styleKey}
+              onChange={(style) => choose({ style })}
+            />
+            <ChoiceMenu
+              label="Track"
+              options={tracks.map((t) => ({
+                value: String(t),
+                label: trackName(t),
+                quiet: !map.tracks.some((known) => known.track === t),
+              }))}
+              value={String(trackNumber)}
+              onChange={(value) => choose({ track: Number(value) })}
+            />
+            <ViewMenu
+              value={view}
+              available={onLegacyBoard}
+              onChange={(next) => choose({ view: next })}
+            />
+            {track &&
+              track.track > 0 &&
+              track.tier != null &&
+              map.tier_count != null && (
+                <TierBadge tier={track.tier} tierCount={map.tier_count} />
+              )}
+          </ChoiceBar>
+          <Figures
+            board={board}
+            totals={totals}
+            className={classNames(bannerSlot && "max-lg:hidden")}
           />
-          <ChoiceMenu
-            label="Track"
-            options={tracks.map((t) => ({
-              value: String(t),
-              label: trackName(t),
-              quiet: !map.tracks.some((known) => known.track === t),
-            }))}
-            value={String(trackNumber)}
-            onChange={(value) => choose({ track: Number(value) })}
-          />
-          <ViewMenu
-            value={view}
-            available={onLegacyBoard}
-            onChange={(next) => choose({ view: next })}
-          />
-          {track &&
-            track.track > 0 &&
-            track.tier != null &&
-            map.tier_count != null && (
-              <TierBadge tier={track.tier} tierCount={map.tier_count} />
+          {bannerSlot &&
+            createPortal(
+              <Figures board={board} totals={totals} compact />,
+              bannerSlot,
             )}
-        </ChoiceBar>
-        <Figures
-          board={board}
-          totals={totals}
-          className={classNames(bannerSlot && "max-lg:hidden")}
-        />
-        {bannerSlot &&
-          createPortal(
-            <Figures board={board} totals={totals} compact />,
-            bannerSlot,
-          )}
+        </div>
+
+        {view === "current" && !board ? (
+          <Card className="text-text-muted">
+            Nobody has a {name(styleKey)} run on{" "}
+            {trackNumber === 0 ? "the main track" : trackName(trackNumber)} yet.
+            {onLegacyBoard && " Its pre-2.0 runs are under Runs."}
+          </Card>
+        ) : (
+          <Leaderboard
+            key={`${styleKey}-${trackNumber}-${view}`}
+            map={map.name}
+            style={styleKey}
+            track={trackNumber}
+            view={view}
+            first={
+              view === "current" && board
+                ? {
+                    entries: board.leaderboard,
+                    next_cursor: board.next_cursor,
+                    total: board.players,
+                    world_record_time: board.world_record.time,
+                    fastest_time: board.world_record.time,
+                  }
+                : undefined
+            }
+            me={me}
+          />
+        )}
       </div>
 
-      {view === "current" && !board ? (
-        <Card className="text-text-muted">
-          Nobody has a {name(styleKey)} run on{" "}
-          {trackNumber === 0 ? "the main track" : trackName(trackNumber)} yet.
-          {onLegacyBoard && " Its pre-2.0 runs are under Runs."}
-        </Card>
-      ) : (
-        <Leaderboard
-          key={`${styleKey}-${trackNumber}-${view}`}
-          map={map.name}
-          style={styleKey}
-          track={trackNumber}
-          view={view}
-          first={
-            view === "current" && board
-              ? {
-                  entries: board.leaderboard,
-                  next_cursor: board.next_cursor,
-                  total: board.players,
-                  world_record_time: board.world_record.time,
-                  fastest_time: board.world_record.time,
-                }
-              : undefined
-          }
-          me={me}
-        />
-      )}
-
-      {history}
+      {history && <div className="mt-2">{history}</div>}
     </>
   );
 }

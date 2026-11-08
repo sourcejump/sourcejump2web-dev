@@ -211,7 +211,8 @@ export function Leaderboard({
   const heading = (key: SortKey, label: string) => (
     <SortButton
       label={label}
-      active={sort.key === key}
+      // Fastest first is the expected order, so the arrow only shows once someone picks another.
+      active={sort.key === key && (key !== "time" || sort.descending)}
       descending={sort.descending}
       onClick={() => void sortBy(key)}
     />
@@ -237,8 +238,13 @@ export function Leaderboard({
             {/* Short columns center under their names: a medal, a WR badge and a few digits are all narrower than
                 the heading, and right-aligned they sat off to one side of it. Times and dates keep to the right.
                 Place and Gap follow the time, so Time sorts for them. */}
+            {/* "#" on a phone, as on Activity: the word would widen the column well past its medals. */}
             <TableHeaderCell centered className="w-px max-sm:px-2">
-              Place
+              <span className="max-sm:hidden">Place</span>
+              <span aria-hidden className="sm:hidden">
+                #
+              </span>
+              <span className="sr-only sm:hidden">Place</span>
             </TableHeaderCell>
             <TableHeaderCell aria-sort={ariaSort("player")}>
               {heading("player", "Player")}
@@ -308,10 +314,12 @@ export function Leaderboard({
                     href={`/players/${entry.player.steamid64}`}
                     className="hover:text-accent flex min-w-0 items-center gap-3 max-sm:gap-2"
                   >
+                    {/* Left out on a phone, as on Activity's rows there: the name needs the room more. */}
                     <Avatar
                       name={entry.player.name}
                       src={avatarSrc(entry.player)}
                       size="sm"
+                      className="max-sm:hidden"
                     />
                     <span className="truncate">{entry.player.name}</span>
                   </Link>
@@ -335,27 +343,34 @@ export function Leaderboard({
                     >
                       {formatTime(entry.time)}
                     </RunLink>
-                    {/* On a phone, the Gap column's content, as on the Activity board. */}
-                    <span className="text-xs sm:hidden">
-                      {!entry.legacy && entry.time === record ? (
+                    {/* On a phone, the Gap column's record mark beside the time; a gap goes on the line below. */}
+                    {!entry.legacy && entry.time === record && (
+                      <span className="text-xs sm:hidden">
                         <Badge tone="accent">WR</Badge>
-                      ) : entry.time === fastest || fastest == null ? null : (
+                      </span>
+                    )}
+                  </span>
+                  {/* Under the time on a phone: the gap and how long ago. Beside the time, the longest gap would
+                      widen the whole column and leave the names a few letters. */}
+                  <span className="flex items-baseline gap-1.5 text-xs leading-4 sm:hidden">
+                    {!(!entry.legacy && entry.time === record) &&
+                      entry.time !== fastest &&
+                      fastest != null && (
                         <span className="text-danger">
                           ({formatGap(entry.time - fastest)})
                         </span>
                       )}
-                    </span>
+                    {entry.finished_at && (
+                      // Counted from now, which differs between the server's render and the browser's.
+                      <time
+                        dateTime={entry.finished_at}
+                        suppressHydrationWarning
+                        className="text-text-subtle"
+                      >
+                        {formatAge(entry.finished_at)}
+                      </time>
+                    )}
                   </span>
-                  {entry.finished_at && (
-                    // Counted from now, which differs between the server's render and the browser's.
-                    <time
-                      dateTime={entry.finished_at}
-                      suppressHydrationWarning
-                      className="text-text-subtle text-xs leading-4 sm:hidden"
-                    >
-                      {formatAge(entry.finished_at)}
-                    </time>
-                  )}
                 </span>
               </TableCell>
               <TableCell className="pr-0 pl-0">
