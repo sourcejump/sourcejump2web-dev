@@ -8,6 +8,7 @@ import { classNames } from "@/ui/classNames";
 const sizes = {
   thumbnail: "h-10 w-14 rounded-md sm:h-12 sm:w-20",
   tile: "h-14 w-24 rounded-md sm:h-20 sm:w-36",
+  card: "aspect-video w-full rounded-none",
   banner: "h-36 w-full rounded-md lg:h-44",
 };
 

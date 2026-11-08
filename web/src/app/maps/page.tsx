@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function MapsPage({ searchParams }: PageProps<"/maps">) {
   return (
-    <Page className="gap-4">
+    <Page width="fill" className="gap-3 px-5 pt-4 pb-8">
       {searchParams.then((params) => (
         <MapList params={firstValues(params)} />
       ))}
