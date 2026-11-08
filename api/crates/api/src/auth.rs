@@ -191,7 +191,8 @@ async fn sign_out(
 }
 
 /// Ends every session of the signed-in player, in every browser, and signs this one out. A form on the
-/// website posts here. Without a live session it only clears this browser's cookie, as signing out does.
+/// website posts here. Unlike signing out, it needs a live session: answering a request without one as if it
+/// had worked would tell the player their other browsers were signed out when nothing was ended.
 #[utoipa::path(
     post,
     path = "/v1/auth/sign-out-everywhere",
@@ -199,6 +200,7 @@ async fn sign_out(
     params(ReturnQuery),
     responses(
         (status = SEE_OTHER, description = "Back to the page the player came from, signed out everywhere"),
+        (status = UNAUTHORIZED, description = "Not signed in; no session was ended", body = ErrorBody),
         (status = FORBIDDEN, description = "Not sent from SourceJump's own pages", body = ErrorBody),
     ),
 )]
@@ -210,10 +212,9 @@ async fn sign_out_everywhere(
     Query(query): Query<ReturnQuery>,
 ) -> Result<(CookieJar, Redirect), ApiError> {
     sessions::require_same_origin(&headers, &state.public_url)?;
-    if let Some(signed_in) = signed_in {
-        sessions::end_all(&state.db, signed_in.steamid64).await?;
-        tracing::info!(steamid64 = %signed_in.steamid64, "signed out everywhere");
-    }
+    let signed_in = signed_in.ok_or(ApiError::SignInRequired)?;
+    sessions::end_all(&state.db, signed_in.steamid64).await?;
+    tracing::info!(steamid64 = %signed_in.steamid64, "signed out everywhere");
     let return_to = ReturnTo::new(query.return_to.as_deref());
     Ok((
         jar.remove(sessions::removal_cookie()),
@@ -473,10 +474,11 @@ mod tests {
         assert_eq!(me_with(&state, &elsewhere).await.status, 401);
         assert_eq!(me_with(&state, &someone_else).await.status, 200);
 
-        // Again without a live session: nothing to end, and the same way back.
+        // Again without a live session: refused, so it never looks like it ended something.
         let again = sign_out_everywhere("https://sourcejump.test").await;
-        assert_eq!(again.status, 303);
-        assert_eq!(again.headers[header::LOCATION], "/maps");
+        assert_eq!(again.status, 401);
+        assert!(!again.headers.contains_key(header::LOCATION));
+        let _: ErrorBody = again.json();
     }
 
     #[sqlx::test]

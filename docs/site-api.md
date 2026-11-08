@@ -6,7 +6,7 @@ Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirect
 - Steam must confirm its answer (`check_authentication`). Only signed fields are read, the return URL must be our callback, a nonce works once, within 5 minutes (`openid_nonces`). The callback must carry the value `/v1/auth/steam` put in the `sj_sign_in` cookie, tying sign-in to its browser. Refused: `/sign-in/failed`; cancelled: back where they were.
 - `return_to` must be a path on our site; anything else becomes `/`.
 - A session is 32 random bytes in the `sj_session` cookie (`HttpOnly; Secure; SameSite=Lax`); only its SHA-256 is stored. It lasts 30 days from last use (expiry moves at most daily).
-- Sign-out and `…/sign-out-everywhere` (all the player's sessions) need our `Origin` header; a missing session gets `401` without `WWW-Authenticate`.
+- Sign-out needs our `Origin`; so does `…/sign-out-everywhere`, which ends all their sessions. A missing session gets `401` without `WWW-Authenticate`.
 - `SJ_PUBLIC_URL`, where players reach the site, builds redirects and the origin check.
 
 ## Players and privileges
