@@ -151,8 +151,7 @@ pub(super) async fn personal_bests(
                      pb.style, m.name, pb.track
             LIMIT $5
         ) own
-        LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = own.map_id AND track = own.track
-                           ORDER BY assigned_at DESC LIMIT 1) tier ON $11
+        LEFT JOIN current_map_tiers tier ON $11 AND tier.map_id = own.map_id AND tier.track = own.track
         ORDER BY CASE WHEN $8 THEN own.finished_at END DESC, CASE WHEN $8 THEN own.run_id END DESC,
                  own.style, own.map, own.track
         "#,
@@ -231,8 +230,7 @@ async fn view_personal_bests(
             LIMIT $7
         ) shown
         -- A legacy row's map_id is NULL, so it finds no tier.
-        LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = shown.map_id AND track = shown.track
-                           ORDER BY assigned_at DESC LIMIT 1) tier ON $8
+        LEFT JOIN current_map_tiers tier ON $8 AND tier.map_id = shown.map_id AND tier.track = shown.track
         ORDER BY shown.map, shown.track
         "#,
         steamid64.get(),

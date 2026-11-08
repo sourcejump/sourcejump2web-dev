@@ -168,8 +168,7 @@ async fn count(
         r#"
         SELECT count(*) AS "total!"
         FROM runs r
-        LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = r.map_id AND track = r.track
-                           ORDER BY assigned_at DESC LIMIT 1) tier ON $5
+        LEFT JOIN current_map_tiers tier ON $5 AND tier.map_id = r.map_id AND tier.track = r.track
         WHERE r.invalidated_at IS NULL
           AND (NOT $4 OR r.was_record)
           AND ($1::text IS NULL OR r.style = $1)
