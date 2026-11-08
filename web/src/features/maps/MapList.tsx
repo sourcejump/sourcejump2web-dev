@@ -391,9 +391,9 @@ function MapStats({
   if (!hasTiers && newest.length === 0 && playedThisWeek.length === 0)
     return null;
   return (
-    <Card className="grid gap-5 p-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
+    <Card className="grid gap-5 p-4 sm:grid-cols-2 sm:gap-6 md:flex">
       {hasTiers && (
-        <div className="min-w-0 sm:col-span-2 xl:col-span-1">
+        <div className="min-w-0 sm:col-span-2 md:shrink-0">
           <TierSpread
             byTier={stats.by_tier}
             untiered={stats.maps - tiered}
@@ -442,7 +442,7 @@ function MapStatsList({
   tierCount: number | null | undefined;
 }) {
   return (
-    <section className="border-border flex min-w-0 flex-col gap-3 border-t pt-4 sm:border-t-0 sm:pt-0 xl:border-l xl:pl-6">
+    <section className="border-border flex min-w-0 flex-1 flex-col gap-3 border-t pt-4 sm:border-t-0 sm:pt-0 md:border-l md:pl-6">
       <h2 className="text-sm font-bold">
         {href ? (
           <Link href={href} className="hover:text-accent">
