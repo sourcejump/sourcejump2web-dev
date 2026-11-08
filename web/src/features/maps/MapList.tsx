@@ -452,7 +452,7 @@ function MapStatsList({
           title
         )}
       </h2>
-      <ul className="flex flex-col gap-1 text-sm">
+      <ul className="flex w-fit max-w-full flex-col gap-1 text-sm">
         {maps.map((map) => (
           <li key={map.name}>
             <Link
