@@ -20,20 +20,20 @@ const WIDTH = 16;
 /** Space between slices, in hundredths of the ring. */
 const GAP = 0.6;
 
-/** "All tiers", in the look of the page's filter menus and tier tiles: bordered, raised when it's the choice. */
+/** The reset uses the site accent; individual selections use their tier color. */
 const allTiersClasses = (chosen: boolean) =>
   classNames(
     "flex h-7 w-full items-center justify-between gap-2 rounded-sm border px-2 text-sm font-medium transition-colors duration-(--duration-fast)",
     chosen
-      ? "bg-surface-raised border-border-strong text-text"
-      : "border-border text-text-muted hover:text-accent",
+      ? "border-accent/40 bg-accent-soft text-accent hover:border-accent"
+      : "border-border-strong text-text-muted hover:border-text-muted hover:bg-text/4 hover:text-text",
   );
 
 const rowClasses =
-  "col-span-3 grid grid-cols-subgrid items-center rounded-sm px-2 py-0.5 transition-[opacity,background-color] duration-(--duration-base)";
+  "col-span-3 grid grid-cols-subgrid items-center rounded-sm px-2 py-0.5 ring-1 ring-inset transition-[background-color,box-shadow] duration-(--duration-fast)";
 
-/** A quiet highlight keeps the tier colors in the badges and chart. */
-const chosenTier = "bg-text/8";
+/** The inset outline marks selection without moving the compact rows. */
+const chosenTier = "bg-(--tier)/10 ring-(--tier)/40";
 
 export function TierSpread({
   byTier,
@@ -77,8 +77,9 @@ export function TierSpread({
         style={{ "--tier": tierColor(tier, tierCount) } as CSSProperties}
         className={classNames(
           rowClasses,
-          selected === tier ? chosenTier : "hover:text-accent",
-          dimmed(tier) && "opacity-40 hover:opacity-100",
+          selected === tier
+            ? chosenTier
+            : "hover:bg-text/4 hover:ring-border-strong ring-transparent",
         )}
       >
         <TierBadge tier={tier} tierCount={tierCount} />
@@ -151,8 +152,7 @@ export function TierSpread({
                   "flex flex-col items-center gap-1 rounded-md border py-1.5 transition-[opacity,background-color] duration-(--duration-base)",
                   selected === tier
                     ? "border-(--tier)/50 bg-(--tier)/15"
-                    : "border-border hover:bg-text/4",
-                  dimmed(tier) && "opacity-40",
+                    : "border-border-strong hover:bg-text/4 hover:border-(--tier)/40",
                 )}
               >
                 <TierBadge tier={tier} tierCount={tierCount} />
