@@ -49,13 +49,17 @@ export function HomeHeader() {
       <div className="from-bg/80 absolute inset-0 bg-linear-to-r to-transparent to-60%" />
       <div className="relative mt-auto flex flex-col gap-4 p-6 sm:p-8">
         <div className="flex flex-col gap-1">
-          <h1 className="motion-enter text-4xl font-bold">SourceJump</h1>
+          <h1 className="motion-enter xs:text-4xl text-3xl font-bold tracking-tight">
+            SourceJump
+          </h1>
           <p className="motion-enter text-text-muted text-lg" style={delay(80)}>
             The global bunnyhop community for Counter-Strike: Source.
           </p>
         </div>
+        {/* Its own compositing layer: with the depth canvas redrawing beneath every frame, some GPU browsers drew a
+            hovered button's new color for a frame and then the stale one again (Chromium, NVIDIA, 2026-11-08). */}
         <div
-          className="motion-enter flex flex-wrap items-center gap-3"
+          className="motion-enter flex flex-wrap items-center gap-3 will-change-transform"
           style={delay(160)}
         >
           <ButtonLink href="/servers" variant="primary">
