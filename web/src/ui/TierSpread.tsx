@@ -32,7 +32,7 @@ export function TierSpread({
           scroll={false}
           aria-current={selected == null ? "true" : undefined}
           className={classNames(
-            "flex h-7 items-center justify-between rounded-sm px-2 text-sm transition-colors duration-(--duration-fast)",
+            "flex h-7 items-center gap-3 self-start rounded-sm px-2 text-sm transition-colors duration-(--duration-fast)",
             selected == null
               ? "bg-text/8 text-text"
               : "text-text-muted hover:text-accent",
@@ -44,7 +44,7 @@ export function TierSpread({
           </span>
         </Link>
         <ul
-          className="grid grid-flow-col grid-cols-2 gap-x-4 gap-y-1"
+          className="grid w-fit grid-flow-col grid-cols-2 gap-x-6 gap-y-1"
           style={{
             gridTemplateRows: `repeat(${Math.ceil(tierCount / 2)}, minmax(0, 1fr))`,
           }}
@@ -60,12 +60,16 @@ export function TierSpread({
                   aria-current={active ? "true" : undefined}
                   aria-label={`Tier ${tier}: ${number.format(count)} maps`}
                   className={classNames(
-                    "group flex h-6 items-center justify-between rounded-sm px-2 transition-colors duration-(--duration-fast)",
+                    "group flex h-6 items-center gap-2 rounded-sm px-2 transition-colors duration-(--duration-fast)",
                     active && "bg-text/8",
                   )}
                 >
-                  <TierBadge tier={tier} tierCount={tierCount} />
-                  <span className="text-text-muted group-hover:text-accent text-xs tabular-nums transition-colors duration-(--duration-fast)">
+                  <TierBadge
+                    tier={tier}
+                    tierCount={tierCount}
+                    className="w-8"
+                  />
+                  <span className="text-text-muted group-hover:text-accent w-6 text-xs tabular-nums transition-colors duration-(--duration-fast)">
                     {number.format(count)}
                   </span>
                 </Link>
