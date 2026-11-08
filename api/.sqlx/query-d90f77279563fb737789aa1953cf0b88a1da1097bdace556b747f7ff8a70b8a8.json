@@ -1,0 +1,177 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH listed AS (\n            SELECT r.id, r.map_id, r.style, r.track, r.player_steamid64, r.time, r.finished_at, r.was_record,\n                   tier.tier\n            FROM runs r\n            LEFT JOIN current_map_tiers tier ON $7 AND tier.map_id = r.map_id AND tier.track = r.track\n            WHERE r.invalidated_at IS NULL\n              AND (NOT $4 OR r.was_record)\n              AND ($1::text IS NULL OR r.style = $1)\n              AND ($2::text IS NULL OR ($2 = 'main') = (r.track = 0))\n              AND ($3::smallint IS NULL OR tier.tier >= $3)\n              AND ($5::timestamptz IS NULL OR (r.finished_at, r.id) < ($5, $6::bigint))\n            ORDER BY r.finished_at DESC, r.id DESC\n            LIMIT $8 OFFSET $9\n        )\n        SELECT l.id, l.style, l.track, l.time, l.finished_at, l.was_record, l.tier AS \"tier?\", prior.best AS \"best?\",\n               m.name AS map, place.placement AS \"placement?\",\n               p.steamid64::text AS \"steamid64!\", p.name, p.avatar_url, p.country_code\n        FROM listed l\n        CROSS JOIN LATERAL (\n            SELECT min(e.time) AS best FROM runs e\n            WHERE e.map_id = l.map_id AND e.style = l.style AND e.track = l.track\n              AND e.invalidated_at IS NULL AND (e.finished_at, e.id) < (l.finished_at, l.id)\n        ) prior\n        JOIN maps m ON m.id = l.map_id\n        JOIN players p ON p.steamid64 = l.player_steamid64\n        LEFT JOIN LATERAL (\n            SELECT 1 + count(*) AS placement FROM (\n                SELECT 1 FROM runs e\n                WHERE e.map_id = l.map_id AND e.style = l.style AND e.track = l.track\n                  AND e.invalidated_at IS NULL AND (e.finished_at, e.id) < (l.finished_at, l.id)\n                  AND e.player_steamid64 <> l.player_steamid64\n                GROUP BY e.player_steamid64\n                HAVING min(e.time) < l.time\n            ) faster\n        ) place ON NOT EXISTS (\n            SELECT 1 FROM runs e\n            WHERE e.map_id = l.map_id AND e.style = l.style AND e.track = l.track\n              AND e.invalidated_at IS NULL AND (e.finished_at, e.id) < (l.finished_at, l.id)\n              AND e.player_steamid64 = l.player_steamid64 AND e.time <= l.time\n        )\n        ORDER BY l.finished_at DESC, l.id DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "style",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "track",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "track"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "time",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "finished_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "finished_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "was_record",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "was_record"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "tier?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "current_map_tiers",
+            "name": "tier"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "best?",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "map",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "placement?",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 11,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "country_code"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int2",
+        "Bool",
+        "Timestamptz",
+        "Int8",
+        "Bool",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      false,
+      null,
+      null,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "d90f77279563fb737789aa1953cf0b88a1da1097bdace556b747f7ff8a70b8a8"
+}

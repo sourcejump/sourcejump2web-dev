@@ -324,9 +324,9 @@
       null,
       null,
       null,
-      false,
-      false,
-      false,
+      true,
+      true,
+      true,
       null
     ]
   },

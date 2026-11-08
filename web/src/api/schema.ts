@@ -66,7 +66,8 @@ export interface paths {
         put?: never;
         /**
          * Ends every session of the signed-in player, in every browser, and signs this one out. A form on the
-         *     website posts here. Without a live session it only clears this browser's cookie, as signing out does.
+         *     website posts here. Unlike signing out, it needs a live session: answering a request without one as if it
+         *     had worked would tell the player their other browsers were signed out when nothing was ended.
          */
         post: operations["sign_out_everywhere"];
         delete?: never;
@@ -3721,6 +3722,15 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Not signed in; no session was ended */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
             /** @description Not sent from SourceJump's own pages */
             403: {
                 headers: {
@@ -4112,6 +4122,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlayersPersonalBests"];
+                };
+            };
+            /** @description Missing, unknown or revoked API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Not a valid map name, or `players` isn't 1 to 64 SteamID64s */
