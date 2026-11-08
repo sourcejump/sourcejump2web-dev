@@ -114,7 +114,7 @@ pub struct MapList {
     pub stats: MapStats,
 }
 
-/// The whole list at a glance, whatever the search or filter.
+/// Global totals and tier-scoped newest and weekly lists.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MapStats {
     /// Maps with at least one run.
@@ -122,6 +122,8 @@ pub struct MapStats {
     /// Of those, the maps whose main track has each tier, tier 1 first. Empty until a tier count is
     /// published.
     pub by_tier: Vec<i64>,
+    /// The tier the newest and weekly lists describe; None describes all tiers. Totals remain global.
+    pub tier: Option<i16>,
     /// The maps that joined the list last, newest first.
     pub newest: Vec<NewestMap>,
     /// The maps the most players finished a run on in the last 7 days, most first.
@@ -218,7 +220,7 @@ pub async fn list_maps(
     tx.commit().await?;
 
     let tier_count = tiers::tier_count(&state.db).await?;
-    let list_stats = map_stats(&state.db, tier_count).await?;
+    let list_stats = map_stats(&state.db, tier_count, query.tier).await?;
     let (player, completed) = match player {
         Some(player) => (
             known_player(&state.db, player).await?,
@@ -244,7 +246,11 @@ pub async fn list_maps(
 
 /// Maps with a run, how many hold each main-track tier once tiers are in force, the newest of them and the
 /// week's most played.
-async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStats, sqlx::Error> {
+async fn map_stats(
+    db: &sqlx::PgPool,
+    tier_count: Option<i16>,
+    tier: Option<i16>,
+) -> Result<MapStats, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT tier.tier AS "tier?", count(*) AS "maps!" FROM maps m
            LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0
@@ -267,8 +273,11 @@ async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStat
         r#"SELECT m.name, m.listed_at AS "listed_at!",
                   (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0) AS tier
            FROM maps m WHERE m.last_run_at IS NOT NULL AND m.listed_at IS NOT NULL
+             AND ($2::smallint IS NULL OR $2 =
+                 (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0))
            ORDER BY m.listed_at DESC, m.name LIMIT $1"#,
-        NEWEST
+        NEWEST,
+        tier
     )
     .fetch_all(db)
     .await?
@@ -288,8 +297,11 @@ async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStat
                  WHERE invalidated_at IS NULL AND finished_at > now() - interval '7 days'
                  GROUP BY map_id) week
            JOIN maps m ON m.id = week.map_id
+           WHERE $2::smallint IS NULL OR $2 =
+                 (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0)
            ORDER BY week.players DESC, m.name LIMIT $1"#,
-        PLAYED_THIS_WEEK
+        PLAYED_THIS_WEEK,
+        tier
     )
     .fetch_all(db)
     .await?
@@ -303,6 +315,7 @@ async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStat
     Ok(MapStats {
         maps: rows.iter().map(|row| row.maps).sum(),
         by_tier,
+        tier,
         newest,
         played_this_week,
     })
@@ -712,6 +725,79 @@ mod tests {
             .map(|m| (m.name.as_str(), m.players))
             .collect();
         assert_eq!(week, [("bhop_badges", 2), ("bhop_arcane", 1)]);
+    }
+
+    #[sqlx::test]
+    async fn stats_rank_within_a_tier_before_taking_the_top_five(db: PgPool) {
+        let key = setup(&db).await;
+        let policy = crate::policies::Policy::Tiers(crate::policies::TiersPolicy { count: 2 });
+        crate::policies::publish(&mut db.acquire().await.unwrap(), &policy)
+            .await
+            .unwrap();
+        for index in 0..12 {
+            let name = format!("bhop_tier_{index:02}");
+            let players = if index < 5 { 2 } else { 1 };
+            for player in 0..players {
+                let mut body = run(&format!("tier-{index}-{player}"), 30.0);
+                body["map"] = json!(name);
+                body["player"] = json!({
+                    "steamid64": (76561197960287930_i64 + player).to_string(),
+                    "name": format!("player-{player}"),
+                });
+                assert_eq!(
+                    test_client::post(&db, "/v1/runs", Some(&key), &body)
+                        .await
+                        .status,
+                    201
+                );
+            }
+            let map = crate::maps::MapName::try_from(name.clone()).unwrap();
+            crate::staff::maps::set_tier(&db, None, &map, 0, if index < 5 { 1 } else { 2 })
+                .await
+                .unwrap();
+            sqlx::query(
+                "UPDATE maps SET listed_at = now() - $1 * interval '1 minute' WHERE name = $2",
+            )
+            .bind(f64::from(index))
+            .bind(name)
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+        sqlx::query("UPDATE runs SET finished_at = now() - interval '1 day'")
+            .execute(&db)
+            .await
+            .unwrap();
+
+        let all: MapList = test_client::get(&db, "/v1/maps").await.json();
+        assert_eq!(all.stats.tier, None);
+        assert!(
+            all.stats
+                .played_this_week
+                .iter()
+                .all(|map| map.tier == Some(1))
+        );
+        assert!(all.stats.newest.iter().all(|map| map.tier == Some(1)));
+
+        let filtered: MapList = test_client::get(&db, "/v1/maps?tier=2").await.json();
+        let expected: Vec<_> = (5..10)
+            .map(|index| format!("bhop_tier_{index:02}"))
+            .collect();
+        assert_eq!(filtered.stats.tier, Some(2));
+        assert_eq!(
+            (filtered.stats.maps, filtered.stats.by_tier),
+            (12, vec![5, 7])
+        );
+        assert_eq!(filtered.stats.played_this_week.len(), 5);
+        assert_eq!(filtered.stats.newest.len(), 5);
+        for (index, map) in filtered.stats.played_this_week.iter().enumerate() {
+            assert_eq!(map.name, expected[index]);
+            assert_eq!((map.tier, map.players), (Some(2), 1));
+        }
+        for (index, map) in filtered.stats.newest.iter().enumerate() {
+            assert_eq!(map.name, expected[index]);
+            assert_eq!(map.tier, Some(2));
+        }
     }
 
     #[sqlx::test]

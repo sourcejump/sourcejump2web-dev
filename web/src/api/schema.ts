@@ -2218,7 +2218,7 @@ export interface components {
             /** @description Sorted by style, track and rank. One flat list keeps it simple to read in SourcePawn. */
             records: components["schemas"]["Record"][];
         };
-        /** @description The whole list at a glance, whatever the search or filter. */
+        /** @description Global totals and tier-scoped newest and weekly lists. */
         MapStats: {
             /**
              * @description Of those, the maps whose main track has each tier, tier 1 first. Empty until a tier count is
@@ -2234,6 +2234,11 @@ export interface components {
             newest: components["schemas"]["NewestMap"][];
             /** @description The maps the most players finished a run on in the last 7 days, most first. */
             played_this_week: components["schemas"]["PlayedMap"][];
+            /**
+             * Format: int32
+             * @description The tier the newest and weekly lists describe; None describes all tiers. Totals remain global.
+             */
+            tier?: number | null;
         };
         MapStyle: {
             /** @description The top of the leaderboard, so a map page can switch styles and tracks without asking again. */
