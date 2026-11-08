@@ -46,7 +46,13 @@ export async function MapHeader({ name }: { name: string }) {
               <h1 className="inline">{map?.name ?? name}</h1>
               {mainTier != null && tierCount != null && (
                 <span className="ml-3 inline-flex align-middle">
-                  <TierBadge tier={mainTier} tierCount={tierCount} />
+                  {/* Over the picture (lg up), a dark fill of its own, as the tabs and picture count have, so its
+                      outline and label read on any picture; on the page below lg it needs none. */}
+                  <TierBadge
+                    tier={mainTier}
+                    tierCount={tierCount}
+                    className="lg:bg-bg/85 lg:text-shadow-none"
+                  />
                 </span>
               )}
             </div>

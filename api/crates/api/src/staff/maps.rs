@@ -69,7 +69,7 @@ pub async fn set_tier(
         .await?
         .ok_or(NO_MAP)?;
     let in_force = sqlx::query_scalar!(
-        "SELECT tier FROM map_tiers WHERE map_id = $1 AND track = $2 ORDER BY assigned_at DESC LIMIT 1",
+        r#"SELECT tier AS "tier!" FROM current_map_tiers WHERE map_id = $1 AND track = $2"#,
         map_id,
         track
     )
@@ -309,8 +309,7 @@ pub async fn list_staff_maps(
     let rows = sqlx::query!(
         r#"
         SELECT m.name, ci.id AS "image_id?", ci.key AS "image_key?", ci.focus AS "image_focus?", m.last_run_at,
-               (SELECT tier FROM map_tiers t WHERE t.map_id = m.id AND t.track = 0
-                ORDER BY assigned_at DESC LIMIT 1) AS tier,
+               (SELECT tier FROM current_map_tiers t WHERE t.map_id = m.id AND t.track = 0) AS tier,
                (SELECT max(version) FROM map_zones z WHERE z.map_id = m.id) AS zone_version
         FROM maps m
         LEFT JOIN map_images ci ON ci.map_id = m.id AND ci.position = 0

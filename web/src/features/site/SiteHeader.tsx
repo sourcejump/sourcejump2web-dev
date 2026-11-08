@@ -17,7 +17,7 @@ export function SiteHeader() {
       <div className="flex h-16 items-center gap-2 px-4 sm:px-6 lg:gap-8">
         <Link
           href="/"
-          className="text-lg font-bold tracking-wider whitespace-nowrap uppercase"
+          className="text-base font-bold tracking-wide whitespace-nowrap uppercase sm:text-lg sm:tracking-wider"
         >
           Source<span className="text-accent">Jump</span>
         </Link>
@@ -26,9 +26,7 @@ export function SiteHeader() {
         </Suspense>
         <div className="ml-auto flex items-center gap-1">
           {/* Uses the address to close its list on a page change, so it streams in like the section links. */}
-          <Suspense
-            fallback={<div className="size-9 xl:h-9 xl:w-64 2xl:w-72" />}
-          >
+          <Suspense fallback={<div className="size-9 xl:h-9 xl:w-64" />}>
             <HeaderSearch />
           </Suspense>
           <span

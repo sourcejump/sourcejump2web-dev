@@ -134,6 +134,54 @@
         }
       }
     },
+    "/v1/auth/sign-out-everywhere": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Ends every session of the signed-in player, in every browser, and signs this one out. A form on the\nwebsite posts here. Unlike signing out, it needs a live session: answering a request without one as if it\nhad worked would tell the player their other browsers were signed out when nothing was ended.",
+        "operationId": "sign_out_everywhere",
+        "parameters": [
+          {
+            "name": "return_to",
+            "in": "query",
+            "description": "The page to come back to: a path on this site, such as `/maps`. Anything else means `/`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Back to the page the player came from, signed out everywhere"
+          },
+          "401": {
+            "description": "Not signed in; no session was ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not sent from SourceJump's own pages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/steam": {
       "get": {
         "tags": [
@@ -859,6 +907,71 @@
             }
           }
         }
+      }
+    },
+    "/v1/maps/{map}/personal-bests": {
+      "get": {
+        "tags": [
+          "maps"
+        ],
+        "summary": "These players' SourceJump personal bests on the map, every style and track. An unknown map, or players\nwithout runs on it, give an empty list.",
+        "operationId": "players_personal_bests",
+        "parameters": [
+          {
+            "name": "map",
+            "in": "path",
+            "description": "Map name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "players",
+            "in": "query",
+            "description": "Players by SteamID64, comma-separated: 1 to 64 of them. Repeats count once.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayersPersonalBests"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, unknown or revoked API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a valid map name, or `players` isn't 1 to 64 SteamID64s",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "server_key": []
+          }
+        ]
       }
     },
     "/v1/maps/{map}/records": {
@@ -8192,6 +8305,50 @@
           }
         }
       },
+      "PlayerPersonalBest": {
+        "type": "object",
+        "required": [
+          "steamid64",
+          "style",
+          "track",
+          "time",
+          "rank",
+          "run_id",
+          "finished_at"
+        ],
+        "properties": {
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Place on the leaderboard; equal times share a place, as in `…/records`."
+          },
+          "run_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "steamid64": {
+            "type": "string",
+            "description": "SteamID64, as a string."
+          },
+          "style": {
+            "type": "string"
+          },
+          "time": {
+            "type": "number",
+            "format": "double",
+            "description": "Seconds."
+          },
+          "track": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 is the main track, 1 and up are bonuses."
+          }
+        }
+      },
       "PlayerPrivileges": {
         "type": "object",
         "required": [
@@ -8486,6 +8643,25 @@
             "type": "integer",
             "format": "int32",
             "description": "Players with at least one recorded time, 2.0 or pre-2.0, at the end of the point's last day."
+          }
+        }
+      },
+      "PlayersPersonalBests": {
+        "type": "object",
+        "required": [
+          "map",
+          "personal_bests"
+        ],
+        "properties": {
+          "map": {
+            "type": "string"
+          },
+          "personal_bests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerPersonalBest"
+            },
+            "description": "Sorted by player, style and track. A player with no personal best on the map has no entries. One flat\nlist keeps it simple to read in SourcePawn."
           }
         }
       },

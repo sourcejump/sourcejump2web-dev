@@ -38,7 +38,10 @@ export default function PlayersPage({ searchParams }: PageProps<"/players">) {
                 </div>
               }
             />
-            <DailyTotals kind="players" />
+            {/* A separate thing from the list above it, so a step further off than the page's usual gap; gone with no chart. */}
+            <div className="mt-2 empty:hidden">
+              <DailyTotals kind="players" />
+            </div>
           </>
         );
       })}

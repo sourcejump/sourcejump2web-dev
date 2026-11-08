@@ -97,9 +97,10 @@ function RulesetDetails({ ruleset }: { ruleset: Schemas["Ruleset"] }) {
 
       <Section title="Zones">
         <p>
-          Loaded from <code>{ruleset.zones.source_url}</code>. SourceJump
-          controls these zone types: {ruleset.zones.controlled_types.join(", ")}
-          .
+          Loaded from{" "}
+          <code className="break-all">{ruleset.zones.source_url}</code>.
+          SourceJump controls these zone types:{" "}
+          {ruleset.zones.controlled_types.join(", ")}.
         </p>
       </Section>
 

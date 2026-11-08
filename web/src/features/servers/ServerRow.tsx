@@ -72,7 +72,8 @@ export function ServerRow({
           <span className="flex min-w-0 items-center gap-2">
             {/* Only a known country: Flag's placeholder speaks of Steam, which a server has nothing to do with. */}
             {server.country_code && <Flag code={server.country_code} />}
-            <span className="min-w-0 font-bold break-words sm:truncate">
+            {/* In Exo 2, bold: a server's name is its sign, so it gets a face of its own. */}
+            <span className="font-server min-w-0 font-bold break-words sm:truncate">
               {server.hostname}
             </span>
             {server.connected && (

@@ -308,9 +308,8 @@ export function RecentRunTable({
                       >
                         {formatTime(run.time)}
                       </RunLink>
-                      {run.gap != null && (
-                        <RecordGap gap={run.gap} className="text-xs" />
-                      )}
+                      {/* No gap: the board's first run, a record that beat nothing. */}
+                      <RecordGap gap={run.gap ?? "new"} className="text-xs" />
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3 text-xs">
@@ -410,9 +409,8 @@ export function RecentRunTable({
                         {formatTime(run.time)}
                       </RunLink>
                       {/* Against the record when the run finished: what a new WR took off, or how far behind it was. */}
-                      {run.gap != null && (
-                        <RecordGap gap={run.gap} className="text-xs" />
-                      )}
+                      {/* No gap: the board's first run, a record that beat nothing. */}
+                      <RecordGap gap={run.gap ?? "new"} className="text-xs" />
                     </span>
                     {/* Counted from now, which differs between the server's render and the browser's. */}
                     <time

@@ -40,6 +40,17 @@ pub async fn create(db: &PgPool, steamid64: SteamId64) -> Result<String, sqlx::E
     Ok(token)
 }
 
+/// Ends every session of this player, in every browser, such as one left signed in on someone else's computer.
+pub async fn end_all(db: &PgPool, steamid64: SteamId64) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM sessions WHERE player_steamid64 = $1",
+        steamid64.get()
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
 pub async fn end(db: &PgPool, token: &str) -> Result<(), sqlx::Error> {
     sqlx::query!("DELETE FROM sessions WHERE hash = $1", &hash(token)[..])
         .execute(db)

@@ -25,7 +25,6 @@ import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { ChoiceBar } from "@/ui/ChoiceBar";
 import { ChoiceMenu } from "@/ui/ChoiceMenu";
-import { Label } from "@/ui/Card";
 import { classNames } from "@/ui/classNames";
 import { CountUp } from "@/ui/CountUp";
 import { Link } from "@/ui/Link";
@@ -97,8 +96,6 @@ export function PlayerStyles({
   const view: View = withViews
     ? viewFrom(params.get("view"), current ? "current" : "legacy")
     : "current";
-  const standing =
-    tracks === "bonuses" ? current?.bonus_standing : current?.main_standing;
   const bonuses = counts?.completed_bonuses ?? 0;
   const maps = counts?.completed_maps ?? 0;
   const shownTotal =
@@ -129,84 +126,47 @@ export function PlayerStyles({
 
   return (
     <>
-      {/* One panel of the style's standing, split into what each number opens: rank, completed maps and world
-          records. The rank is the style's points leaderboard place, on main tracks unless bonuses are shown;
-          styles count apart, so any style has none. Three across on a phone too, smaller there, rather than
-          three tall boxes stacked above the list. */}
-      <div className="motion-enter border-border bg-surface grid grid-cols-3 overflow-hidden rounded-md border">
+      {/* The style's progress, split into what each number opens: completed maps and world records, compact like the
+          home page's numbers. The rank leads the header above. */}
+      <div className="motion-enter border-border bg-surface divide-border grid grid-cols-2 divide-x overflow-hidden rounded-md border">
         <StatLink
-          className="border-border border-r"
-          href={withQuery(
-            "/leaderboards/points",
-            view === "legacy"
-              ? { view: "legacy" }
-              : {
-                  ...boardStyle,
-                  ...(tracks === "bonuses" && { track: "bonuses" }),
-                },
-          )}
-        >
-          <Label>Rank</Label>
-          <span
-            className={classNames(
-              "text-2xl font-bold sm:text-4xl",
-              standing && medalText[standing.rank - 1],
-            )}
-          >
-            {standing ? <CountUp value={standing.rank} /> : "—"}
-          </span>
-          <span className="text-text-muted mt-auto text-xs sm:text-sm">
-            {standing
-              ? `${numbers.format(standing.points)} points${player.points_draft ? " · draft" : ""}`
-              : anyStyle
-                ? "Ranked per style"
-                : "No points yet"}
-          </span>
-        </StatLink>
-        <StatLink
-          className="border-border border-r"
           href={withQuery("/maps", {
             player: player.steamid64,
             completed: "yes",
             ...boardStyle,
           })}
         >
-          <Label>
-            Completed<span className="max-sm:hidden"> maps</span>
-          </Label>
-          {/* Bonuses take their own line on phones, where the cell is a third of the width. */}
-          <span className="flex flex-wrap items-baseline gap-x-1.5">
-            <span className="text-2xl font-bold sm:text-4xl">
-              <CountUp value={maps} />
-            </span>
-            <span className="text-text-muted text-sm whitespace-nowrap sm:text-lg">
+          <StatValue>
+            <CountUp value={maps} />
+            <span className="text-text-muted text-sm font-normal">
+              {" "}
               / {numbers.format(player.map_count)}
             </span>
+          </StatValue>
+          <StatText>
+            completed maps
             {bonuses > 0 && (
-              <span className="text-text-muted w-full text-xs sm:ml-auto sm:w-auto sm:text-sm">
-                + {bonuses} {bonuses === 1 ? "bonus" : "bonuses"}
+              <span className="max-sm:hidden">
+                {` · ${bonuses} ${bonuses === 1 ? "bonus" : "bonuses"}`}
               </span>
             )}
-          </span>
-          {/* How far through the map list they are: the bar, and its share at the end; the numbers above say it
-              for screen readers. */}
-          <span className="mt-auto flex items-center gap-2 text-xs sm:gap-3 sm:text-sm">
-            <span
-              aria-hidden
-              className="bg-surface-overlay block h-1 flex-1 overflow-hidden rounded-full"
-            >
-              <span
-                className="bg-accent block h-full rounded-full"
-                style={{
-                  width: `${player.map_count ? Math.min(100, (maps / player.map_count) * 100) : 0}%`,
-                }}
-              />
+          </StatText>
+          {player.map_count > 0 && (
+            <span className="text-text-muted ml-auto shrink-0 text-xs font-bold tabular-nums max-lg:hidden">
+              {percent.format(maps / player.map_count)}
             </span>
-            {player.map_count > 0 && (
-              <span className="shrink-0 font-bold tabular-nums">
-                {percent.format(maps / player.map_count)}
-              </span>
-            )}
+          )}
+          {/* How far through the map list they are, along the cell's foot; the numbers say it for screen readers. */}
+          <span
+            aria-hidden
+            className="bg-surface-overlay absolute inset-x-0 bottom-0 h-0.5"
+          >
+            <span
+              className="bg-accent/60 block h-full"
+              style={{
+                width: `${player.map_count ? Math.min(100, (maps / player.map_count) * 100) : 0}%`,
+              }}
+            />
           </span>
         </StatLink>
         {/* Every world record, newest first: any style, any track, 2.0 runs; pressed again, back to the opening view. A
@@ -226,22 +186,13 @@ export function PlayerStyles({
               : undefined
           }
         >
-          {/* "WRs" on a phone, where the cell is a third of the width. */}
-          <Label>
-            <span className="sm:hidden">WRs</span>
-            <span className="max-sm:hidden">World records</span>
-          </Label>
-          <span
-            className={classNames(
-              "text-2xl font-bold sm:text-4xl",
-              counts?.world_records ? "text-accent" : undefined,
-            )}
-          >
+          <StatValue color={counts?.world_records ? "text-accent" : undefined}>
             <CountUp value={counts?.world_records ?? 0} />
-          </span>
+          </StatValue>
+          <StatText>world records</StatText>
           {counts?.world_records ? (
-            <span className="text-text-muted mt-auto text-xs sm:text-sm">
-              {records ? "Showing every record" : "Show every record"}
+            <span className="text-text-subtle group-hover:text-text ml-auto shrink-0 text-xs transition-colors duration-(--duration-fast) max-lg:hidden">
+              {records ? "Showing all" : "Show all"}
             </span>
           ) : null}
         </StatLink>
@@ -328,8 +279,13 @@ export function PlayerStyles({
                 : undefined
             }
             tierCount={player.tier_count ?? undefined}
-            // The world record count covers main tracks and bonuses together, so it can't total one of them.
-            total={view === "current" && !records ? shownTotal : undefined}
+            // The world record count covers main tracks and bonuses together, so it can't total one of them; across
+            // styles the counts are of maps, not of each style's personal best on them.
+            total={
+              view === "current" && !records && !anyStyle
+                ? shownTotal
+                : undefined
+            }
           />
         )}
       </div>
@@ -350,9 +306,6 @@ function withQuery(
   return text ? `${path}?${text}` : path;
 }
 
-/** Rank 1 to 3 in the medal colors, as on the boards. */
-const medalText = ["text-gold", "text-silver", "text-bronze"];
-
 /**
  * One cell of the standing panel: opens the page its number comes from, or changes the view. With neither,
  * it's a plain cell.
@@ -371,14 +324,15 @@ function StatLink({
   className?: string;
   children: ReactNode;
 }) {
+  // Number over its words on narrow screens, side by side from lg, as the home page's numbers.
   const classes = classNames(
-    "flex min-w-0 flex-col gap-1 p-3 text-left sm:p-5",
+    "group relative flex min-w-0 flex-col px-3 py-2 text-left sm:px-4 sm:py-3 lg:flex-row lg:items-baseline lg:gap-2",
     className,
   );
   // The panel clips its corners, so the focus ring is drawn inside the cell.
   const clickable = classNames(
     classes,
-    "hover:bg-surface-raised transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2",
+    "hover:bg-text/4 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2",
     // On, in the accent, as a pressed ghost button shows it.
     pressed && "bg-accent-soft hover:bg-accent-soft",
   );
@@ -402,6 +356,35 @@ function StatLink({
     );
   }
   return <div className={classes}>{children}</div>;
+}
+
+/** A standing cell's number: in its own color (a medal, the record accent), or the accent on hover as at home. */
+function StatValue({
+  color,
+  children,
+}: {
+  color?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={classNames(
+        "shrink-0 text-lg font-bold transition-colors duration-(--duration-fast)",
+        color ?? "group-hover:text-accent",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** What a standing cell's number counts. */
+function StatText({ children }: { children: ReactNode }) {
+  return (
+    <span className="text-text-muted group-hover:text-text min-w-0 text-xs transition-colors duration-(--duration-fast) sm:text-sm lg:truncate">
+      {children}
+    </span>
+  );
 }
 
 /** Give it a `key` per style, tracks, view and show choice, so switching starts again from the top. */
@@ -432,14 +415,21 @@ function PersonalBests({
   /** Tiers in force, for the badges; undefined until the community sets tiers. */
   tierCount?: number;
 }) {
-  const [personalBests, setPersonalBests] = useState(first?.personal_bests);
+  // The API's own order: by map in one style, newest first across styles.
+  const apiOrder: PbSort = style
+    ? { key: "map", descending: false }
+    : { key: "date", descending: true };
+  // Best place first, what a profile is read for. Pre-2.0 runs have no place, so their views keep the API's order.
+  const defaultSort: PbSort =
+    view === "current" ? { key: "place", descending: false } : apiOrder;
+  const sortsAll = !sameSort(defaultSort, apiOrder);
+  // A first page that isn't the whole list waits for the rest, so the table doesn't reorder under the reader.
+  const [personalBests, setPersonalBests] = useState(
+    sortsAll && first?.next_cursor ? undefined : first?.personal_bests,
+  );
   const [cursor, setCursor] = useState(first?.next_cursor);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
-  // The API's own order is the default: by map in one style, newest first across styles.
-  const defaultSort: PbSort = style
-    ? { key: "map", descending: false }
-    : { key: "date", descending: true };
   const [sort, setSort] = useState<PbSort>(defaultSort);
 
   function fetchPage(after: string | undefined, limit = PAGE_SIZE) {
@@ -484,40 +474,56 @@ function PersonalBests({
   }
 
   /**
-   * Sorts by a column; again on the same one turns it around. Any order but the API's needs every row.
-   * shortcut: loads every personal best in the browser, 100 a request; fine for the few hundred a player has, ask the
-   * API for a `sort` parameter if lists grow to thousands.
+   * Any order but the API's needs every row: loads the rest after `shown`, `loading` being set already. False if a
+   * page failed.
+   * shortcut: loads every personal best in the browser, 100 a request; fine for the few hundred 2.0 runs a player has
+   * in a style, ask the API for a `sort` parameter if lists grow to thousands.
    */
+  async function loadAll(
+    shown: Schemas["PersonalBest"][],
+    after: string | null | undefined,
+  ) {
+    let all = shown;
+    while (after) {
+      const page = await fetchPage(after, FULL_PAGE_SIZE);
+      if (!page) {
+        setLoading(false);
+        setFailed(true);
+        return false;
+      }
+      all = [...all, ...page.personal_bests];
+      after = page.next_cursor;
+    }
+    setPersonalBests(all);
+    setCursor(undefined);
+    setLoading(false);
+    return true;
+  }
+
+  /** Sorts by a column; again on the same one turns it around. */
   async function sortBy(key: PbSortKey) {
     const next: PbSort =
       sort.key === key
         ? { key, descending: !sort.descending }
         : { key, descending: key === "date" };
-    if (!sameSort(next, defaultSort) && cursor) {
+    if (!sameSort(next, apiOrder) && cursor) {
       setLoading(true);
       setFailed(false);
-      let all = personalBests ?? [];
-      let after: string | null | undefined = cursor;
-      while (after) {
-        const page = await fetchPage(after, FULL_PAGE_SIZE);
-        if (!page) {
-          setLoading(false);
-          setFailed(true);
-          return;
-        }
-        all = [...all, ...page.personal_bests];
-        after = page.next_cursor;
-      }
-      setPersonalBests(all);
-      setCursor(undefined);
-      setLoading(false);
+      if (!(await loadAll(personalBests ?? [], cursor))) return;
     }
     setSort(next);
   }
 
-  // Views other than 2.0's don't come with the profile; their first page loads once the view is chosen.
+  // Views other than 2.0's don't come with the profile; their first page loads once the view is chosen. An order
+  // the API doesn't give loads the rest straight away.
   useEffect(() => {
-    if (!first) void fetchPage(undefined).then((page) => show(page, undefined));
+    const start = first ? Promise.resolve(first) : fetchPage(undefined);
+    void start.then((page) => {
+      if (sortsAll && page?.next_cursor) {
+        setLoading(true);
+        void loadAll(page.personal_bests, page.next_cursor);
+      } else show(page, undefined);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the key remounts this for another style or view
   }, []);
 
@@ -552,7 +558,8 @@ function PersonalBests({
   const heading = (key: PbSortKey, label: string) => (
     <SortButton
       label={label}
-      active={sort.key === key}
+      // The default order needs no arrow; it only shows once someone picks another.
+      active={sort.key === key && !sameSort(sort, defaultSort)}
       descending={sort.descending}
       onClick={() => void sortBy(key)}
     />
@@ -563,7 +570,7 @@ function PersonalBests({
         ? ("descending" as const)
         : ("ascending" as const)
       : undefined;
-  const rows = sameSort(sort, defaultSort)
+  const rows = sameSort(sort, apiOrder)
     ? personalBests
     : sortedPbs(personalBests, sort, styleName);
 
@@ -625,7 +632,6 @@ function PersonalBests({
           {rows.map((pb, index) => (
             <TableRow
               key={`${pb.legacy ? "pre" : "run"}-${pb.run_id}`}
-              highlight={pb.rank === 1}
               className="motion-enter"
               // Rows loaded by "Show more" stagger from the first new one, not from the top.
               style={

@@ -8,6 +8,7 @@ import { Card } from "@/ui/Card";
 import { classNames } from "@/ui/classNames";
 import { LineChart } from "@/ui/LineChart";
 import { Segmented } from "@/ui/Segmented";
+import { Dot } from "@/ui/Dot";
 
 export type TotalsRange = Schemas["TotalsRange"];
 
@@ -85,7 +86,7 @@ export function DailyTotalsChart({
   const stats = shown && (
     <p
       aria-live="polite"
-      className="text-text-muted flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums max-sm:order-3 max-sm:w-full"
+      className="text-text-muted flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm tabular-nums max-sm:order-3 max-sm:w-full sm:gap-x-2"
     >
       {data.kind === "players" ? (
         <Stat value={shown.y}>
@@ -202,14 +203,6 @@ function Stat({
     <span>
       <span className={`font-bold ${tone}`}>{count.format(value)}</span>{" "}
       {children}
-    </span>
-  );
-}
-
-function Dot({ className }: { className?: string }) {
-  return (
-    <span aria-hidden className={`text-text-subtle ${className ?? ""}`}>
-      ·
     </span>
   );
 }

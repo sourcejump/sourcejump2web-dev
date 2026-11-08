@@ -254,149 +254,148 @@ export async function MapList({ params }: { params: MapListParams }) {
         />
       )}
 
-      <ChoiceBar>
-        {!unplayed && (
-          <>
-            <ChoiceMenu
-              label="Sort"
-              options={sorts.map((s) => ({
-                value: s.key,
-                label: s.label,
-                startsGroup: "startsGroup" in s,
-                href: href({ sort: s.key }),
-              }))}
-              value={sort}
-            />
-            {styles.keys.length > 1 && (
+      {/* The menus and what they sort and filter, held close together and a step apart from the overview above. */}
+      <div className="mt-2 flex flex-col gap-2">
+        <ChoiceBar>
+          {!unplayed && (
+            <>
               <ChoiceMenu
-                label="Records in"
-                options={styles.keys.map((key) => ({
-                  value: key,
-                  label: styles.name(key),
-                  href: href({ style: key }),
+                label="Sort"
+                options={sorts.map((s) => ({
+                  value: s.key,
+                  label: s.label,
+                  startsGroup: "startsGroup" in s,
+                  href: href({ sort: s.key }),
                 }))}
-                value={style ?? styles.keys[0] ?? ""}
+                value={sort}
               />
-            )}
-            <ChoiceMenu
-              label="Completion"
-              options={completions.map((c) => ({
-                value: c.key,
-                label: c.label,
-                detail: completionDetail[c.key],
-                href: href({ completion: c.key }),
-                disabled: c.key !== "all" && !filterPlayer,
-              }))}
-              value={completion}
-            />
-            {completion !== "all" && player && (
-              <FilterPlayer
-                player={list?.player}
-                steamid={player}
-                clearHref={href({ completion: "all" })}
+              {styles.keys.length > 1 && (
+                <ChoiceMenu
+                  label="Records in"
+                  options={styles.keys.map((key) => ({
+                    value: key,
+                    label: styles.name(key),
+                    href: href({ style: key }),
+                  }))}
+                  value={style ?? styles.keys[0] ?? ""}
+                />
+              )}
+              <ChoiceMenu
+                label="Completion"
+                options={completions.map((c) => ({
+                  value: c.key,
+                  label: c.label,
+                  detail: completionDetail[c.key],
+                  href: href({ completion: c.key }),
+                  disabled: c.key !== "all" && !filterPlayer,
+                }))}
+                value={completion}
               />
-            )}
-          </>
-        )}
-        {/* Staff only, out of the way of the menus everyone uses. */}
-        {staff && <div className="ml-auto">{staffTabs}</div>}
-      </ChoiceBar>
+              {completion !== "all" && player && (
+                <FilterPlayer
+                  player={list?.player}
+                  steamid={player}
+                  clearHref={href({ completion: "all" })}
+                />
+              )}
+            </>
+          )}
+          {/* Staff only, out of the way of the menus everyone uses. */}
+          {staff && <div className="ml-auto">{staffTabs}</div>}
+        </ChoiceBar>
 
-      {/* With no results, the empty card below offers this instead. */}
-      {offerSetUp && list && list.maps.length > 0 && (
-        <Card className="flex flex-wrap items-center justify-between gap-3 py-3">
-          <span className="text-text-muted text-sm">
-            No map on the list is called {typedName}. Its Manage view works
-            before anyone runs it, so its zones can be ready first.
-          </span>
-          <ButtonLink href={`/maps/${typedName}/manage`} size="sm">
-            Manage {typedName}
-          </ButtonLink>
-        </Card>
-      )}
-
-      {unplayed ? (
-        <UnplayedMaps q={q} page={page} href={(p) => href({ page: p })} />
-      ) : !list ? (
-        <p>Maps couldn&apos;t be loaded. Try again in a moment.</p>
-      ) : list.maps.length === 0 ? (
-        <Card className="text-text-muted flex flex-wrap items-center justify-between gap-3">
-          <span>
-            {completion === "yes"
-              ? "No map here has been completed by this player."
-              : completion === "no"
-                ? "This player has completed every map here."
-                : q
-                  ? "No map with a run has that name."
-                  : tier != null
-                    ? `No map with a run has tier ${tier}.`
-                    : "No map has a finished run yet."}
-          </span>
-          {offerSetUp && (
+        {/* With no results, the empty card below offers this instead. */}
+        {offerSetUp && list && list.maps.length > 0 && (
+          <Card className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <span className="text-text-muted text-sm">
+              No map on the list is called {typedName}. Its Manage view works
+              before anyone runs it, so its zones can be ready first.
+            </span>
             <ButtonLink href={`/maps/${typedName}/manage`} size="sm">
               Manage {typedName}
             </ButtonLink>
-          )}
-        </Card>
-      ) : (
-        <>
-          <section className="border-border bg-surface overflow-hidden rounded-md border">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 pt-4 pb-3">
-              <h2 className="text-lg font-bold">
-                {q
-                  ? `Maps matching “${q}”`
-                  : tier != null
-                    ? `Tier ${tier} maps`
-                    : "All maps"}
-              </h2>
-              <p className="text-text-subtle text-sm">
-                World record
-                {styles.keys.length > 1 && style
-                  ? ` in ${styles.name(style)}`
-                  : ""}
-              </p>
-            </div>
-            {/* Two columns read top to bottom, like the order they're in. Keyed by what's shown, so a new sort or
+          </Card>
+        )}
+
+        {unplayed ? (
+          <UnplayedMaps q={q} page={page} href={(p) => href({ page: p })} />
+        ) : !list ? (
+          <p>Maps couldn&apos;t be loaded. Try again in a moment.</p>
+        ) : list.maps.length === 0 ? (
+          <Card className="text-text-muted flex flex-wrap items-center justify-between gap-3">
+            <span>
+              {completion === "yes"
+                ? "No map here has been completed by this player."
+                : completion === "no"
+                  ? "This player has completed every map here."
+                  : q
+                    ? "No map with a run has that name."
+                    : tier != null
+                      ? `No map with a run has tier ${tier}.`
+                      : "No map has a finished run yet."}
+            </span>
+            {offerSetUp && (
+              <ButtonLink href={`/maps/${typedName}/manage`} size="sm">
+                Manage {typedName}
+              </ButtonLink>
+            )}
+          </Card>
+        ) : (
+          <>
+            <section className="border-border bg-surface overflow-hidden rounded-md border">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 pt-4 pb-3">
+                <h2 className="text-lg font-bold">
+                  {q
+                    ? `Maps matching “${q}”`
+                    : tier != null
+                      ? `Tier ${tier} maps`
+                      : "All maps"}
+                </h2>
+                {/* The style is the "Records in" menu's, just above. */}
+                <p className="text-text-subtle text-sm">World record</p>
+              </div>
+              {/* Two columns read top to bottom, like the order they're in. Keyed by what's shown, so a new sort or
                 style remounts every row and they all enter together; keyed by map alone, rows that stay on the
                 page would swap in place without moving. */}
-            <ul
-              key={href({ page })}
-              className="lg:grid lg:grid-flow-col lg:grid-cols-2"
-              style={{
-                gridTemplateRows: `repeat(${Math.ceil(list.maps.length / 2)}, auto)`,
-              }}
-            >
-              {list.maps.map((map, index) => (
-                <li
-                  key={map.name}
-                  className={classNames(
-                    "motion-enter border-border border-t",
-                    index < Math.ceil(list.maps.length / 2) && "lg:border-r",
-                  )}
-                  style={
-                    {
-                      "--motion-delay": `${Math.min(index, 12) * 25}ms`,
-                    } as CSSProperties
-                  }
-                >
-                  <MapRow map={map} tierCount={list.tier_count} />
-                </li>
-              ))}
-            </ul>
-            {list.total > PAGE_SIZE && (
-              <div className="border-border border-t px-5 py-2">
-                <Pager
-                  page={page}
-                  pageCount={Math.ceil(list.total / PAGE_SIZE)}
-                  total={list.total}
-                  noun={list.total === 1 ? "map" : "maps"}
-                  href={(p) => href({ page: p })}
-                />
-              </div>
-            )}
-          </section>
-        </>
-      )}
+              <ul
+                key={href({ page })}
+                className="lg:grid lg:grid-flow-col lg:grid-cols-2"
+                style={{
+                  gridTemplateRows: `repeat(${Math.ceil(list.maps.length / 2)}, auto)`,
+                }}
+              >
+                {list.maps.map((map, index) => (
+                  <li
+                    key={map.name}
+                    className={classNames(
+                      "motion-enter border-border border-t",
+                      index < Math.ceil(list.maps.length / 2) && "lg:border-r",
+                    )}
+                    style={
+                      {
+                        "--motion-delay": `${Math.min(index, 12) * 25}ms`,
+                      } as CSSProperties
+                    }
+                  >
+                    <MapRow map={map} tierCount={list.tier_count} />
+                  </li>
+                ))}
+              </ul>
+              {list.total > PAGE_SIZE && (
+                <div className="border-border border-t px-5 py-2">
+                  <Pager
+                    page={page}
+                    pageCount={Math.ceil(list.total / PAGE_SIZE)}
+                    total={list.total}
+                    noun={list.total === 1 ? "map" : "maps"}
+                    href={(p) => href({ page: p })}
+                  />
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -429,16 +428,20 @@ function MapStats({
     stats.played_this_week.length === 0
   )
     return null;
-  // The chart keeps the width it needs; the lists share what is left equally, each with a full-height divider.
+  // At full width (xl) the chart keeps the width it needs and the lists share what is left equally, each with a
+  // full-height divider. Narrower, that would cut map names to a few letters, so the chart takes its own row and the
+  // two lists sit side by side beneath it (stacked on a phone).
   return (
-    <Card className="flex flex-col gap-6 py-4 lg:flex-row lg:gap-10">
+    <Card className="grid gap-6 py-4 sm:grid-cols-2 sm:gap-x-10 xl:flex xl:flex-row xl:gap-10">
       {hasTiers && (
-        <TierSpread
-          byTier={stats.by_tier}
-          untiered={stats.maps - tiered}
-          selected={selected}
-          tierHref={tierHref}
-        />
+        <div className="min-w-0 sm:col-span-2 xl:shrink-0">
+          <TierSpread
+            byTier={stats.by_tier}
+            untiered={stats.maps - tiered}
+            selected={selected}
+            tierHref={tierHref}
+          />
+        </div>
       )}
       {stats.newest.length > 0 && (
         <MapStatsList
@@ -480,7 +483,7 @@ function MapStatsList({
   tierCount: number | null | undefined;
 }) {
   return (
-    <section className="border-border flex min-w-0 flex-1 basis-0 flex-col gap-2 lg:border-l lg:pl-10">
+    <section className="border-border flex min-w-0 flex-1 basis-0 flex-col gap-2 xl:border-l xl:pl-10">
       <h2 className="text-sm font-bold">
         {href ? (
           <Link href={href} className="hover:text-accent">
@@ -556,7 +559,7 @@ function MapRow({
   return (
     <Link
       href={`/maps/${map.name}`}
-      className="group hover:bg-surface-raised flex items-center gap-4 px-4 py-3 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
+      className="group hover:bg-text/4 flex items-center gap-4 px-4 py-3 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
     >
       <MapImage image={map.image} size="thumbnail" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">

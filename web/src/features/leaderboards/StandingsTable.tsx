@@ -102,7 +102,10 @@ export function StandingsTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <Table>
+      {/* On a phone the first view is the rank, the player and the ranked number, ending at the edge; the other
+          numbers scroll into view. The lead is the rank column and the ranked number's (measured, with a little
+          to spare), with the completed heading on two lines there. */}
+      <Table phoneLead={byPoints ? "9.75rem" : "11.75rem"}>
         <TableHead>
           <tr>
             {/* Centered over the medals and numbers, which are narrower than the heading. */}
@@ -110,7 +113,9 @@ export function StandingsTable({
               Rank
             </TableHeaderCell>
             {/* The player column takes the spare width, so the numbers sit together on the right, evenly spaced. */}
-            <TableHeaderCell className="w-full">Player</TableHeaderCell>
+            <TableHeaderCell phoneFill className="w-full">
+              Player
+            </TableHeaderCell>
             {byPoints ? (
               <>
                 <TableHeaderCell numeric>Points</TableHeaderCell>
@@ -118,7 +123,9 @@ export function StandingsTable({
               </>
             ) : (
               <>
-                <TableHeaderCell numeric>{completedLabel}</TableHeaderCell>
+                <TableHeaderCell numeric className="max-sm:whitespace-normal">
+                  {completedLabel}
+                </TableHeaderCell>
                 <TableHeaderCell numeric>Points</TableHeaderCell>
               </>
             )}
@@ -147,18 +154,20 @@ export function StandingsTable({
                   <Medal placement={(page - 1) * PAGE_SIZE + index + 1} />
                 </span>
               </TableCell>
-              <TableCell>
-                <span className="flex items-center gap-1.5">
+              <TableCell phoneFill>
+                <span className="flex min-w-0 items-center gap-1.5">
                   <Link
                     href={`/players/${standing.player.steamid64}`}
-                    className="hover:text-accent flex items-center gap-3"
+                    className="hover:text-accent flex min-w-0 items-center gap-3"
                   >
+                    {/* Left out below 360px, where the name needs the room. */}
                     <Avatar
                       name={standing.player.name}
                       src={avatarSrc(standing.player)}
                       size="sm"
+                      className="max-xs:hidden"
                     />
-                    {standing.player.name}
+                    <span className="truncate">{standing.player.name}</span>
                   </Link>
                   {standing.player.country_code && (
                     <Flag code={standing.player.country_code} />

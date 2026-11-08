@@ -247,8 +247,7 @@ pub async fn list_maps(
 async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStats, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT tier.tier AS "tier?", count(*) AS "maps!" FROM maps m
-           LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0
-                              ORDER BY assigned_at DESC LIMIT 1) tier ON true
+           LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0
            WHERE m.last_run_at IS NOT NULL
            GROUP BY tier.tier"#
     )
@@ -266,8 +265,7 @@ async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStat
     }
     let newest = sqlx::query!(
         r#"SELECT m.name, m.listed_at AS "listed_at!",
-                  (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0 ORDER BY assigned_at DESC LIMIT 1)
-                      AS tier
+                  (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0) AS tier
            FROM maps m WHERE m.last_run_at IS NOT NULL AND m.listed_at IS NOT NULL
            ORDER BY m.listed_at DESC, m.name LIMIT $1"#,
         NEWEST
@@ -285,8 +283,7 @@ async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStat
     // server's finish time, which the `runs_recent` index covers.
     let played_this_week = sqlx::query!(
         r#"SELECT m.name, week.players AS "players!",
-                  (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0 ORDER BY assigned_at DESC LIMIT 1)
-                      AS tier
+                  (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0) AS tier
            FROM (SELECT map_id, count(DISTINCT player_steamid64) AS players FROM runs
                  WHERE invalidated_at IS NULL AND finished_at > now() - interval '7 days'
                  GROUP BY map_id) week
@@ -395,8 +392,7 @@ async fn listed_page(
                        m.name
                    ) AS position
             FROM maps m
-            LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0
-                               ORDER BY assigned_at DESC LIMIT 1) tier ON true
+            LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0
             -- Every map's record, read only for the sorts that need it: the page below reads the page's own.
             LEFT JOIN LATERAL (
                 SELECT pb.time, r.finished_at
@@ -516,8 +512,7 @@ async fn count_maps(tx: &mut sqlx::PgConnection, filter: &Filter<'_>) -> Result<
            WHERE last_run_at IS NOT NULL AND ($1::text IS NULL OR name ILIKE $1 ESCAPE '\' OR $2 <% name)
              AND ($3::bigint IS NULL OR $4 = EXISTS (
                  SELECT 1 FROM personal_bests WHERE player_steamid64 = $3 AND map_id = m.id AND style = $5 AND track = 0))
-             AND ($6::smallint IS NULL OR $6 = (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0
-                                                 ORDER BY assigned_at DESC LIMIT 1))"#,
+             AND ($6::smallint IS NULL OR $6 = (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0))"#,
         filter.pattern,
         filter.near,
         filter.completed_by,

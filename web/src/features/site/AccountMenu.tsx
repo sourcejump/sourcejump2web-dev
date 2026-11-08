@@ -1,6 +1,6 @@
 "use client";
-// The signed-in player's menu: their profile, the staff area for staff, and signing out.
-import { LogOut, ShieldCheck, User } from "lucide-react";
+// The signed-in player's menu: their profile, the staff area for staff, and signing out, here or everywhere.
+import { LogOut, MonitorX, ShieldCheck, User } from "lucide-react";
 import type { Schemas } from "@/api/client";
 import { isStaff } from "@/features/staff/sections";
 import { Avatar } from "@/ui/Avatar";
@@ -9,6 +9,7 @@ import { useReturnTo } from "./useReturnTo";
 import { avatarSrc } from "@/features/players/avatarSrc";
 
 const SIGN_OUT_FORM = "sign-out";
+const SIGN_OUT_EVERYWHERE_FORM = "sign-out-everywhere";
 
 export function AccountMenu({ me }: { me: Schemas["Me"] }) {
   const returnTo = useReturnTo();
@@ -19,6 +20,13 @@ export function AccountMenu({ me }: { me: Schemas["Me"] }) {
         id={SIGN_OUT_FORM}
         method="post"
         action={`/v1/auth/sign-out?return_to=${encodeURIComponent(returnTo)}`}
+        hidden
+      />
+      {/* Ends the player's sessions in every browser, such as one left signed in on someone else's computer. */}
+      <form
+        id={SIGN_OUT_EVERYWHERE_FORM}
+        method="post"
+        action={`/v1/auth/sign-out-everywhere?return_to=${encodeURIComponent(returnTo)}`}
         hidden
       />
       <Menu
@@ -44,6 +52,10 @@ export function AccountMenu({ me }: { me: Schemas["Me"] }) {
         <MenuItem type="submit" form={SIGN_OUT_FORM}>
           <LogOut aria-hidden />
           Sign out
+        </MenuItem>
+        <MenuItem type="submit" form={SIGN_OUT_EVERYWHERE_FORM}>
+          <MonitorX aria-hidden />
+          Sign out everywhere
         </MenuItem>
       </Menu>
     </>

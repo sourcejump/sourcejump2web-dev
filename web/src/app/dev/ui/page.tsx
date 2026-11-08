@@ -146,7 +146,8 @@ export default function StyleGuidePage() {
 
       <Section title="Type">
         <p className="text-text-muted text-sm">
-          Play for everything. Its digits share one width, so times line up:
+          Geist for everything; times and tables use its equal-width digits, so
+          they line up:
         </p>
         <div className="flex flex-col gap-2">
           {typeScale.map(([name, className]) => (

@@ -24,10 +24,19 @@ describe("gapWhenFinished", () => {
     expect(gap).toBeCloseTo(0.1);
   });
 
-  it("is null for the board's first record, which beat nothing", () => {
+  it("is new for the board's first record, which beat nothing", () => {
     expect(
       gapWhenFinished(
         { id: 1, time: 11.0, finished_at: "2026-11-03T10:00:00Z" },
+        history,
+      ),
+    ).toBe("new");
+  });
+
+  it("is null for a run the history doesn't place", () => {
+    expect(
+      gapWhenFinished(
+        { id: 99, time: 12.0, finished_at: "2026-11-01T10:00:00Z" },
         history,
       ),
     ).toBeNull();

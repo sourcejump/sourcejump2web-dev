@@ -6,6 +6,7 @@ import { Badge } from "@/ui/Badge";
 import { DividedList } from "@/ui/Divided";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
+import type { Gap } from "./gapWhenFinished";
 import { RecordGap } from "./RecordGap";
 import { formatDate, formatTime, trackName } from "./time";
 import { avatarSrc } from "@/features/players/avatarSrc";
@@ -18,7 +19,7 @@ export function RunDetailList({
   run: Schemas["RunDetail"];
   styleName: string;
   /** Against the record standing when it finished (`gapWhenFinished`); null for none. */
-  gap: number | null;
+  gap: Gap | null;
 }) {
   const number = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
   const speed = new Intl.NumberFormat("en", { maximumFractionDigits: 0 });

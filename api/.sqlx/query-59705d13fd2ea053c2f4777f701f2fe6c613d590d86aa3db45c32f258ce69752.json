@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT tier.tier AS \"tier?\", count(*) AS \"maps!\" FROM maps m\n           LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0\n                              ORDER BY assigned_at DESC LIMIT 1) tier ON true\n           WHERE m.last_run_at IS NOT NULL\n           GROUP BY tier.tier",
+  "query": "SELECT tier.tier AS \"tier?\", count(*) AS \"maps!\" FROM maps m\n           LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0\n           WHERE m.last_run_at IS NOT NULL\n           GROUP BY tier.tier",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Int2",
         "origin": {
           "Table": {
-            "table": "map_tiers",
+            "table": "current_map_tiers",
             "name": "tier"
           }
         }
@@ -25,9 +25,9 @@
       "Left": []
     },
     "nullable": [
-      false,
+      true,
       null
     ]
   },
-  "hash": "d9981b3f571b8329c85152b64c076f7bc368ed7c6fd70dd425eb876c6964e236"
+  "hash": "59705d13fd2ea053c2f4777f701f2fe6c613d590d86aa3db45c32f258ce69752"
 }

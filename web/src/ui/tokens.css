@@ -52,10 +52,21 @@
   --color-tier-3: #e0614f;
   --color-tier-4: #b05de0;
 
-  --font-*: initial;
-  --font-sans: var(--font-play), ui-sans-serif, system-ui, sans-serif;
+  /* Below 360px (the narrowest common phones) the header and home headline need to shed a little width. */
+  --breakpoint-xs: 22.5rem;
 
-  /* Type scale. Play is compact, so the base is 15px. */
+  --font-*: initial;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  /* Game servers' names, as a server browser shows them. */
+  --font-server: var(--font-exo), var(--font-geist), ui-sans-serif, sans-serif;
+
+  /* Weights matched to how Play, the site's font before Geist, looked at its 400 and 700 (stroke against letter
+     height). Play had no 500, so medium rendered as regular; it still does. */
+  --font-weight-normal: 450;
+  --font-weight-medium: 450;
+  --font-weight-bold: 700;
+
+  /* Type scale. A 15px base keeps the dense boards compact. */
   --text-*: initial;
   --text-xs: 0.75rem;
   --text-xs--line-height: 1rem;

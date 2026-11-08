@@ -2,7 +2,8 @@
 // A map's leaderboard for one style, track and view: the 2.0 top comes with the page, other views load their
 // first page when chosen, and "Show more" loads the rest a page at a time. Headings sort it: the API orders
 // boards by time only, so sorting by anything else loads the whole board and sorts it here. The signed-in
-// player's row stands out, and legacy runs carry the Pre-2.0 badge.
+// player's row stands out; on the 2.0 board, when it isn't among the rows shown, it's pinned below them. Legacy
+// runs carry the Pre-2.0 badge.
 import { useEffect, useState } from "react";
 import { api, type Schemas } from "@/api/client";
 import { LegacyBadge } from "@/features/legacy/LegacyBadge";
@@ -118,6 +119,8 @@ export function Leaderboard({
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [sort, setSort] = useState<Sort>({ key: "time", descending: false });
+  // The signed-in player's own entry, wherever on the board it is. Only the 2.0 board ranks them.
+  const [mine, setMine] = useState<Entry | undefined>();
   // A refreshed page (after a staff change, say) brings a new first page; start again from it.
   const [shownFrom, setShownFrom] = useState(first);
   if (first && shownFrom !== first) {
@@ -199,6 +202,23 @@ export function Leaderboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the key remounts this for another board
   }, []);
 
+  // The top that comes with the map doesn't carry the player's own place; one row is asked for here, unless
+  // they're already in that top.
+  useEffect(() => {
+    if (!me || view !== "current") return;
+    if (first?.entries.some((entry) => entry.player.steamid64 === me)) return;
+    void api
+      .GET("/v1/maps/{map}/leaderboard", {
+        params: {
+          path: { map },
+          query: { style, track, limit: 1, player: me },
+        },
+      })
+      .then((result) => setMine(result.data?.player_entry ?? undefined))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the key remounts this for another board
+  }, []);
+
   if (!page) {
     return failed ? (
       <p className="text-danger text-sm">
@@ -208,10 +228,18 @@ export function Leaderboard({
   }
   const fastest = page.fastest_time;
   const record = page.world_record_time;
+  // Once "Show more" (or sorting, which loads the whole board) reaches them, their row is in the list and isn't
+  // pinned twice.
+  const pinned =
+    mine &&
+    !entries.some((entry) => entry.run_id === mine.run_id && !entry.legacy)
+      ? mine
+      : undefined;
   const heading = (key: SortKey, label: string) => (
     <SortButton
       label={label}
-      active={sort.key === key}
+      // Fastest first is the expected order, so the arrow only shows once someone picks another.
+      active={sort.key === key && (key !== "time" || sort.descending)}
       descending={sort.descending}
       onClick={() => void sortBy(key)}
     />
@@ -237,8 +265,13 @@ export function Leaderboard({
             {/* Short columns center under their names: a medal, a WR badge and a few digits are all narrower than
                 the heading, and right-aligned they sat off to one side of it. Times and dates keep to the right.
                 Place and Gap follow the time, so Time sorts for them. */}
+            {/* "#" on a phone, as on Activity: the word would widen the column well past its medals. */}
             <TableHeaderCell centered className="w-px max-sm:px-2">
-              Place
+              <span className="max-sm:hidden">Place</span>
+              <span aria-hidden className="sm:hidden">
+                #
+              </span>
+              <span className="sr-only sm:hidden">Place</span>
             </TableHeaderCell>
             <TableHeaderCell aria-sort={ariaSort("player")}>
               {heading("player", "Player")}
@@ -290,108 +323,29 @@ export function Leaderboard({
         </TableHead>
         <TableBody>
           {sorted(entries, sort).map((entry) => (
-            <TableRow
+            <EntryRow
               key={`${entry.legacy ? "pre" : "run"}-${entry.run_id}`}
-              highlight={entry.player.steamid64 === me}
-            >
-              <TableCell className="text-center max-sm:px-2">
-                {/* Medals mark 2.0 standings; the other views are lists by time. */}
-                <span className="inline-flex justify-center align-middle">
-                  <Medal placement={entry.rank} plain={view !== "current"} />
-                </span>
-              </TableCell>
-              {/* On a phone the player column takes only the room left (`max-w-0` with full width), and a long
-                  name ends in an ellipsis rather than pushing the times off the screen. */}
-              <TableCell className="max-sm:w-full max-sm:max-w-0 max-sm:px-2">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <Link
-                    href={`/players/${entry.player.steamid64}`}
-                    className="hover:text-accent flex min-w-0 items-center gap-3 max-sm:gap-2"
-                  >
-                    <Avatar
-                      name={entry.player.name}
-                      src={avatarSrc(entry.player)}
-                      size="sm"
-                    />
-                    <span className="truncate">{entry.player.name}</span>
-                  </Link>
-                  {/* A missing country's placeholder costs a phone's narrow column more than it tells. */}
-                  <Flag
-                    code={entry.player.country_code}
-                    className={
-                      entry.player.country_code ? undefined : "max-sm:hidden"
-                    }
-                  />
-                  {entry.legacy && <LegacyBadge />}
-                </span>
-              </TableCell>
-              <TableCell numeric className="pr-2">
-                <span className="inline-flex flex-col items-end">
-                  <span className="flex items-baseline gap-1.5">
-                    <RunLink
-                      runId={entry.run_id}
-                      legacy={entry.legacy}
-                      className="hover:text-accent font-bold underline-offset-4 hover:underline"
-                    >
-                      {formatTime(entry.time)}
-                    </RunLink>
-                    {/* On a phone, the Gap column's content, as on the Activity board. */}
-                    <span className="text-xs sm:hidden">
-                      {!entry.legacy && entry.time === record ? (
-                        <Badge tone="accent">WR</Badge>
-                      ) : entry.time === fastest || fastest == null ? null : (
-                        <span className="text-danger">
-                          ({formatGap(entry.time - fastest)})
-                        </span>
-                      )}
-                    </span>
-                  </span>
-                  {entry.finished_at && (
-                    // Counted from now, which differs between the server's render and the browser's.
-                    <time
-                      dateTime={entry.finished_at}
-                      suppressHydrationWarning
-                      className="text-text-subtle text-xs leading-4 sm:hidden"
-                    >
-                      {formatAge(entry.finished_at)}
-                    </time>
-                  )}
-                </span>
-              </TableCell>
-              <TableCell className="pr-0 pl-0">
-                {/* Replays open by 2.0 run ID; a pre-2.0 run's ID is the old site's. */}
-                {!entry.legacy && <ReplayLink runId={entry.run_id} />}
-              </TableCell>
-              <TableCell className="text-text-muted text-center tabular-nums max-sm:hidden">
-                {!entry.legacy && entry.time === record ? (
-                  <Badge tone="accent">WR</Badge>
-                ) : entry.time === fastest || fastest == null ? null : (
-                  <span className="text-danger">
-                    {formatGap(entry.time - fastest)}
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className="text-text-muted text-center tabular-nums max-sm:hidden">
-                {entry.jumps}
-              </TableCell>
-              <TableCell className="text-text-muted text-center tabular-nums max-sm:hidden">
-                {entry.strafes}
-              </TableCell>
-              <TableCell className="text-text-muted text-center tabular-nums max-sm:hidden">
-                {sync.format(entry.sync)}%
-              </TableCell>
-              <TableCell numeric className="text-text-muted max-sm:hidden">
-                {entry.finished_at ? (
-                  <time dateTime={entry.finished_at}>
-                    {formatDate(entry.finished_at)}
-                  </time>
-                ) : (
-                  "–"
-                )}
-              </TableCell>
-            </TableRow>
+              entry={entry}
+              view={view}
+              mine={entry.player.steamid64 === me}
+              record={record}
+              fastest={fastest}
+            />
           ))}
         </TableBody>
+        {pinned && (
+          // Its own body, so the line above it reads as a gap in the list rather than the next place.
+          <TableBody aria-label="Your place">
+            <EntryRow
+              entry={pinned}
+              view={view}
+              mine
+              record={record}
+              fastest={fastest}
+              separated
+            />
+          </TableBody>
+        )}
       </Table>
       <div className="flex items-center justify-between gap-4">
         <span className="text-text-muted text-sm tabular-nums">
@@ -415,5 +369,129 @@ export function Leaderboard({
         )}
       </div>
     </div>
+  );
+}
+
+/** One player's row: place, player, time (with the gap and age under it on a phone), replay, gap, stats and date. */
+function EntryRow({
+  entry,
+  view,
+  mine,
+  record,
+  fastest,
+  separated = false,
+}: {
+  entry: Entry;
+  view: View;
+  /** The signed-in player's own row, which stands out. */
+  mine: boolean;
+  record: number | null | undefined;
+  fastest: number | null | undefined;
+  /** Set apart from the rows above it. */
+  separated?: boolean;
+}) {
+  return (
+    <TableRow highlight={mine} separated={separated}>
+      <TableCell className="text-center max-sm:px-2">
+        {/* Medals mark 2.0 standings; the other views are lists by time. */}
+        <span className="inline-flex justify-center align-middle">
+          <Medal placement={entry.rank} plain={view !== "current"} />
+        </span>
+      </TableCell>
+      {/* On a phone the player column takes only the room left (`max-w-0` with full width), and a long
+          name ends in an ellipsis rather than pushing the times off the screen. */}
+      <TableCell className="max-sm:w-full max-sm:max-w-0 max-sm:px-2">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Link
+            href={`/players/${entry.player.steamid64}`}
+            className="hover:text-accent flex min-w-0 items-center gap-3 max-sm:gap-2"
+          >
+            {/* Left out on a phone, as on Activity's rows there: the name needs the room more. */}
+            <Avatar
+              name={entry.player.name}
+              src={avatarSrc(entry.player)}
+              size="sm"
+              className="max-sm:hidden"
+            />
+            <span className="truncate">{entry.player.name}</span>
+          </Link>
+          {/* A missing country's placeholder costs a phone's narrow column more than it tells. */}
+          <Flag
+            code={entry.player.country_code}
+            className={entry.player.country_code ? undefined : "max-sm:hidden"}
+          />
+          {entry.legacy && <LegacyBadge />}
+        </span>
+      </TableCell>
+      <TableCell numeric className="pr-2">
+        <span className="inline-flex flex-col items-end">
+          <span className="flex items-baseline gap-1.5">
+            <RunLink
+              runId={entry.run_id}
+              legacy={entry.legacy}
+              className="hover:text-accent font-bold underline-offset-4 hover:underline"
+            >
+              {formatTime(entry.time)}
+            </RunLink>
+            {/* On a phone, the Gap column's record mark beside the time; a gap goes on the line below. */}
+            {!entry.legacy && entry.time === record && (
+              <span className="text-xs sm:hidden">
+                <Badge tone="accent">WR</Badge>
+              </span>
+            )}
+          </span>
+          {/* Under the time on a phone: the gap and how long ago. Beside the time, the longest gap would
+              widen the whole column and leave the names a few letters. */}
+          <span className="flex items-baseline gap-1.5 text-xs leading-4 sm:hidden">
+            {!(!entry.legacy && entry.time === record) &&
+              entry.time !== fastest &&
+              fastest != null && (
+                <span className="text-danger">
+                  ({formatGap(entry.time - fastest)})
+                </span>
+              )}
+            {entry.finished_at && (
+              // Counted from now, which differs between the server's render and the browser's.
+              <time
+                dateTime={entry.finished_at}
+                suppressHydrationWarning
+                className="text-text-subtle"
+              >
+                {formatAge(entry.finished_at)}
+              </time>
+            )}
+          </span>
+        </span>
+      </TableCell>
+      <TableCell className="pr-0 pl-0">
+        {/* Replays open by 2.0 run ID; a pre-2.0 run's ID is the old site's. */}
+        {!entry.legacy && <ReplayLink runId={entry.run_id} />}
+      </TableCell>
+      <TableCell className="text-text-muted text-center tabular-nums max-sm:hidden">
+        {!entry.legacy && entry.time === record ? (
+          <Badge tone="accent">WR</Badge>
+        ) : entry.time === fastest || fastest == null ? null : (
+          <span className="text-danger">{formatGap(entry.time - fastest)}</span>
+        )}
+      </TableCell>
+      <TableCell className="text-text-muted text-center tabular-nums max-sm:hidden">
+        {entry.jumps}
+      </TableCell>
+      <TableCell className="text-text-muted text-center tabular-nums max-sm:hidden">
+        {entry.strafes}
+      </TableCell>
+      <TableCell className="text-text-muted text-center tabular-nums max-sm:hidden">
+        {sync.format(entry.sync)}%
+      </TableCell>
+      <TableCell numeric className="text-text-muted max-sm:hidden">
+        {entry.finished_at ? (
+          <time dateTime={entry.finished_at}>
+            {formatDate(entry.finished_at)}
+          </time>
+        ) : (
+          "–"
+        )}
+      </TableCell>
+    </TableRow>
   );
 }
