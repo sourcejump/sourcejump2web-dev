@@ -53,7 +53,7 @@ export function PlayerRows({
         >
           <Link
             href={`/players/${player.steamid64}`}
-            className="group hover:bg-surface-raised flex h-14 items-center gap-3 px-5 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
+            className="group hover:bg-text/4 flex h-14 items-center gap-3 px-5 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
           >
             <Avatar name={player.name} src={avatarSrc(player)} />
             {/* Most players have no country on Steam; a column of placeholders would only be noise. */}
