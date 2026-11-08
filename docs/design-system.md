@@ -1,15 +1,15 @@
 # Design system
-One visual language that every page is built from, so pages can't drift apart. See it all at `/dev/ui` (dev builds only).
+One visual language for every page, so pages can't drift apart. See it at `/dev/ui` (dev builds only).
 
 ## Direction
 "Classic" (2026-11-07): the old sourcejump.net, updated. Replaced "Navy".
 - A slate sheet (`bg`, `shadow-sheet`) between darker gutters. One cyan accent; at most one primary button per view.
 - Gamified but professional: medals, tier colors, WR badges, count-ups and small motions. No mascots, confetti, slogans or sales copy.
-- Play for everything. Its digits are all the same width, so times line up in columns without a second font.
+- Geist: 450 regular, 700 bold, matched to the old Play; Exo 2 bold (`font-server`) for server names. Times and tables use equal-width digits.
 - Corners: `rounded-md` (8px) for every frame, from a panel to a field or button; `rounded-sm` (4px) for badges and rows inside a frame.
 
 ## Tokens
-`web/src/ui/tokens.css` holds every color, type size, radius, shadow and easing as Tailwind theme variables. Tailwind's own palette, radii, type scale and shadows are cleared, so `bg-red-500` or `rounded-3xl` don't compile. Spacing keeps Tailwind's 4px grid.
+`web/src/ui/tokens.css` holds every color, type size, radius, shadow and easing as Tailwind theme variables. Tailwind's own palette, radii, type scale and shadows are cleared, so `bg-red-500` or `rounded-3xl` don't compile. Spacing keeps Tailwind's 4px grid. Breakpoints add `xs` (360px) for the narrowest phones.
 - Surfaces, darkest to lightest: `bg`, `surface`, `surface-raised`, `surface-overlay`. Borders: `border`, `border-strong`.
 - Text: `text`, `text-muted`, `text-subtle`. Accent: `accent`, `accent-hover`, `accent-soft`, `on-accent`.
 - Status: `success`, `warning`, `danger`, each with a `-soft` tint. Medals: `gold`, `silver`, `bronze`, `on-medal`.
@@ -21,35 +21,36 @@ One visual language that every page is built from, so pages can't drift apart. S
 | Component | Use |
 |---|---|
 | `Page` | Every page's content area; `width` is `wide`, `narrow` (reading) or `fill` (inside a section layout that sets its own width, such as the staff area). Runs the page fade |
-| `Masthead` | Full-width top band, plain or over a map picture; inside `Page width="fill"` (Players pages) |
+| `Masthead` | Full-width top band, plain or over a map picture, in `Page width="fill"` (Players pages) |
 | `Link` | Every internal link; never prefetches. Lint blocks importing `next/link` elsewhere |
 | `Button`, `ButtonLink`, `ButtonAnchor` | `primary` (one per view), `secondary` (default), `ghost`; sizes `sm`, `md`. A `ghost` button with `aria-pressed` or `aria-expanded` shows the accent while on. `ButtonAnchor` is for full page loads, such as sign-in |
 | `Card`, `Label` | Bordered surface; `interactive` adds the hover lift. `Label` is the small uppercase heading |
-| `StatCard` | Headline number with label and icon, counting up, and an optional short detail beside the number (never under it, so cards in a row stay one height). `null` shows a dash |
+| `StatCard` | Headline number with label and icon, counting up, and an optional detail beside the number (not under it, so a row of cards stays one height). `null` shows a dash |
 | `Badge` | Short status: `neutral`, `accent` (WR), `success`, `warning`, `danger` |
 | `Medal` | Placement; medals for 1–3, a plain number after |
 | `TierBadge` | `tier` and `tierCount` from the API |
 | `Avatar` | Steam avatar or initials; `sm` to `xl` |
 | `Flag` | Country flag from an ISO code, a grey placeholder without one; `hint` replaces its tooltip |
-| `Table` + `TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/`TableCell` | Leaderboards, staff lists; `numeric` cells right-align, `centered` heads center on narrow marks, `wrap` cells wrap. Scrolls sideways if too wide |
+| `Table` + `TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/`TableCell` | `numeric` cells right-align, `centered` heads center on narrow marks, `wrap` cells wrap. Scrolls sideways if too wide; `phoneLead` + `phoneFill` size a phone's first view to end at a column's edge |
 | `Tabs` | Panels on one page; `underline` or `segmented` |
 | `LinkTabs` | Looks like `Tabs`, but each tab is a link: a view the server renders, such as the Maps page's sort |
-| `Segmented` | Looks like segmented `Tabs`, for a choice that changes the view in place (a server's activity range, a post's kind). The chosen option is in the accent |
-| `ChoiceMenu` | "Label  Value ▾": one choice from a list, in a `Menu` of radio items, changing the view in place, or following each option's `href` on a server page. Boards, profiles and the Maps page use a row of them (Style, Track, Runs; Sort, Records in; lead, 2026-10-26); quiet options are dimmed but choosable, disabled ones dimmed and kept in place. Word-width on phones too, so they sit side by side |
+| `Segmented` | Looks like segmented `Tabs`, for a choice that changes the view in place, e.g. a chart range. The chosen option is in the accent |
+| `ChoiceMenu` | "Label  Value ▾": one choice from a list, in a `Menu` of radio items, changing the view in place, or following each option's `href` on a server page. Boards, profiles and the Maps page use a row of them (lead, 2026-10-26); Style lists Autosync after Normal (`menuOrder`); quiet options are dimmed but choosable, disabled ones dimmed and kept in place. Word-width on phones too, so they sit side by side |
 | `ChoiceBar` | The row those menus sit in, with any tabs beside them. Every page uses it, so the spacing between choices stays the same everywhere |
-| `Pager` | Previous and next under a paged list; `param`: its address key |
+| `Pager` | Page links under a paged list; `param`: its address key. Reserves its widest row, so turning a page never moves it |
 | `DividedList`, `DividedSection` | Rows with lines between them, and a part set off by a line above, inside a `Card` or `Dialog`. The lines run to the surface's edges |
 | `StepChart` | A value that changes in steps over time (WR history). Hover snaps a crosshair to the nearest point; points take focus and open their link |
-| `LineChart` | One count over time from zero (players online). Drawn in a fixed box stretched by CSS, so it fills its container before scripts load. Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
-| `TierSpread` | How many maps hold each tier: a donut in tier colors beside each tier's count and share; each slice and row links to that tier's maps, the others dim, and "All" closes the list (Maps page) |
-| `Tooltip` | Hint on hover and focus; the child must be focusable |
+| `LineChart` | One count over time from zero (players online). Drawn in a CSS-stretched box, so it fills its container before scripts load. Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
+| `TierSpread` | Maps per tier: a donut beside each tier's count and share; slices and rows link to that tier's maps, the rest dim; "All tiers" goes back (Maps page) |
+| `Dot` | "·" in a wrapping line; hidden on phones, where it could end one |
+| `Tooltip` | Hint on hover and focus; its child must take focus |
 | `Menu`, `MenuItem`, `MenuLink`, `MenuSeparator` | Menu button (account; `sheet`: phone menu) |
-| `Dialog` | Controlled modal (`open`, `onClose`). A field marked `data-autofocus` takes focus on each opening (React's `autoFocus` fires only on mount). Closes itself, without calling `onClose`, when its page is hidden for Back |
+| `Dialog` | Controlled modal (`open`, `onClose`). A field marked `data-autofocus` takes focus on each opening, not just the first. Closes itself, without calling `onClose`, when its page is hidden for Back |
 | `BrandIcon`, `SteamButton` | Community and Steam logos (`colored`: in their own colors); Steam sign-in |
 | `Input`, `SearchField`, `Textarea`, `CountUp` | Text field with optional icon; search, button inside; multi-line field; animated number |
 | `Prose` | Long-form HTML (a post's body) in the site's type. Only for HTML the API made safe |
 
-The run dialog opens in place: `RunLink` adds `?run=<id>` to the address with `history.pushState`, and `RunDialogHost` (in the root layout) opens at once and loads the run inside. Back or Escape closes it, and the address can be shared. A run link's `href` is `/runs/{id}`, the run's own page, for new tabs. A map page's style and track work the same way, with `replaceState`.
+The run dialog opens in place: `RunLink` pushes `?run=<id>` to the address and `RunDialogHost` (root layout) loads the run. Back or Escape closes it; the address can be shared. A run link's `href` is `/runs/{id}`, the run's own page, for new tabs. A map page's style and track work the same way, with `replaceState`.
 
 A `className` passed to a primitive is for placement (margin, width, grid), not restyling. Domain components (`RunRow`, `RunDialog`, …) live in `src/features/<feature>/` and are built from these.
 
@@ -64,7 +65,7 @@ Named utilities, so pages never write their own transitions:
 - `motion-draw`: an SVG line drawing itself in (a run's route); the shape needs `pathLength="1"`.
 - `motion-reveal`: a section rising in as it scrolls into view (scroll-driven; browsers without it show it at once).
 - `motion-settle`: a large picture easing out of a slight zoom as the page opens (the home header).
-- `HeaderDepth` (`features/home/`): the home header's picture leans with the mouse, by a depth map of it (`scripts/header-depth.py`; rerun it when the picture changes). Dust drifts in the light shaft, and a click sends cyan traces crawling over the surfaces (`headerTraces.ts`). WebGL, running only while the header is on screen; off on touch screens and with reduced motion.
+- `HeaderDepth` (`features/home/`): the home header's picture leans with the mouse, by a depth map of it (`scripts/header-depth.py`; rerun it when the picture changes). Dust drifts in the light shaft, and a click sends cyan traces crawling over the surfaces (`headerTraces.ts`). WebGL, only while on screen; off on touch screens and with reduced motion. The buttons above it get their own layer (`will-change-transform`): without it GPU Chromium dropped a hover's color after a frame.
 - `motion-pop`: a menu fading in with a slight drop and grow (`Menu`); `motion-fade`: its `sheet`'s dim.
 - `CountUp`: counts up when scrolled into view, and from the old value when it changes. A number already in view when the page loads stays as it is.
 - `page-fade`: between pages (see Navigation).
@@ -72,12 +73,12 @@ Named utilities, so pages never write their own transitions:
 All of them respect `prefers-reduced-motion` and show their end state at once.
 
 ## Navigation
-Pages swap in place with no full page load. The old page fades out quickly and the new one fades in, using React's `<ViewTransition>` in `Page` and the `page-fade` rules in `motion.css`. The header has its own view-transition name, so it stays still during the fade. Browsers without view transitions swap pages without the fade. A page with views, such as a map and its Manage view, keeps its header in a route layout and wraps each view in `PageView`: switching views fades the old one out and lifts the new one in (`view-flip`), and the header stays.
+Pages swap in place: the old page fades out and the new one in (React's `<ViewTransition>` in `Page`, `page-fade` in `motion.css`); the header has its own transition name, so it stays still. Without view transitions, pages just swap. A page with views (a map and its Manage view) keeps its header in a route layout and wraps each view in `PageView`, which fades one out and lifts the next in (`view-flip`).
 
 Links never prefetch, whether in view or hovered (lead's choice, 2026-10-19). A page loads only once it's opened, and the fade covers the wait. `e2e/navigation.e2e.ts` checks that following a link doesn't reload the page.
 
 ## Layout shell (`web/src/features/site/`)
-Header, page and footer sit on the sheet. The header is one sticky bar: wordmark, sections, search (`/`), Steam sign-in; footer: one line, community logos. Phones: menu, wordmark, search, account. Account and current section sit in `<Suspense>`, so every shell stays static. Search lives on the Players page. Section pages arrive with their roadmap slices.
+Header, page and footer sit on the sheet. The header is one sticky bar: wordmark, sections, search (`/`), Steam sign-in; footer: one line, community logos. Phones: menu, wordmark, search, account. Account and current section sit in `<Suspense>`, so every shell stays static. Search lives on the Players page.
 
 ## Screenshot tests
 `npm run test:ui` (part of `just check`) screenshots `/dev/ui` wide, on a phone, with the menu open and with the dialog open, and fails on any pixel change. After an intended visual change:

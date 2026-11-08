@@ -70,18 +70,30 @@ export function Pager({
     previous = p;
   }
   if (more) items.push(<Gap key="more" />);
+  // Room for the most links and the longest count any page of this list shows, so turning a page never changes the
+  // row's width and wraps the controls under the count (1 … 4 5 6 … 11 is seven slots at most).
+  const slots = Math.min(7, more ? last + 1 : last);
+  // Capped at the row: on the narrowest phones the links take the full line under the count instead.
+  const linksWidth = `min(100%, calc(${slots + 2} * 2rem + ${slots + 1} * 0.25rem))`;
+  const countText = (p: number) =>
+    `${total != null ? `${number.format(total)} ${noun} · page` : "Page"} ${number.format(p)}${more ? "" : ` of ${number.format(pageCount)}`}`;
 
   return (
     <nav
       aria-label="Pages"
       className="flex flex-wrap items-center gap-x-4 gap-y-2"
     >
-      <span className="text-text-subtle mr-auto text-sm tabular-nums">
-        {total != null && `${number.format(total)} ${noun} · `}
-        {total != null ? "page" : "Page"} {number.format(page)}
-        {!more && ` of ${number.format(pageCount)}`}
+      {/* The last page's count, hidden, under this page's: the box is as wide as the longest count. */}
+      <span className="text-text-subtle mr-auto grid text-sm tabular-nums">
+        <span aria-hidden className="invisible col-start-1 row-start-1">
+          {countText(last)}
+        </span>
+        <span className="col-start-1 row-start-1">{countText(page)}</span>
       </span>
-      <span className="flex items-center gap-1">
+      <span
+        className="flex items-center justify-end gap-1"
+        style={{ minWidth: linksWidth }}
+      >
         <Arrow
           href={page > 1 ? href(page - 1) : undefined}
           label="Previous page"

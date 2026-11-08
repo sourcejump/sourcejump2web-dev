@@ -39,18 +39,19 @@ export function Masthead({
             sizes="100vw"
             alt=""
             fetchPriority="high"
-            className="motion-settle absolute inset-x-0 top-0 -z-10 h-28 w-full object-cover sm:h-full"
+            className="motion-settle border-border absolute inset-x-0 top-0 -z-10 h-32 w-full border-b object-cover sm:h-full sm:border-b-0"
             style={{ objectPosition: `center ${image.focus}%` }}
           />
           {/* From sm up, a light fade into the page at the bottom, where the text sits, and the text's own shadow does
-              the rest, so the picture stays clearly visible. On a phone the picture is only a band at the top that
-              fades fully into the page, and the text sits below it on the page, where it's always readable. */}
-          <div className="from-bg sm:from-bg/70 absolute inset-x-0 top-0 -z-10 h-28 bg-linear-to-t to-transparent to-50% sm:h-full sm:to-60%" />
+              the rest, so the picture stays clearly visible. On a phone the picture is a band at the top with a clean
+              edge, and the text sits below it on the page, where it's always readable. */}
+          <div className="from-bg/70 absolute inset-0 -z-10 hidden bg-linear-to-t to-transparent to-60% sm:block" />
         </>
       )}
       <div
         className={classNames(
-          "mx-auto w-full max-w-6xl px-4 sm:px-8",
+          // Positioned, so a caption can sit in the picture's corner, lined up with the content.
+          "relative mx-auto w-full max-w-6xl px-4 sm:px-8",
           image && "sm:text-shadow-over-image",
           className,
         )}

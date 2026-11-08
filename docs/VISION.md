@@ -31,4 +31,4 @@
 **References:**
 - `docs/design/reference.webp`: the direction for look and feel (dark slate, cyan accent, stat cards, medal rows, map cards). Not a target; see `docs/design-system.md`.
 - CS:GO KZ community sites: per-tier completions and "% of maps done" on profiles.
-- Font: [Play](https://fonts.google.com/specimen/Play), used on the previous site.
+- Font: [Geist](https://vercel.com/font). The previous site used [Play](https://fonts.google.com/specimen/Play).

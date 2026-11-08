@@ -234,7 +234,7 @@ export function HeaderSearch() {
           expanded ? "flex" : "hidden",
         )}
       >
-        <div className="group/field relative flex w-full items-center xl:w-64 2xl:w-72">
+        <div className="group/field relative flex w-full items-center xl:w-64">
           <Search
             aria-hidden
             className="text-text-subtle group-focus-within/field:text-accent pointer-events-none absolute left-3 size-4 transition-colors duration-(--duration-fast)"

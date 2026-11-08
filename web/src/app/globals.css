@@ -4,6 +4,17 @@
 @import "../ui/motion.css";
 
 @layer base {
+  /* Taps show the site's own pressed and hover states, not the browser's grey flash, and act without the
+     double-tap zoom delay. */
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  a,
+  button,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
   /* Tailwind leaves buttons with the default arrow; everything clickable here shows the hand. */
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -17,11 +28,13 @@
     background: var(--color-gutter);
     color: var(--color-text);
     font-family: var(--font-sans);
+    font-weight: var(--font-weight-normal);
     font-size: var(--text-base);
     line-height: var(--text-base--line-height);
   }
 
-  /* Play's figures are already equal width; this keeps times aligned if a fallback font is in use. */
+  /* Geist's figures differ in width; times and table cells take its equal-width ones so columns line up. Elsewhere
+     they stay proportional, which is as wide as Play's were. */
   time,
   td {
     font-variant-numeric: tabular-nums;

@@ -20,8 +20,20 @@ const WIDTH = 16;
 /** Space between slices, in hundredths of the ring. */
 const GAP = 0.6;
 
+/** "All tiers", in the look of the page's filter menus and tier tiles: bordered, raised when it's the choice. */
+const allTiersClasses = (chosen: boolean) =>
+  classNames(
+    "flex h-8 items-center gap-2 rounded-md border px-3 text-sm font-bold transition-colors duration-(--duration-fast)",
+    chosen
+      ? "bg-surface-raised border-border-strong text-text"
+      : "border-border text-text-muted hover:bg-text/4 hover:text-text",
+  );
+
 const rowClasses =
-  "col-span-3 grid grid-cols-subgrid items-center rounded-md px-2 py-0.5 transition-opacity duration-(--duration-base)";
+  "col-span-3 grid grid-cols-subgrid items-center rounded-md px-2.5 py-1 transition-[opacity,background-color] duration-(--duration-base)";
+
+/** The chosen tier, filled and outlined in its own color (`--tier`), so it reads as the choice at a glance. */
+const chosenTier = "bg-(--tier)/15 ring-1 ring-(--tier)/50 ring-inset";
 
 export function TierSpread({
   byTier,
@@ -54,16 +66,18 @@ export function TierSpread({
   const tieredShare = (byTier.reduce((sum, c) => sum + c, 0) / total) * 100;
   const chosen = selected != null ? byTier[selected - 1] : undefined;
   const half = Math.ceil(tierCount / 2);
+  // The first column holds the lower half; the second the rest and "No tier" after them.
+  const rows = Math.max(half, tierCount - half + (untiered > 0 ? 1 : 0));
   const tierRow = ({ tier, count }: (typeof slices)[number]) => (
     <li key={tier} className="col-span-3 grid grid-cols-subgrid">
       <Link
         href={tierHref(selected === tier ? null : tier)}
         scroll={false}
         aria-current={selected === tier ? "true" : undefined}
+        style={{ "--tier": tierColor(tier, tierCount) } as CSSProperties}
         className={classNames(
           rowClasses,
-          "hover:bg-surface-raised",
-          selected === tier && "bg-surface-raised",
+          selected === tier ? chosenTier : "hover:bg-text/6",
           dimmed(tier) && "opacity-40 hover:opacity-100",
         )}
       >
@@ -109,15 +123,10 @@ export function TierSpread({
             href={tierHref(null)}
             scroll={false}
             aria-current={selected == null ? "true" : undefined}
-            className={classNames(
-              "flex items-baseline gap-2 rounded-md px-2 py-0.5 font-bold transition-colors duration-(--duration-fast)",
-              selected == null
-                ? "bg-accent-soft text-accent"
-                : "text-text-muted hover:bg-surface-raised hover:text-text",
-            )}
+            className={allTiersClasses(selected == null)}
           >
             All tiers
-            <span className="text-xs font-normal tabular-nums opacity-80">
+            <span className="text-text-subtle text-xs font-normal tabular-nums">
               {number.format(total - untiered)} maps
             </span>
           </Link>
@@ -135,11 +144,14 @@ export function TierSpread({
                 scroll={false}
                 aria-current={selected === tier ? "true" : undefined}
                 aria-label={`Tier ${tier}: ${number.format(count)} maps`}
+                style={
+                  { "--tier": tierColor(tier, tierCount) } as CSSProperties
+                }
                 className={classNames(
-                  "border-border flex flex-col items-center gap-1 rounded-md border py-1.5 transition-[opacity,background-color] duration-(--duration-base)",
+                  "flex flex-col items-center gap-1 rounded-md border py-1.5 transition-[opacity,background-color] duration-(--duration-base)",
                   selected === tier
-                    ? "bg-surface-raised border-border-strong"
-                    : "hover:bg-surface-raised",
+                    ? "border-(--tier)/50 bg-(--tier)/15"
+                    : "border-border hover:bg-text/4",
                   dimmed(tier) && "opacity-40",
                 )}
               >
@@ -227,54 +239,45 @@ export function TierSpread({
           </g>
         </svg>
 
-        {/* "All", always there to go back to, heads the first column and "No tier" the second; the tiers split
-          evenly below them, low tiers first. One column on phones, with "No tier" last. */}
-        <ul
-          style={{ "--rows": half + 1 } as CSSProperties}
-          className="grid grid-cols-[auto_auto_auto] gap-x-3 gap-y-0.5 text-sm sm:grid-flow-col sm:grid-cols-[auto_auto_auto_auto_auto_auto] sm:grid-rows-[repeat(var(--rows),auto)] sm:gap-x-2"
-        >
-          {/* One cell across the row, the count just after the word: it's the list's total, not a tier's. Chosen,
-            it takes the accent, as nothing else dims to show it. */}
-          <li className="col-span-3 grid">
-            <Link
-              href={tierHref(null)}
-              scroll={false}
-              aria-current={selected == null ? "true" : undefined}
-              className={classNames(
-                "flex items-baseline gap-2 rounded-md px-2 py-0.5 font-bold transition-colors duration-(--duration-fast)",
-                selected == null
-                  ? "bg-accent-soft text-accent"
-                  : "text-text-muted hover:bg-surface-raised hover:text-text",
-              )}
-            >
-              All tiers
-              <span className="text-xs font-normal tabular-nums opacity-80">
-                {number.format(total - untiered)} maps
-              </span>
-            </Link>
-          </li>
-          {slices.slice(0, half).map(tierRow)}
-          {untiered > 0 ? (
-            <li
-              className={classNames(
-                rowClasses,
-                "text-text-muted order-last sm:order-none",
-                selected != null && "opacity-40",
-              )}
-            >
-              No tier
-              <span className="text-right tabular-nums">
-                {number.format(untiered)}
-              </span>
-              <span className="text-text-subtle tabular-nums">
-                {percent.format(untiered / total)}
-              </span>
-            </li>
-          ) : (
-            <li aria-hidden className="hidden sm:col-span-3 sm:block" />
-          )}
-          {slices.slice(half).map(tierRow)}
-        </ul>
+        {/* "All tiers", always there to go back to, centered over the two columns it sums; the tiers split evenly
+            below it, low tiers first, and "No tier" ends the second column. */}
+        <div className="flex flex-col items-center gap-2">
+          <Link
+            href={tierHref(null)}
+            scroll={false}
+            aria-current={selected == null ? "true" : undefined}
+            className={allTiersClasses(selected == null)}
+          >
+            All tiers
+            <span className="text-text-subtle text-xs font-normal tabular-nums">
+              {number.format(total - untiered)} maps
+            </span>
+          </Link>
+          <ul
+            style={{ "--rows": rows } as CSSProperties}
+            className="grid grid-flow-col grid-cols-[auto_auto_auto_auto_auto_auto] grid-rows-[repeat(var(--rows),auto)] gap-x-3 gap-y-0.5 text-sm"
+          >
+            {slices.slice(0, half).map(tierRow)}
+            {slices.slice(half).map(tierRow)}
+            {untiered > 0 && (
+              <li
+                className={classNames(
+                  rowClasses,
+                  "text-text-muted",
+                  selected != null && "opacity-40",
+                )}
+              >
+                No tier
+                <span className="text-right tabular-nums">
+                  {number.format(untiered)}
+                </span>
+                <span className="text-text-subtle tabular-nums">
+                  {percent.format(untiered / total)}
+                </span>
+              </li>
+            )}
+          </ul>
+        </div>
       </div>
     </>
   );
