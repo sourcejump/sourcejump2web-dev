@@ -31,13 +31,8 @@ export function TierSpread({
 
   return (
     <section aria-label="Maps by tier" className="flex min-w-0 flex-col gap-3">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-sm font-bold">Difficulty</h2>
-        <span className="text-text-subtle text-xs tabular-nums">
-          {number.format(total)} maps
-        </span>
-      </div>
-      <ul className="grid grid-cols-3 gap-2 sm:grid-cols-6 xl:grid-cols-3">
+      <h2 className="text-sm font-bold">Difficulty</h2>
+      <ul className="flex flex-wrap gap-2">
         {choices.map(({ tier, count }) => {
           const active = tier === (selected ?? null);
           return (
@@ -55,21 +50,26 @@ export function TierSpread({
                       } as CSSProperties)
                 }
                 className={classNames(
-                  "flex h-9 items-center justify-between gap-2 border-b-2 px-1 text-sm transition-colors duration-(--duration-fast)",
+                  "inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm transition-colors duration-(--duration-fast)",
                   active
-                    ? "border-text text-text"
-                    : "text-text-muted hover:border-text-subtle hover:text-text border-transparent",
+                    ? "border-accent/50 bg-accent-soft text-accent"
+                    : "border-border-strong text-text-muted hover:bg-text/4 hover:text-text",
                 )}
               >
                 <span
                   className={classNames(
                     "font-medium",
-                    tier != null && "text-(color:--tier)",
+                    tier != null && !active && "text-(color:--tier)",
                   )}
                 >
                   {tier == null ? "All tiers" : `T${tier}`}
                 </span>
-                <span className="text-text-subtle text-xs tabular-nums">
+                <span
+                  className={classNames(
+                    "text-xs tabular-nums",
+                    active ? "text-accent" : "text-text-subtle",
+                  )}
+                >
                   {number.format(count)}
                 </span>
               </Link>
