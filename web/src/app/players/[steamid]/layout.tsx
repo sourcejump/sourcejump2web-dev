@@ -1,20 +1,26 @@
-// A player's pages: the masthead stays while the profile and the Manage view swap beneath it.
+// A player's identity stays while the profile and Manage view swap beneath it.
 import { PlayerHeader } from "@/features/players/PlayerHeader";
 import { Page } from "@/ui/Page";
+import { Link } from "@/ui/Link";
+import { ArrowLeft } from "lucide-react";
 
 export default function PlayerLayout({
   params,
   children,
 }: LayoutProps<"/players/[steamid]">) {
   return (
-    // The masthead runs edge to edge, so the page sets its own width below it.
-    <Page width="fill">
+    <Page width="fill" className="gap-6 px-4 pt-6 pb-10 sm:px-8">
+      <Link
+        href="/leaderboards"
+        className="text-text-muted hover:text-accent inline-flex w-fit items-center gap-2 text-sm"
+      >
+        <ArrowLeft aria-hidden className="size-4" />
+        Leaderboards
+      </Link>
       {params.then(({ steamid }) => (
         <PlayerHeader steamid={decodeURIComponent(steamid)} />
       ))}
-      <div className="mx-auto flex w-full max-w-full flex-col gap-8 px-4 pt-6 pb-10 sm:px-8">
-        {children}
-      </div>
+      <div className="flex min-w-0 flex-col gap-6">{children}</div>
     </Page>
   );
 }

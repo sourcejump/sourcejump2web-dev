@@ -4,7 +4,23 @@
 // arrives with the profile, so switching styles happens in place; bonuses, world records and the normal
 // style's pre-2.0 views load when chosen. The counts are 2.0's in every view.
 import { useSearchParams } from "next/navigation";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+import {
+  Globe,
+  Trophy,
+  Medal as MedalIcon,
+  Star,
+  Map as MapIcon,
+  Gem,
+} from "lucide-react";
+import { ProfileHistory } from "./ProfileHistory";
+import type { ProfileHistoryPoint } from "./sampleHistory";
 import { api, type Schemas } from "@/api/client";
 import { LegacyBadge } from "@/features/legacy/LegacyBadge";
 import { ReplayLink } from "@/features/replays/ReplayLink";
@@ -49,7 +65,6 @@ import {
 
 const PAGE_SIZE = 50;
 const numbers = new Intl.NumberFormat("en");
-const percent = new Intl.NumberFormat("en", { style: "percent" });
 /** The Style and Track menus' choice of every style or every track. */
 const ANY = "any";
 
@@ -59,13 +74,28 @@ export function PlayerStyles({
   player,
   styleOrder,
   styleNames,
+  history,
+  details,
+  bonusTotal,
 }: {
   player: Schemas["PlayerProfile"];
   /** Style keys in the ruleset's order. */
   styleOrder: string[];
   styleNames: Record<string, string>;
+  history?: Record<string, ProfileHistoryPoint[]>;
+  details?: ReactNode;
+  bonusTotal?: number;
 }) {
   const params = useSearchParams();
+  const choiceKey = params.toString();
+  const [loaded, setLoaded] = useState<{
+    key: string;
+    rows: Schemas["PersonalBest"][];
+  }>();
+  const acceptRows = useCallback(
+    (rows: Schemas["PersonalBest"][]) => setLoaded({ key: choiceKey, rows }),
+    [choiceKey],
+  );
   const hasLegacy = player.legacy_maps > 0;
   const tracksParam = params.get("tracks");
   const tracks: Tracks =
@@ -105,6 +135,38 @@ export function PlayerStyles({
   const boardStyle =
     anyStyle || styleKey === styleOrder[0] ? {} : { style: styleKey };
 
+  const ranked = anyStyle
+    ? styleKeys
+        .map(summary)
+        .find(
+          (style) =>
+            style &&
+            (tracks === "bonuses" ? style.bonus_standing : style.main_standing),
+        )
+    : current;
+  const standing =
+    tracks === "bonuses" ? ranked?.bonus_standing : ranked?.main_standing;
+  const historyStyle = ranked?.style ?? styleKey;
+  const historyName = `${styleNames[historyStyle] ?? historyStyle}${tracks === "bonuses" ? " bonuses" : ""}`;
+  const rows = loaded?.key === choiceKey ? loaded.rows : undefined;
+  const completeFirst =
+    tracks === "main" && !records && current && !current.next_cursor
+      ? current.personal_bests
+      : undefined;
+  const top10 =
+    view !== "current"
+      ? undefined
+      : !shownTotal
+        ? 0
+        : (rows ?? completeFirst)?.filter(
+            (pb) => pb.rank != null && pb.rank <= 10,
+          ).length;
+  const pointsStyle = ranked?.style ?? (anyStyle ? styleOrder[0] : styleKey);
+  const pointsHref = withQuery("/leaderboards/points", {
+    style: pointsStyle !== styleOrder[0] ? pointsStyle : undefined,
+    ...(tracks === "bonuses" && { track: "bonuses" }),
+  });
+
   // The choice lives in the address, so a view can be shared, but changing it doesn't load a page.
   function choose(choice: {
     style?: string;
@@ -126,51 +188,19 @@ export function PlayerStyles({
 
   return (
     <>
-      {/* The style's progress, split into what each number opens: completed maps and world records, compact like the
-          home page's numbers. The rank leads the header above. */}
-      <div className="motion-enter border-border bg-surface divide-border grid grid-cols-2 divide-x overflow-hidden rounded-md border">
-        <StatLink
-          href={withQuery("/maps", {
-            player: player.steamid64,
-            completed: "yes",
-            ...boardStyle,
-          })}
-        >
+      <section
+        aria-label="Player statistics"
+        className="motion-enter grid grid-cols-2 gap-3 sm:grid-cols-3"
+      >
+        <StatLink href={pointsHref}>
+          <StatText>Global rank</StatText>
+          <StatIcon>
+            <Globe />
+          </StatIcon>
           <StatValue>
-            <CountUp value={maps} />
-            <span className="text-text-muted text-sm font-normal">
-              {" "}
-              / {numbers.format(player.map_count)}
-            </span>
+            {standing ? `#${numbers.format(standing.rank)}` : "—"}
           </StatValue>
-          <StatText>
-            completed maps
-            {bonuses > 0 && (
-              <span className="max-sm:hidden">
-                {` · ${bonuses} ${bonuses === 1 ? "bonus" : "bonuses"}`}
-              </span>
-            )}
-          </StatText>
-          {player.map_count > 0 && (
-            <span className="text-text-muted ml-auto shrink-0 text-xs font-bold tabular-nums max-lg:hidden">
-              {percent.format(maps / player.map_count)}
-            </span>
-          )}
-          {/* How far through the map list they are, along the cell's foot; the numbers say it for screen readers. */}
-          <span
-            aria-hidden
-            className="bg-surface-overlay absolute inset-x-0 bottom-0 h-0.5"
-          >
-            <span
-              className="bg-accent/60 block h-full"
-              style={{
-                width: `${player.map_count ? Math.min(100, (maps / player.map_count) * 100) : 0}%`,
-              }}
-            />
-          </span>
         </StatLink>
-        {/* Every world record, newest first: any style, any track, 2.0 runs; pressed again, back to the opening view. A
-            player without one has nothing to open. */}
         <StatLink
           pressed={records}
           onClick={
@@ -186,35 +216,106 @@ export function PlayerStyles({
               : undefined
           }
         >
+          <StatText>World records</StatText>
+          <StatIcon>
+            <Trophy />
+          </StatIcon>
           <StatValue color={counts?.world_records ? "text-accent" : undefined}>
             <CountUp value={counts?.world_records ?? 0} />
           </StatValue>
-          <StatText>world records</StatText>
-          {counts?.world_records ? (
-            <span className="text-text-subtle group-hover:text-text ml-auto shrink-0 text-xs transition-colors duration-(--duration-fast) max-lg:hidden">
-              {records ? "Showing all" : "Show all"}
-            </span>
-          ) : null}
         </StatLink>
-      </div>
+        <StatLink>
+          <StatText>Top 10s</StatText>
+          <StatIcon>
+            <MedalIcon />
+          </StatIcon>
+          <StatValue>
+            {top10 === undefined ? "—" : numbers.format(top10)}
+          </StatValue>
+        </StatLink>
+        <StatLink>
+          <StatText>Points</StatText>
+          <StatIcon>
+            <Star />
+          </StatIcon>
+          <StatValue>
+            <CountUp value={standing?.points ?? 0} />
+          </StatValue>
+        </StatLink>
+        <StatLink
+          href={withQuery("/maps", {
+            player: player.steamid64,
+            completed: "yes",
+            ...boardStyle,
+          })}
+        >
+          <StatText>Maps completed</StatText>
+          <StatIcon>
+            <MapIcon />
+          </StatIcon>
+          <StatValue>
+            <CountUp value={maps} />
+            <span className="text-text-muted text-sm font-normal">
+              {" "}
+              / {numbers.format(player.map_count)}
+            </span>
+          </StatValue>
+          {player.map_count > 0 && (
+            <span
+              aria-hidden
+              className="bg-surface-overlay absolute inset-x-0 bottom-0 h-1"
+            >
+              <span
+                className="bg-accent/70 block h-full"
+                style={{
+                  width: `${Math.min(100, (maps / player.map_count) * 100)}%`,
+                }}
+              />
+            </span>
+          )}
+        </StatLink>
+        <StatLink>
+          <StatText>Bonuses completed</StatText>
+          <StatIcon>
+            <Gem />
+          </StatIcon>
+          <StatValue>
+            <CountUp value={bonuses} />
+            {bonusTotal != null && (
+              <span className="text-text-muted text-sm font-normal">
+                {" "}
+                / {numbers.format(bonusTotal)}
+              </span>
+            )}
+          </StatValue>
+          {bonusTotal != null && bonusTotal > 0 && (
+            <span
+              aria-hidden
+              className="bg-surface-overlay absolute inset-x-0 bottom-0 h-1"
+            >
+              <span
+                className="bg-success/70 block h-full"
+                style={{
+                  width: `${Math.min(100, (bonuses / bonusTotal) * 100)}%`,
+                }}
+              />
+            </span>
+          )}
+        </StatLink>
+      </section>
+      <ProfileHistory
+        series={
+          history?.[
+            `${historyStyle}:${tracks === "bonuses" ? "bonuses" : "main"}`
+          ]
+        }
+        styleName={historyName}
+      />
+      {details}
 
       {/* The choices sit with the list they narrow, under the overview. */}
       <div className="flex flex-col gap-3">
         <ChoiceBar>
-          <ChoiceMenu
-            label="Style"
-            options={[
-              { value: ANY, label: "Any" },
-              ...styleKeys.map((key, index) => ({
-                value: key,
-                label: styleNames[key] ?? key,
-                quiet: !hasTimes(key),
-                startsGroup: index === 0,
-              })),
-            ]}
-            value={styleKey}
-            onChange={(style) => choose({ style })}
-          />
           <ChoiceMenu
             label="Track"
             options={[
@@ -265,6 +366,7 @@ export function PlayerStyles({
           <PersonalBests
             key={`${styleKey}-${tracks}-${view}-${records}`}
             steamid64={player.steamid64}
+            onLoaded={acceptRows}
             style={anyStyle ? undefined : styleKey}
             styleName={(key) => styleNames[key] ?? key}
             tracks={tracks === ANY ? undefined : tracks}
@@ -324,9 +426,8 @@ function StatLink({
   className?: string;
   children: ReactNode;
 }) {
-  // Number over its words on narrow screens, side by side from lg, as the home page's numbers.
   const classes = classNames(
-    "group relative flex min-w-0 flex-col px-3 py-2 text-left sm:px-4 sm:py-3 lg:flex-row lg:items-baseline lg:gap-2",
+    "group border-border bg-surface relative flex min-h-28 min-w-0 flex-col gap-3 overflow-hidden rounded-md border p-4 text-left sm:p-5",
     className,
   );
   // The panel clips its corners, so the focus ring is drawn inside the cell.
@@ -369,7 +470,7 @@ function StatValue({
   return (
     <span
       className={classNames(
-        "shrink-0 text-lg font-bold transition-colors duration-(--duration-fast)",
+        "flex min-w-0 flex-wrap items-baseline gap-x-2 text-xl font-bold tabular-nums transition-colors duration-(--duration-fast) sm:text-2xl",
         color ?? "group-hover:text-accent",
       )}
     >
@@ -381,7 +482,18 @@ function StatValue({
 /** What a standing cell's number counts. */
 function StatText({ children }: { children: ReactNode }) {
   return (
-    <span className="text-text-muted group-hover:text-text min-w-0 text-xs transition-colors duration-(--duration-fast) sm:text-sm lg:truncate">
+    <span className="text-text-muted group-hover:text-text min-h-10 min-w-0 pr-8 text-sm transition-colors duration-(--duration-fast)">
+      {children}
+    </span>
+  );
+}
+
+function StatIcon({ children }: { children: ReactNode }) {
+  return (
+    <span
+      aria-hidden
+      className="bg-accent-soft text-accent absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-md sm:top-5 sm:right-5 [&_svg]:size-4"
+    >
       {children}
     </span>
   );
@@ -398,6 +510,7 @@ function PersonalBests({
   first,
   total,
   tierCount,
+  onLoaded,
 }: {
   steamid64: string;
   /** Left out for every style, listed most recently finished first. */
@@ -414,6 +527,7 @@ function PersonalBests({
   total?: number;
   /** Tiers in force, for the badges; undefined until the community sets tiers. */
   tierCount?: number;
+  onLoaded: (rows: Schemas["PersonalBest"][]) => void;
 }) {
   // The API's own order: by map in one style, newest first across styles.
   const apiOrder: PbSort = style
@@ -526,6 +640,11 @@ function PersonalBests({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the key remounts this for another style or view
   }, []);
+
+  useEffect(() => {
+    if (personalBests && !cursor && !loading && !failed)
+      onLoaded(personalBests);
+  }, [personalBests, cursor, loading, failed, onLoaded]);
 
   if (!personalBests) {
     return failed ? (
