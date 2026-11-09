@@ -4,7 +4,7 @@
 }
 
 .cover {
-  min-block-size: calc(var(--spacing) * 20);
+  min-block-size: calc(var(--spacing) * 36);
 }
 
 .preview {
