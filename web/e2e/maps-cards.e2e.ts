@@ -58,6 +58,111 @@ test("cards show the API's top three for the chosen style", async ({
     ).toBeVisible();
   }
   await expectTextInside(card);
+  const preview = await card.evaluate((element) => {
+    const cover = element.firstElementChild!;
+    const image = cover.firstElementChild!;
+    const records = element.querySelector("ol")!;
+    return {
+      bottom: cover.getBoundingClientRect().bottom,
+      records: records.getBoundingClientRect().top,
+      mask: getComputedStyle(image).maskImage,
+      filter: getComputedStyle(image).filter,
+    };
+  });
+  expect(preview.bottom).toBeLessThanOrEqual(preview.records);
+  expect(preview.mask).toBe("none");
+  expect(preview.filter).toBe("none");
+});
+
+test("map hover stays still and the preview opens the map", async ({
+  page,
+}) => {
+  await page.goto("/maps");
+  const card = page.locator("[data-map]").first();
+  await expect(card).toBeVisible();
+  await card.scrollIntoViewIfNeeded();
+  const before = await card.boundingBox();
+  const border = await card.evaluate(
+    (element) => getComputedStyle(element).borderColor,
+  );
+  await card.hover();
+  expect(await card.boundingBox()).toEqual(before);
+  expect(
+    await card.evaluate((element) => getComputedStyle(element).borderColor),
+  ).not.toBe(border);
+  const href = await card.locator("h3 a").getAttribute("href");
+  const preview = await card.locator(":scope > div").first().boundingBox();
+  await page.mouse.click(
+    preview!.x + preview!.width / 2,
+    preview!.y + preview!.height / 2,
+  );
+  await expect(page).toHaveURL(new RegExp(`${href}$`));
+});
+
+test("player links and replay controls work independently of the map link", async ({
+  page,
+}) => {
+  await page.goto("/maps");
+  const card = page.locator("[data-map]").first();
+  await expect(card).toBeVisible();
+  await page.evaluate(() => {
+    (window as { mapsStillHere?: boolean }).mapsStillHere = true;
+  });
+  const replay = card
+    .getByRole("link", { name: "Watch replay", exact: true })
+    .first();
+  const href = await replay.getAttribute("href");
+  const id = /\/runs\/(\d+)/.exec(href!)![1];
+  await replay.click();
+  await expect(page).toHaveURL(new RegExp(`/maps\\?replay=${id}$`));
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Run page" })).toHaveAttribute(
+    "href",
+    `/runs/${id}`,
+  );
+  expect(
+    await page.evaluate(
+      () => (window as { mapsStillHere?: boolean }).mapsStillHere,
+    ),
+  ).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/maps$/);
+  await expect(replay).toBeFocused();
+  const player = card
+    .locator("ol > li")
+    .first()
+    .locator('a[href^="/players/"]');
+  await expect(
+    card.locator("ol > li").first().locator('a[href^="/players/"]'),
+  ).toHaveCount(1);
+  const profile = await player.getAttribute("href");
+  const avatar = player.locator(":scope > span").first();
+  const name = player.locator(":scope > span").nth(1);
+  const color = await name.evaluate(
+    (element) => getComputedStyle(element).color,
+  );
+  const avatarBorder = await avatar
+    .locator("img, span")
+    .first()
+    .evaluate((element) => getComputedStyle(element).borderColor);
+  await avatar.hover();
+  await expect
+    .poll(() => name.evaluate((element) => getComputedStyle(element).color))
+    .not.toBe(color);
+  expect(
+    await avatar
+      .locator("img, span")
+      .first()
+      .evaluate((element) => getComputedStyle(element).borderColor),
+  ).toBe(avatarBorder);
+  await avatar.click();
+  await expect(page).toHaveURL(new RegExp(`${profile}$`));
+  await page.goBack();
+  await player.locator(":scope > span").nth(1).click();
+  await expect(page).toHaveURL(new RegExp(`${profile}$`));
+  await expect(dialog).toBeHidden();
 });
 
 test("cards keep complete names and long times inside at every breakpoint", async ({
@@ -68,18 +173,25 @@ test("cards keep complete names and long times inside at every breakpoint", asyn
   await expect(card).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   await card.evaluate((element) => {
-    element.querySelector("h3")!.textContent =
+    element.querySelector("h3 a")!.textContent =
       "bhop_" + "long_map_name_".repeat(5).slice(0, 59);
     for (const row of Array.from(element.querySelectorAll("ol > li"))) {
-      const player = row.children[2]!;
-      const result = row.children[3]!;
-      player.textContent = "Long player name 玩家 日本語 Кириллица";
-      result.children[0]!.textContent = "1:23:45.678";
+      const player = row.querySelector('a[href^="/players/"]')!;
+      const result = row.lastElementChild!;
+      player.children[1]!.textContent =
+        "Long player name 玩家 日本語 Кириллица";
+      result.children[0]!.querySelector("a")!.textContent = "1:23:45.678";
       result.children[1]!.textContent = "+2:34:56.789";
     }
   });
-  for (const width of [1440, 1084, 1080, 1024, 768, 390, 320]) {
+  for (const width of [1920, 1440, 1084, 1080, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
     await expectTextInside(card);
     expect(
       await page.evaluate(
@@ -93,14 +205,24 @@ test("cards keep complete names and long times inside at every breakpoint", asyn
       ).display,
     }));
     expect(layout.result).toBe(layout.width >= 320 ? "grid" : "flex");
+    if (width === 1920 || width === 1440) {
+      const columns = await card
+        .locator("xpath=../..")
+        .evaluate(
+          (element) =>
+            getComputedStyle(element).gridTemplateColumns.split(" ").length,
+        );
+      expect(columns).toBe(width === 1920 ? 4 : 3);
+    }
   }
 });
 
 test("loading avatars and map pictures does not move the podium", async ({
   page,
 }) => {
-  await page.route(/avatars\.(?:akamai\.)?steamstatic\.com/, (route) =>
-    route.abort(),
+  await page.route(
+    /avatars(?:\.[a-z]+)?\.steamstatic\.com|\/v1\/players\/[^/]+\/avatar/,
+    (route) => route.abort(),
   );
   await page.goto("/maps");
   const card = page.locator("[data-map]").first();
@@ -125,22 +247,37 @@ test("a single finisher and an empty style stay honest and readable", async ({
   page,
   request,
 }) => {
-  const response = await request.get("/v1/maps?style=scroll&limit=100");
-  const list = (await response.json()) as Schemas["MapList"];
-  test.skip(list.style !== "scroll", "The API has no Scroll style.");
-  const empty = list.maps.find((map) => !map.world_record);
-  test.skip(!empty, "The current API data has no empty Scroll board.");
+  let selected: { list: Schemas["MapList"]; style: string } | undefined;
+  for (const style of ["scroll", "hsw"]) {
+    const response = await request.get(`/v1/maps?style=${style}&limit=100`);
+    if (!response.ok()) continue;
+    const list = (await response.json()) as Schemas["MapList"];
+    if (
+      list.style === style &&
+      list.maps.some((map) => !map.world_record) &&
+      list.maps.some((map) => map.world_record)
+    ) {
+      selected = { list, style };
+      break;
+    }
+  }
+  test.skip(
+    !selected,
+    "The current API data has no style with both empty and populated boards.",
+  );
+  const { list, style } = selected!;
+  const empty = list.maps.find((map) => !map.world_record)!;
   await page.setViewportSize({ width: 390, height: 900 });
-  await page.goto(`/maps?style=scroll&q=${encodeURIComponent(empty!.name)}`);
+  await page.goto(`/maps?style=${style}&q=${encodeURIComponent(empty.name)}`);
   const emptyCard = page.locator(`[data-map="${empty!.name}"]`);
   await expect(
     emptyCard.getByText("No times in this style", { exact: true }),
   ).toBeVisible();
   await expect(emptyCard.getByLabel("Placement 1")).toHaveCount(0);
   await expectTextInside(emptyCard);
-  await expect(emptyCard).toHaveAttribute(
+  await expect(emptyCard.locator("h3 a")).toHaveAttribute(
     "href",
-    `/maps/${empty!.name}?style=scroll`,
+    `/maps/${empty.name}?style=${style}`,
   );
 
   // Pick an actual sparse board rather than inventing second and third place.
@@ -150,7 +287,7 @@ test("a single finisher and an empty style stay honest and readable", async ({
     .sort((a, b) => a.players - b.players)
     .slice(0, 6)) {
     const response = await request.get(
-      `/v1/maps/${encodeURIComponent(map.name)}/leaderboard?style=scroll&limit=3`,
+      `/v1/maps/${encodeURIComponent(map.name)}/leaderboard?style=${style}&limit=3`,
     );
     const board = (await response.json()) as Schemas["Leaderboard"];
     if (board.total === 1) {
@@ -160,13 +297,14 @@ test("a single finisher and an empty style stay honest and readable", async ({
   }
   test.skip(
     !single,
-    "The current API data has no sampled Scroll board with one finisher.",
+    "The current API data has no sampled board with one finisher.",
   );
-  await page.goto(`/maps?style=scroll&q=${encodeURIComponent(single!)}`);
+  await page.goto(`/maps?style=${style}&q=${encodeURIComponent(single!)}`);
   const singleCard = page.locator(`[data-map="${single}"]`);
-  await expect(
-    singleCard.getByText("1 ranked time in this style", { exact: true }),
-  ).toBeVisible();
+  await expect(singleCard.locator("ol > li")).toHaveCount(1);
+  await expect(singleCard.getByText(/ranked times? in this style/)).toHaveCount(
+    0,
+  );
   await expect(singleCard.getByLabel("Placement 1")).toBeVisible();
   await expect(singleCard.getByLabel("Placement 2")).toHaveCount(0);
   await expectTextInside(singleCard);

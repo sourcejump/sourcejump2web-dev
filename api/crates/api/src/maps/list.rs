@@ -24,9 +24,9 @@ const MAX_LIMIT: i64 = 100;
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct MapsQuery {
-    /// Part of a map name. Case doesn't matter, and spaces stand for underscores. The map of exactly that
-    /// name comes first, then maps with a word starting with it, then other matches, each in the chosen
-    /// sort; near misses for a typo come last, closest first.
+    /// Part of a map name or a main-track world record holder's name in the chosen style. Case doesn't
+    /// matter; spaces in map names stand for underscores. Exact map names come first, then word starts,
+    /// other map matches and record holders, each in the chosen sort; near misses come last.
     q: Option<String>,
     /// Default `name`.
     #[param(inline)]
@@ -193,6 +193,12 @@ pub async fn list_maps(
     let sort = query.sort.unwrap_or(MapSort::Name).key();
     let search = query.q.as_deref().and_then(search_name);
     let pattern = search.as_deref().map(name_search::contains_pattern);
+    let holder_pattern = query
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|q| !q.is_empty())
+        .map(name_search::contains_pattern);
     // Most map names start with "bhop_", which would make every map a near miss of every search.
     let near = search
         .as_deref()
@@ -205,6 +211,7 @@ pub async fn list_maps(
     };
     let filter = Filter {
         pattern: pattern.as_deref(),
+        holder_pattern: holder_pattern.as_deref(),
         near,
         style: style.as_deref(),
         completed_by: query.completed.and(player).map(SteamId64::get),
@@ -385,14 +392,21 @@ async fn listed_page(
     sqlx::query_as!(
         ListedMap,
         r#"
-        WITH listed AS (
+        WITH holder_maps AS (
+            SELECT h.map_id FROM world_record_holders h
+            JOIN players p ON p.steamid64 = h.player_steamid64
+            WHERE $11::text IS NOT NULL AND h.style = $5 AND h.track = 0
+              AND p.name ILIKE $11 ESCAPE '\'
+        ), listed AS (
             SELECT m.id, m.name, m.last_run_at, m.players, tier.tier,
                    row_number() OVER (ORDER BY
                        -- How well the name matches: exactly, by a word's start ("candy" in bhop_candy), or within.
                        CASE WHEN $6::text IS NULL OR m.name = $6 THEN 0
                             WHEN starts_with(m.name, $6) OR strpos(m.name, '_' || $6) > 0 THEN 1
-                            WHEN m.name ILIKE $1 ESCAPE '\' THEN 2 ELSE 3 END,
-                       CASE WHEN m.name NOT ILIKE $1 ESCAPE '\' THEN word_similarity($7, m.name) END DESC NULLS LAST,
+                            WHEN m.name ILIKE $1 ESCAPE '\' THEN 2
+                            WHEN m.id IN (SELECT map_id FROM holder_maps) THEN 3 ELSE 4 END,
+                       CASE WHEN m.name NOT ILIKE $1 ESCAPE '\' AND $7 <% m.name
+                            THEN word_similarity($7, m.name) END DESC NULLS LAST,
                        CASE WHEN $2 = 'recent' THEN m.last_run_at END DESC,
                        CASE WHEN $2 = 'newest' THEN m.listed_at END DESC NULLS LAST,
                        CASE $2 WHEN 'popular' THEN -m.players WHEN 'least_popular' THEN m.players END,
@@ -414,7 +428,8 @@ async fn listed_page(
                 ORDER BY pb.time, r.finished_at
                 LIMIT 1
             ) record ON true
-            WHERE m.last_run_at IS NOT NULL AND ($1::text IS NULL OR m.name ILIKE $1 ESCAPE '\' OR $7 <% m.name)
+            WHERE m.last_run_at IS NOT NULL AND ($1::text IS NULL OR m.name ILIKE $1 ESCAPE '\'
+                OR $7 <% m.name OR m.id IN (SELECT map_id FROM holder_maps))
               AND ($8::bigint IS NULL OR $9 = EXISTS (
                   SELECT 1 FROM personal_bests WHERE player_steamid64 = $8 AND map_id = m.id AND style = $5 AND track = 0))
               AND ($10::smallint IS NULL OR tier.tier = $10)
@@ -451,7 +466,8 @@ async fn listed_page(
         filter.near,
         filter.completed_by,
         filter.completed,
-        filter.tier
+        filter.tier,
+        filter.holder_pattern
     )
     .fetch_all(tx)
     .await
@@ -508,6 +524,8 @@ impl ListedMap {
 struct Filter<'a> {
     /// The search as an `ILIKE` pattern.
     pattern: Option<&'a str>,
+    /// The original search, preserving spaces in player names.
+    holder_pattern: Option<&'a str>,
     /// The search's term for near misses.
     near: Option<&'a str>,
     style: Option<&'a str>,
@@ -522,7 +540,9 @@ struct Filter<'a> {
 async fn count_maps(tx: &mut sqlx::PgConnection, filter: &Filter<'_>) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar!(
         r#"SELECT count(*) AS "count!" FROM maps m
-           WHERE last_run_at IS NOT NULL AND ($1::text IS NULL OR name ILIKE $1 ESCAPE '\' OR $2 <% name)
+           WHERE last_run_at IS NOT NULL AND ($1::text IS NULL OR name ILIKE $1 ESCAPE '\' OR $2 <% name
+             OR EXISTS (SELECT 1 FROM world_record_holders h JOIN players p ON p.steamid64 = h.player_steamid64
+                        WHERE h.map_id = m.id AND h.style = $5 AND h.track = 0 AND p.name ILIKE $7 ESCAPE '\'))
              AND ($3::bigint IS NULL OR $4 = EXISTS (
                  SELECT 1 FROM personal_bests WHERE player_steamid64 = $3 AND map_id = m.id AND style = $5 AND track = 0))
              AND ($6::smallint IS NULL OR $6 = (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0))"#,
@@ -531,7 +551,8 @@ async fn count_maps(tx: &mut sqlx::PgConnection, filter: &Filter<'_>) -> Result<
         filter.completed_by,
         filter.completed,
         filter.style,
-        filter.tier
+        filter.tier,
+        filter.holder_pattern
     )
     .fetch_one(tx)
     .await
@@ -634,6 +655,73 @@ mod tests {
             test_client::get(&db, "/v1/maps?sort=best").await.status,
             400
         );
+    }
+
+    #[sqlx::test]
+    async fn searches_current_main_track_record_holders_in_the_selected_style(db: PgPool) {
+        let key = setup(&db).await;
+        sqlx::query(
+            r#"INSERT INTO rulesets (version, document)
+               SELECT 2, jsonb_set(document, '{styles}',
+                   (document->'styles') || '[{"key":"sw","name":"Sideways","settings":{}}]'::jsonb)
+               FROM rulesets WHERE version = 1"#,
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        for (id, map, player, name, time, style, track) in [
+            (
+                "holder-main",
+                "bhop_badges",
+                0,
+                "Speed Runner",
+                30.0,
+                "normal",
+                0,
+            ),
+            (
+                "holder-second",
+                "bhop_arcane",
+                0,
+                "Speed Runner",
+                15.0,
+                "normal",
+                0,
+            ),
+            ("slower", "bhop_badges", 1, "Bonus Hero", 40.0, "normal", 0),
+            ("bonus", "bhop_badges", 1, "Bonus Hero", 10.0, "normal", 1),
+            ("sideways", "bhop_badges", 1, "Bonus Hero", 20.0, "sw", 0),
+            ("tied", "bhop_badges", 2, "Co Holder", 30.0, "normal", 0),
+        ] {
+            let mut body = run(id, time);
+            body["map"] = json!(map);
+            body["player"] = json!({
+                "steamid64": (76_561_197_960_287_930_i64 + player).to_string(),
+                "name": name,
+            });
+            body["style"] = json!(style);
+            body["track"] = json!(track);
+            body["ruleset_version"] = json!(2);
+            assert_eq!(
+                test_client::post(&db, "/v1/runs", Some(&key), &body)
+                    .await
+                    .status,
+                201
+            );
+        }
+        let page: MapList = test_client::get(&db, "/v1/maps?q=SPEED%20RUNNER&limit=1&offset=1")
+            .await
+            .json();
+        assert_eq!(page.total, 2);
+        assert_eq!(page.maps.len(), 1);
+        assert_eq!(page.maps[0].name, "bhop_badges");
+        assert_eq!(names(&db, "/v1/maps?q=Co%20Holder").await, ["bhop_badges"]);
+        assert_eq!(names(&db, "/v1/maps?q=Bonus%20Hero").await.len(), 0);
+        assert_eq!(
+            names(&db, "/v1/maps?q=Bonus%20Hero&style=sw").await,
+            ["bhop_badges"]
+        );
+        assert_eq!(names(&db, "/v1/maps?q=%25").await.len(), 0);
     }
 
     /// `bhop_badges`' stored player count, and the count its personal bests give.
@@ -741,7 +829,7 @@ mod tests {
                 let mut body = run(&format!("tier-{index}-{player}"), 30.0);
                 body["map"] = json!(name);
                 body["player"] = json!({
-                    "steamid64": (76561197960287930_i64 + player).to_string(),
+                    "steamid64": (76_561_197_960_287_930_i64 + player).to_string(),
                     "name": format!("player-{player}"),
                 });
                 assert_eq!(

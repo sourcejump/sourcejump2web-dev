@@ -89,10 +89,30 @@ pub fn routes() -> OpenApiRouter<AppState> {
 )]
 async fn start(
     State(state): State<AppState>,
+    headers: HeaderMap,
     jar: CookieJar,
     Query(query): Query<ReturnQuery>,
 ) -> (CookieJar, Redirect) {
     let return_to = ReturnTo::new(query.return_to.as_deref());
+    // The cookie and Steam's callback must use the same host, including localhost's aliases.
+    let host = headers
+        .get("x-forwarded-host")
+        .or_else(|| headers.get("host"));
+    if let Some(host) = host.and_then(|value| value.to_str().ok()) {
+        let origin = url::Url::parse(&format!("{}://{host}", state.public_url.scheme()))
+            .ok()
+            .map(|url| url.origin());
+        if origin != Some(state.public_url.origin()) {
+            let mut start = state
+                .public_url
+                .join("/v1/auth/steam")
+                .expect("a valid path");
+            start
+                .query_pairs_mut()
+                .append_pair("return_to", return_to.as_str());
+            return (jar, Redirect::to(start.as_str()));
+        }
+    }
     // A sign-in started in another tab since replaces this value, so only the latest one completes.
     let browser = sessions::generate();
     let login_url = openid::login_url(&state.steam, &state.public_url, &return_to, &browser);
@@ -479,6 +499,47 @@ mod tests {
         assert_eq!(again.status, 401);
         assert!(!again.headers.contains_key(header::LOCATION));
         let _: ErrorBody = again.json();
+    }
+
+    #[sqlx::test]
+    async fn sign_in_uses_its_callback_origin_before_setting_the_cookie(db: PgPool) {
+        let state = state(&db, fake_steam(true).await);
+        let response = test_client::send_to(
+            state.clone(),
+            Request::get("/v1/auth/steam?return_to=%2Fmaps%3Ftier%3D2")
+                .header(header::HOST, "127.0.0.1:8080")
+                .header("x-forwarded-host", "127.0.0.1:3000")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(response.status, 303);
+        let destination = Url::parse(response.headers[header::LOCATION].to_str().unwrap()).unwrap();
+        assert_eq!(destination.origin(), state.public_url.origin());
+        assert_eq!(destination.path(), "/v1/auth/steam");
+        assert_eq!(
+            destination.query_pairs().collect::<Vec<_>>(),
+            [("return_to".into(), "/maps?tier=2".into())]
+        );
+        assert!(set_cookie(&response, SIGN_IN_COOKIE).is_none());
+
+        let response = test_client::send_to(
+            state.clone(),
+            Request::get("/v1/auth/steam?return_to=%2Fmaps%3Ftier%3D2")
+                .header(header::HOST, "127.0.0.1:8080")
+                .header("x-forwarded-host", "sourcejump.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(response.status, 303);
+        assert!(
+            response.headers[header::LOCATION]
+                .to_str()
+                .unwrap()
+                .starts_with(state.steam.openid_endpoint.as_str())
+        );
+        assert!(set_cookie(&response, SIGN_IN_COOKIE).is_some());
     }
 
     #[sqlx::test]

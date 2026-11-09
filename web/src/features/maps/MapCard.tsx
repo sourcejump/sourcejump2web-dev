@@ -1,6 +1,8 @@
-// A map preview with its main-track top three; names wrap and numeric columns stay aligned.
+// Map details overlay the preview; records and the signed-in player's PB sit plainly below it.
 import type { Schemas } from "@/api/client";
 import { avatarSrc } from "@/features/players/avatarSrc";
+import { ReplayLink } from "@/features/replays/ReplayLink";
+import { RunLink } from "@/features/runs/RunLink";
 import { formatGap, formatTime } from "@/features/runs/time";
 import { Avatar } from "@/ui/Avatar";
 import { Badge } from "@/ui/Badge";
@@ -20,12 +22,16 @@ export function MapCard({
   leaders,
   styleName,
   styleKey,
+  showPersonalBest = false,
+  personalBest,
 }: {
   map: Schemas["MapSummary"];
   tierCount: number | null | undefined;
   leaders: readonly MapLeader[] | null;
   styleName: string;
   styleKey?: string;
+  showPersonalBest?: boolean;
+  personalBest?: MapLeader | null;
 }) {
   const entries =
     leaders ?? (map.world_record ? [{ ...map.world_record, rank: 1 }] : []);
@@ -33,51 +39,58 @@ export function MapCard({
   const fastest = record?.time ?? 0;
 
   return (
-    <Link
-      href={`/maps/${map.name}${styleKey ? `?style=${encodeURIComponent(styleKey)}` : ""}`}
+    <article
       data-map={map.name}
-      className="border-border bg-surface group hover:border-border-strong @container/map-card relative flex h-full min-w-0 flex-col overflow-hidden rounded-md border transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
+      className="border-border hover:border-accent/40 focus-within:border-accent/60 @container/map-card relative flex h-full min-w-0 flex-col overflow-hidden rounded-md border transition-colors duration-(--duration-fast)"
     >
       <div
-        aria-hidden
         className={classNames(
-          "pointer-events-none absolute inset-px overflow-hidden brightness-75",
-          styles.picture,
+          "group/cover relative flex flex-col justify-end overflow-hidden",
+          styles.cover,
         )}
       >
-        <MapImage image={map.image} size="card" />
-      </div>
-      <div className="text-shadow-over-image relative flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-4 pb-3">
-        <div className="flex max-w-full min-w-0 items-start gap-2">
-          {map.tier != null && tierCount != null && (
-            <span className="bg-gutter/90 mt-0.5 inline-flex shrink-0 rounded-sm">
-              <TierBadge tier={map.tier} tierCount={tierCount} />
-            </span>
+        <MapImage
+          image={map.image}
+          size="card"
+          className={classNames(
+            styles.preview,
+            "absolute inset-0 h-full group-hover/cover:brightness-110",
           )}
-          <h3 className="group-hover:text-accent min-w-0 text-base font-bold wrap-anywhere transition-colors duration-(--duration-fast) @md/map-card:text-lg">
-            {map.name}
-          </h3>
-        </div>
-        <p className="text-text-muted flex flex-wrap gap-x-3 text-xs">
-          <span>
-            {number.format(map.players)}{" "}
-            {map.players === 1 ? "player" : "players"}
-          </span>
-          {map.bonuses > 0 && (
+        />
+        <div className="text-shadow-over-image z-10 mt-auto min-w-0 p-3">
+          <div className="flex min-w-0 items-start gap-2">
+            {map.tier != null && tierCount != null && (
+              <span className="mt-0.5 inline-flex shrink-0">
+                <TierBadge tier={map.tier} tierCount={tierCount} />
+              </span>
+            )}
+            <h3 className="group-hover/cover:text-accent min-w-0 text-base font-bold wrap-anywhere transition-colors duration-(--duration-fast)">
+              <Link
+                href={`/maps/${map.name}${styleKey ? `?style=${encodeURIComponent(styleKey)}` : ""}`}
+                className="focus-visible:after:outline-accent after:absolute after:inset-0 after:rounded-md focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2"
+              >
+                {map.name}
+              </Link>
+            </h3>
+          </div>
+          <p className="text-text mt-1 flex flex-wrap gap-x-3 text-xs">
             <span>
-              {number.format(map.bonuses)}{" "}
-              {map.bonuses === 1 ? "bonus" : "bonuses"}
+              {number.format(map.players)}{" "}
+              {map.players === 1 ? "player" : "players"}
             </span>
-          )}
-        </p>
+            {map.bonuses > 0 && (
+              <span>
+                {number.format(map.bonuses)}{" "}
+                {map.bonuses === 1 ? "bonus" : "bonuses"}
+              </span>
+            )}
+          </p>
+        </div>
       </div>
-      <div className="relative mt-auto">
+      <div className="border-border flex min-w-0 flex-1 flex-col border-t p-3">
         <ol
           aria-label={`Top 3 in ${styleName}`}
-          className={classNames(
-            "relative mr-4 mb-4 ml-auto grid w-fit max-w-full gap-x-2 gap-y-1",
-            styles.podium,
-          )}
+          className={classNames("grid w-full gap-x-2 gap-y-1", styles.podium)}
         >
           {entries.map((entry) => (
             <li
@@ -90,29 +103,43 @@ export function MapCard({
               <span className={classNames("flex self-center", styles.rank)}>
                 <Medal placement={entry.rank} />
               </span>
-              <span className={classNames("flex self-center", styles.avatar)}>
-                <Avatar
-                  name={entry.player.name}
-                  src={avatarSrc(entry.player)}
-                  size="sm"
-                />
-              </span>
-              <span
+              <Link
+                href={`/players/${entry.player.steamid64}`}
                 className={classNames(
-                  "text-shadow-over-image min-w-0 self-end text-sm font-bold wrap-anywhere @md/map-card:text-base",
-                  styles.player,
+                  "group/player hover:text-accent relative z-10 grid min-w-0 items-center gap-x-2 rounded-sm text-sm font-bold underline-offset-4",
+                  styles.playerLink,
                 )}
               >
-                {entry.player.name}
-              </span>
+                <span className={classNames("flex", styles.avatar)}>
+                  <Avatar
+                    name={entry.player.name}
+                    src={avatarSrc(entry.player)}
+                    size="sm"
+                  />
+                </span>
+                <span
+                  className={classNames(
+                    "min-w-0 wrap-anywhere group-hover/player:underline",
+                    styles.player,
+                  )}
+                >
+                  {entry.player.name}
+                </span>
+              </Link>
               <span
                 className={classNames(
-                  "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 self-start",
+                  "relative z-10 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 self-start",
                   styles.result,
                 )}
               >
-                <span className="text-sm font-bold whitespace-nowrap tabular-nums @md/map-card:text-base">
-                  {formatTime(entry.time)}
+                <span className="inline-flex items-center gap-1 text-sm font-bold whitespace-nowrap tabular-nums">
+                  <RunLink
+                    runId={entry.run_id}
+                    className="hover:text-accent rounded-sm underline-offset-4 hover:underline"
+                  >
+                    {formatTime(entry.time)}
+                  </RunLink>
+                  <ReplayLink runId={entry.run_id} />
                 </span>
                 {entry.run_id === record?.run_id ? (
                   <Badge
@@ -131,19 +158,51 @@ export function MapCard({
             </li>
           ))}
           {entries.length === 0 && (
-            <li className="text-text-muted text-shadow-over-image col-span-full flex items-center text-sm">
-              No times in this style
-            </li>
-          )}
-          {entries.length > 0 && entries.length < 3 && (
-            <li className="text-text-muted text-shadow-over-image col-span-full flex items-end pb-1 text-xs">
-              {leaders == null
-                ? "Top 3 couldn't be loaded"
-                : `${entries.length} ${entries.length === 1 ? "ranked time" : "ranked times"} in this style`}
+            <li className="text-text-muted col-span-full flex items-center text-sm">
+              {leaders === null
+                ? "Times couldn't be loaded"
+                : "No times in this style"}
             </li>
           )}
         </ol>
+        {showPersonalBest && (
+          <div
+            role="group"
+            aria-label="Your personal best"
+            className="border-border relative z-10 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-xs tabular-nums"
+          >
+            <span className="text-text-muted">Your PB</span>
+            {personalBest ? (
+              <>
+                <span className="text-accent font-bold">
+                  #{number.format(personalBest.rank)}
+                </span>
+                <span className="inline-flex flex-wrap items-center gap-x-1.5">
+                  <RunLink
+                    runId={personalBest.run_id}
+                    className="hover:text-accent rounded-sm text-sm font-bold underline-offset-4 hover:underline"
+                  >
+                    {formatTime(personalBest.time)}
+                  </RunLink>
+                  {personalBest.time > fastest && fastest > 0 ? (
+                    <span className="text-danger">
+                      ({formatGap(personalBest.time - fastest)})
+                    </span>
+                  ) : fastest > 0 ? (
+                    <Badge tone="accent">
+                      {personalBest.run_id === record?.run_id ? "WR" : "WR tie"}
+                    </Badge>
+                  ) : null}
+                </span>
+              </>
+            ) : (
+              <span className="text-text-muted">
+                {personalBest === null ? "Not completed" : "Couldn't load PB"}
+              </span>
+            )}
+          </div>
+        )}
       </div>
-    </Link>
+    </article>
   );
 }

@@ -1,0 +1,191 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH holder_maps AS (\n            SELECT h.map_id FROM world_record_holders h\n            JOIN players p ON p.steamid64 = h.player_steamid64\n            WHERE $11::text IS NOT NULL AND h.style = $5 AND h.track = 0\n              AND p.name ILIKE $11 ESCAPE '\\'\n        ), listed AS (\n            SELECT m.id, m.name, m.last_run_at, m.players, tier.tier,\n                   row_number() OVER (ORDER BY\n                       -- How well the name matches: exactly, by a word's start (\"candy\" in bhop_candy), or within.\n                       CASE WHEN $6::text IS NULL OR m.name = $6 THEN 0\n                            WHEN starts_with(m.name, $6) OR strpos(m.name, '_' || $6) > 0 THEN 1\n                            WHEN m.name ILIKE $1 ESCAPE '\\' THEN 2\n                            WHEN m.id IN (SELECT map_id FROM holder_maps) THEN 3 ELSE 4 END,\n                       CASE WHEN m.name NOT ILIKE $1 ESCAPE '\\' AND $7 <% m.name\n                            THEN word_similarity($7, m.name) END DESC NULLS LAST,\n                       CASE WHEN $2 = 'recent' THEN m.last_run_at END DESC,\n                       CASE WHEN $2 = 'newest' THEN m.listed_at END DESC NULLS LAST,\n                       CASE $2 WHEN 'popular' THEN -m.players WHEN 'least_popular' THEN m.players END,\n                       CASE $2 WHEN 'hardest' THEN -tier.tier WHEN 'easiest' THEN tier.tier END NULLS LAST,\n                       CASE $2 WHEN 'longest_record' THEN -record.time WHEN 'shortest_record' THEN record.time END\n                           NULLS LAST,\n                       CASE WHEN $2 = 'newest_record' THEN record.finished_at END DESC NULLS LAST,\n                       CASE WHEN $2 = 'oldest_record' THEN record.finished_at END NULLS LAST,\n                       CASE WHEN $2 = 'name_desc' THEN m.name END DESC,\n                       m.name\n                   ) AS position\n            FROM maps m\n            LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0\n            -- Every map's record, read only for the sorts that need it: the page below reads the page's own.\n            LEFT JOIN LATERAL (\n                SELECT pb.time, r.finished_at\n                FROM personal_bests pb JOIN runs r ON r.id = pb.run_id\n                WHERE $2 IN ('longest_record', 'shortest_record', 'newest_record', 'oldest_record') AND pb.map_id = m.id AND pb.style = $5 AND pb.track = 0\n                ORDER BY pb.time, r.finished_at\n                LIMIT 1\n            ) record ON true\n            WHERE m.last_run_at IS NOT NULL AND ($1::text IS NULL OR m.name ILIKE $1 ESCAPE '\\'\n                OR $7 <% m.name OR m.id IN (SELECT map_id FROM holder_maps))\n              AND ($8::bigint IS NULL OR $9 = EXISTS (\n                  SELECT 1 FROM personal_bests WHERE player_steamid64 = $8 AND map_id = m.id AND style = $5 AND track = 0))\n              AND ($10::smallint IS NULL OR tier.tier = $10)\n        ), page AS (\n            SELECT * FROM listed WHERE position > $4 ORDER BY position LIMIT $3\n        )\n        SELECT page.name, ci.id AS \"image_id?\", ci.key AS \"image_key?\", ci.focus AS \"image_focus?\", page.last_run_at AS \"last_run_at!\", page.players::int8 AS \"players!\",\n               counts.bonuses AS \"bonuses!\", page.tier AS \"tier?\",\n               wr.time AS \"wr_time?\", wr.run_id AS \"wr_run_id?\", wr.finished_at AS \"wr_finished_at?\",\n               p.steamid64::text AS \"wr_steamid64?\", p.name AS \"wr_name?\", p.avatar_url AS \"wr_avatar_url?\",\n               p.country_code AS \"wr_country_code?\"\n        FROM page\n        LEFT JOIN map_images ci ON ci.map_id = page.id AND ci.position = 0\n        CROSS JOIN LATERAL (\n            SELECT count(DISTINCT track) FILTER (WHERE track > 0) AS bonuses\n            FROM personal_bests WHERE map_id = page.id\n        ) counts\n        LEFT JOIN LATERAL (\n            SELECT pb.player_steamid64, pb.time, pb.run_id, r.finished_at\n            FROM personal_bests pb JOIN runs r ON r.id = pb.run_id\n            WHERE pb.map_id = page.id AND pb.style = $5 AND pb.track = 0\n            ORDER BY pb.time, r.finished_at\n            LIMIT 1\n        ) wr ON true\n        LEFT JOIN players p ON p.steamid64 = wr.player_steamid64\n        ORDER BY page.position\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "image_id?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "image_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "image_focus?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "focus"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "last_run_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "last_run_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "players!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "bonuses!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "tier?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "current_map_tiers",
+            "name": "tier"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "wr_time?",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "wr_run_id?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "run_id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "wr_finished_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "finished_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "wr_steamid64?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 12,
+        "name": "wr_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "wr_avatar_url?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "wr_country_code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "country_code"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Bool",
+        "Int2",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      null,
+      true,
+      true,
+      true,
+      true,
+      null,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "bf0b6142252f2a50b0f7709347f6dc1326618003da8ee7441ed60865af2775a7"
+}

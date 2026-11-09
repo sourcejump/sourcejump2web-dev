@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"count!\" FROM maps m\n           WHERE last_run_at IS NOT NULL AND ($1::text IS NULL OR name ILIKE $1 ESCAPE '\\' OR $2 <% name\n             OR EXISTS (SELECT 1 FROM world_record_holders h JOIN players p ON p.steamid64 = h.player_steamid64\n                        WHERE h.map_id = m.id AND h.style = $5 AND h.track = 0 AND p.name ILIKE $7 ESCAPE '\\'))\n             AND ($3::bigint IS NULL OR $4 = EXISTS (\n                 SELECT 1 FROM personal_bests WHERE player_steamid64 = $3 AND map_id = m.id AND style = $5 AND track = 0))\n             AND ($6::smallint IS NULL OR $6 = (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Bool",
+        "Text",
+        "Int2",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "812bc73f084e7a5f90687cc457d9f91cac3b29f0211e6db655536f3c7eb9ec28"
+}

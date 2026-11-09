@@ -26,6 +26,7 @@ import { managesMaps } from "./MapHeader";
 import { MapCard } from "./MapCard";
 import { mapPodiums } from "./mapPodiums";
 import cardStyles from "./MapCard.module.css";
+import overviewStyles from "./MapOverview.module.css";
 import { MAP_NAME } from "./mapName";
 import { tierParam } from "./tierParam";
 import { avatarSrc } from "@/features/players/avatarSrc";
@@ -153,7 +154,7 @@ export async function MapList({ params }: { params: MapListParams }) {
         .catch(() => undefined);
   const list = result?.data;
   const style = list?.style ?? requestedStyle;
-  const podiums = await mapPodiums(list?.maps ?? [], style);
+  const podiums = await mapPodiums(list?.maps ?? [], style, me?.steamid64);
   const typedName = q.toLowerCase();
   const offerSetUp =
     staff &&
@@ -210,25 +211,18 @@ export async function MapList({ params }: { params: MapListParams }) {
     <div className="flex flex-col gap-5">
       <h1 className="sr-only">Maps</h1>
       {list && (
-        <MapStats
-          stats={list.stats}
-          tierCount={list.tier_count}
-          selected={tier}
-          tierHref={(choice) => href({ tier: choice })}
-          newestHref={href({ sort: "newest", page: 1 })}
-        />
+        <Card className="w-full min-w-0 xl:w-fit xl:self-center">
+          <MapStats
+            stats={list.stats}
+            tierCount={list.tier_count}
+            selected={tier}
+            tierHref={(choice) => href({ tier: choice })}
+            newestHref={href({ sort: "newest", page: 1 })}
+          />
+        </Card>
       )}
 
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-        <SearchField
-          key={q}
-          live
-          name="q"
-          defaultValue={q}
-          placeholder="Search maps or record holders..."
-          label="Search maps, or enter a SteamID"
-          className="min-w-0 lg:w-72 lg:flex-none"
-        />
+      <div className={overviewStyles.toolbar}>
         <ChoiceBar>
           {!unplayed && (
             <>
@@ -276,6 +270,15 @@ export async function MapList({ params }: { params: MapListParams }) {
           {/* Staff only, out of the way of the menus everyone uses. */}
           {staff && <div className="ml-auto">{staffTabs}</div>}
         </ChoiceBar>
+        <SearchField
+          key={q}
+          live
+          name="q"
+          defaultValue={q}
+          placeholder="Map name, WR holder or SteamID"
+          label="Search maps, WR holders, or enter a SteamID"
+          className={overviewStyles.search}
+        />
       </div>
 
       {/* With no results, the empty card below offers this instead. */}
@@ -303,7 +306,7 @@ export async function MapList({ params }: { params: MapListParams }) {
               : completion === "no"
                 ? "This player has completed every map here."
                 : q
-                  ? "No map with a run has that name."
+                  ? "No maps match that name or WR holder."
                   : tier != null
                     ? `No map with a run has tier ${tier}.`
                     : "No map has a finished run yet."}
@@ -345,7 +348,9 @@ export async function MapList({ params }: { params: MapListParams }) {
                 <MapCard
                   map={map}
                   tierCount={list.tier_count}
-                  leaders={podiums.get(map.name) ?? null}
+                  leaders={podiums.get(map.name)?.entries ?? null}
+                  showPersonalBest={me != null}
+                  personalBest={podiums.get(map.name)?.personalBest}
                   styleName={style ? styles.name(style) : "this style"}
                   styleKey={
                     style && style !== styles.keys[0] ? style : undefined
@@ -407,18 +412,14 @@ function MapStats({
     stats.played_this_week.length < 5 ||
     playedThisWeek.length === 5;
   const hasWeekly = stats.maps > 0;
-  const singleSummary = Number(newest.length > 0) + Number(hasWeekly) === 1;
   return (
-    <Card
+    <div
       role="region"
       aria-label="Map overview"
-      className={classNames(
-        "grid gap-4 p-4 sm:grid-cols-2 sm:gap-6 sm:p-5 lg:flex",
-        singleSummary && "md:flex",
-      )}
+      className={overviewStyles.overview}
     >
       {hasTiers && (
-        <div className="flex min-w-0 items-center justify-center sm:col-span-2 lg:shrink-0">
+        <div className="flex min-w-0 items-center justify-center">
           <TierSpread
             byTier={stats.by_tier}
             untiered={stats.maps - tiered}
@@ -427,10 +428,10 @@ function MapStats({
           />
         </div>
       )}
-      {newest.length > 0 && (
+      <div className={overviewStyles.summaries}>
         <MapStatsList
           title="New"
-          singleSummary={singleSummary}
+          empty="No maps to show"
           href={newestHref}
           maps={newest.map((map) => ({
             name: map.name,
@@ -439,25 +440,24 @@ function MapStats({
           }))}
           tierCount={tierCount}
         />
-      )}
-      {hasWeekly && (
-        <MapStatsList
-          title="Played this week"
-          empty={
-            weeklyScoped
-              ? "No maps played in the last seven days."
-              : "Weekly activity for this tier could not be loaded."
-          }
-          singleSummary={singleSummary}
-          maps={(weeklyScoped ? playedThisWeek : []).map((map) => ({
-            name: map.name,
-            tier: map.tier,
-            detail: `${number.format(map.players)} ${map.players === 1 ? "player" : "players"}`,
-          }))}
-          tierCount={tierCount}
-        />
-      )}
-    </Card>
+        {hasWeekly && (
+          <MapStatsList
+            title="Played this week"
+            empty={
+              weeklyScoped
+                ? "No maps played in the last seven days."
+                : "Weekly activity for this tier could not be loaded."
+            }
+            maps={(weeklyScoped ? playedThisWeek : []).map((map) => ({
+              name: map.name,
+              tier: map.tier,
+              detail: `${number.format(map.players)} ${map.players === 1 ? "player" : "players"}`,
+            }))}
+            tierCount={tierCount}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -465,69 +465,61 @@ function MapStats({
 function MapStatsList({
   title,
   empty,
-  singleSummary,
   href,
   maps,
   tierCount,
 }: {
   title: string;
   empty?: string;
-  singleSummary: boolean;
   href?: string;
   maps: { name: string; tier?: number | null; detail: string }[];
   tierCount: number | null | undefined;
 }) {
   return (
-    <section
-      aria-label={title}
-      className={classNames(
-        "border-border flex min-w-0 flex-1 flex-col justify-center border-t pt-4 first:border-0 first:pt-0 first:pl-0 sm:border-t-0 sm:pt-0 lg:border-l lg:pl-6",
-        singleSummary && "sm:col-span-2 md:border-l md:pl-6",
-      )}
-    >
-      <div className="flex w-fit max-w-full flex-col gap-2 sm:h-full sm:min-h-44">
-        <h2 className="flex h-5 items-center text-sm font-bold sm:h-8">
-          {href ? (
-            <Link href={href} className="hover:text-accent">
-              {title}
-            </Link>
-          ) : (
-            title
-          )}
-        </h2>
-        {maps.length === 0 ? (
-          <p className="text-text-muted max-w-64 text-sm">{empty}</p>
+    <section aria-label={title} className={overviewStyles.summary}>
+      <h2 className="text-sm font-bold">
+        {href ? (
+          <Link href={href} className="hover:text-accent">
+            {title}
+          </Link>
         ) : (
-          <ul
-            className="grid w-fit max-w-full gap-x-2 gap-y-1 text-sm"
-            style={{ gridTemplateColumns: "auto minmax(0, 1fr) auto" }}
-          >
-            {maps.map((map) => (
-              <li key={map.name} className="col-span-3 grid grid-cols-subgrid">
-                <Link
-                  href={`/maps/${map.name}`}
-                  className="group col-span-3 grid min-h-6 grid-cols-subgrid items-center rounded-sm"
-                >
-                  {map.tier != null && tierCount != null ? (
-                    <TierBadge tier={map.tier} tierCount={tierCount} />
-                  ) : (
-                    <span />
-                  )}
-                  <span
-                    className="group-hover:text-accent min-w-0 wrap-anywhere transition-colors duration-(--duration-fast)"
-                    title={map.name}
-                  >
-                    {map.name}
-                  </span>
-                  <span className="text-text-muted text-right tabular-nums">
-                    {map.detail}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          title
         )}
-      </div>
+      </h2>
+      {maps.length === 0 ? (
+        <p className="text-text-muted text-sm">{empty}</p>
+      ) : (
+        <ul className={overviewStyles.list}>
+          {maps.map((map) => (
+            <li key={map.name} className="min-w-0">
+              <Link
+                href={`/maps/${map.name}`}
+                className={classNames(
+                  "group rounded-sm text-sm",
+                  overviewStyles.link,
+                )}
+              >
+                {map.tier != null && tierCount != null ? (
+                  <TierBadge tier={map.tier} tierCount={tierCount} />
+                ) : (
+                  <span />
+                )}
+                <span className="group-hover:text-accent max-xs:text-xs min-w-0 wrap-anywhere underline-offset-4 group-hover:underline">
+                  {map.name}
+                </span>
+                <span
+                  className={classNames(
+                    "text-text-muted text-xs tabular-nums",
+                    overviewStyles.detail,
+                  )}
+                >
+                  {map.detail}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
