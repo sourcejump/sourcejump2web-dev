@@ -7636,6 +7636,13 @@
             "format": "int64",
             "description": "Players on its \"2.0 + pre-2.0\" view, each counted once. 0 when there are no pre-2.0 runs."
           },
+          "card_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The picture a link to the map shows (1200×630 JPEG): the cover with the map's name and tier in force.\nNone while the map has no cover; a new cover or tier gets a new card within a minute or two\n(`maps/card.rs`)."
+          },
           "created_at": {
             "type": [
               "string",
@@ -9847,6 +9854,13 @@
           },
           "map": {
             "type": "string"
+          },
+          "map_card_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The picture a link to the map shows (1200×630 JPEG), which links to its runs show too; see `MapDetail`."
           },
           "map_image": {
             "oneOf": [

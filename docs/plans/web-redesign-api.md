@@ -10,7 +10,8 @@ side, and the shortcuts the web takes until then. Delete each item once it's don
   tier. The web already uses all four: against beta, avatars 404 and profile tier badges are missing until it ships.
 - **Migration numbers:** PR #16 holds `0052` and `0053`. akanora's #26 also chose `0052`; on the integration branch
   it is `0054`, after #16's. Merge #16 first. If #26 is merged upstream on its own as `0052`, #16's two must be
-  renumbered after it (sqlx rejects a reused version with different content).
+  renumbered after it (sqlx rejects a reused version with different content). This preview keeps its applied
+  `0052`–`0054` unchanged; upstream's identical tier view is already `0054`, and its `0053_map_cards` is `0055` here.
 - **akanora's PRs #24–#29** (sourcejump/sourcejump), on local branch `integrate/akanora-prs`, one cherry-pick each
   with his authorship, then fixes, then one regenerated spec/types/query cache (commits before it don't build with
   `SQLX_OFFLINE=true`, so it ships whole). `just check` passed (303 Rust tests, web tests) bar the screenshots.

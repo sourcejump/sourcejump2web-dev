@@ -338,6 +338,7 @@ mod tests {
         .execute(&db)
         .await
         .unwrap();
+        crate::runs::tests::backdate(&db).await;
         let mut sideways = run("c", 40.0);
         sideways["style"] = json!("sw");
         sideways["ruleset_version"] = json!(2);

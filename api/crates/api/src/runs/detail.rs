@@ -27,6 +27,8 @@ pub struct RunDetail {
     pub map: String,
     /// The map's cover picture. None until staff add one.
     pub map_image: Option<MapImage>,
+    /// The picture a link to the map shows (1200×630 JPEG), which links to its runs show too; see `MapDetail`.
+    pub map_card_url: Option<String>,
     pub style: String,
     /// 0 is the main track, 1 and up are bonuses.
     pub track: i16,
@@ -95,6 +97,7 @@ pub async fn run_detail(
                 WHERE map_id = r.map_id AND style = r.style AND track = r.track) AS world_record_time,
                (SELECT tier FROM current_map_tiers WHERE map_id = r.map_id AND track = r.track) AS tier,
                ci.id AS "image_id?", ci.key AS "image_key?", ci.focus AS "image_focus?",
+               (SELECT key FROM map_cards WHERE map_id = r.map_id) AS map_card_key,
                (SELECT host(h.ip) || ':' || h.port FROM server_heartbeats h
                 JOIN server_listings l ON l.ip = h.ip AND l.port = h.port
                 WHERE h.server_id = s.id ORDER BY h.received_at DESC LIMIT 1) AS server_address
@@ -148,6 +151,7 @@ pub async fn run_detail(
         },
         map: row.map,
         map_image: MapImage::cover(&state.storage, row.image_id, row.image_key, row.image_focus),
+        map_card_url: row.map_card_key.map(|key| state.storage.public_url(&key)),
         style: row.style,
         track: row.track,
         // Tiers assigned before a tier count was published aren't in force.

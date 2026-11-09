@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT m.id, m.name, m.description, m.created_at, m.last_run_at, m.players,\n               (SELECT count(*) FROM runs WHERE map_id = m.id AND invalidated_at IS NULL) AS \"runs!\"\n        FROM maps m WHERE m.name = $1\n        ",
+  "query": "\n        SELECT m.id, m.name, m.description, m.created_at, m.last_run_at, m.players,\n               (SELECT key FROM map_cards WHERE map_id = m.id) AS card_key,\n               (SELECT count(*) FROM runs WHERE map_id = m.id AND invalidated_at IS NULL) AS \"runs!\"\n        FROM maps m WHERE m.name = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -71,6 +71,12 @@
       },
       {
         "ordinal": 6,
+        "name": "card_key",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
         "name": "runs!",
         "type_info": "Int8",
         "origin": "Expression"
@@ -88,8 +94,9 @@
       false,
       true,
       false,
+      null,
       null
     ]
   },
-  "hash": "676619a6533392a7555d60a4b03c6ef5b08272252fc21ebf8a7e3bb712604e84"
+  "hash": "6b63f952f79d6fbd02d80515bc721a8e25a5c4f20739438661fe00bcedbbce49"
 }

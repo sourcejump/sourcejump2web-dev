@@ -2119,6 +2119,12 @@ export interface components {
              */
             all_players: number;
             /**
+             * @description The picture a link to the map shows (1200×630 JPEG): the cover with the map's name and tier in force.
+             *     None while the map has no cover; a new cover or tier gets a new card within a minute or two
+             *     (`maps/card.rs`).
+             */
+            card_url?: string | null;
+            /**
              * Format: date-time
              * @description When SourceJump first saw the map: its first run or zone import. None for a map known only from
              *     legacy records.
@@ -3056,6 +3062,8 @@ export interface components {
             /** Format: int32 */
             jumps: number;
             map: string;
+            /** @description The picture a link to the map shows (1200×630 JPEG), which links to its runs show too; see `MapDetail`. */
+            map_card_url?: string | null;
             map_image?: components["schemas"]["MapImage"] | null;
             /**
              * Format: float

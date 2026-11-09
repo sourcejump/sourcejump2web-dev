@@ -41,6 +41,10 @@ pub struct MapDetail {
     pub name: String,
     /// Up to 10 pictures, in order; the first is the cover.
     pub images: Vec<MapImage>,
+    /// The picture a link to the map shows (1200×630 JPEG): the cover with the map's name and tier in force.
+    /// None while the map has no cover; a new cover or tier gets a new card within a minute or two
+    /// (`maps/card.rs`).
+    pub card_url: Option<String>,
     /// Staff's description of the map, plain text.
     pub description: Option<String>,
     /// When it was released, as precisely as staff know; none when unknown.
@@ -121,6 +125,7 @@ pub async fn map_detail(
     let found = sqlx::query!(
         r#"
         SELECT m.id, m.name, m.description, m.created_at, m.last_run_at, m.players,
+               (SELECT key FROM map_cards WHERE map_id = m.id) AS card_key,
                (SELECT count(*) FROM runs WHERE map_id = m.id AND invalidated_at IS NULL) AS "runs!"
         FROM maps m WHERE m.name = $1
         "#,
@@ -147,6 +152,7 @@ pub async fn map_detail(
     Ok(Json(MapDetail {
         name: found.name,
         images: image::images_of(&state.db, &state.storage, found.id).await?,
+        card_url: found.card_key.map(|key| state.storage.public_url(&key)),
         description: found.description,
         released: release.date,
         mapper: release.mapper,
@@ -292,6 +298,7 @@ fn known_only_before_2_0(
     MapDetail {
         name: map.into(),
         images: Vec::new(),
+        card_url: None,
         description: None,
         released: None,
         mapper: None,

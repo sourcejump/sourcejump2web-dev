@@ -87,6 +87,8 @@ async fn examples_match_the_api(db: PgPool) {
         .await
         .unwrap();
     let key = keys::issue(&db, "Example server").await.unwrap().key;
+    // The examples' runs carry fixed times.
+    crate::runs::tests::backdate(&db).await;
 
     for (name, text, check_response) in EXAMPLES {
         let example: Value = serde_json::from_str(text).unwrap();
