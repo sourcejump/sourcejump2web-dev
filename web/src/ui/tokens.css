@@ -9,8 +9,8 @@
   --color-*: initial;
 
   /*
-   * The old sourcejump.net's colors, brought up to date. `gutter` is the window either side of the page's
-   * sheet; `bg` is the sheet itself, what every page sits on. Then surfaces on it, darkest to lightest.
+   * The old sourcejump.net's colors, brought up to date. `gutter` is the continuous page background;
+   * `bg` is an inset surface, followed by the raised surfaces, darkest to lightest.
    */
   --color-gutter: #121822;
   --color-bg: #1d2636;
@@ -55,8 +55,8 @@
   /* Below 360px (the narrowest common phones) the header and home headline need to shed a little width. */
   --breakpoint-xs: 22.5rem;
 
-  /* Halfway from the old 72rem sheet to the viewport, without removing the desktop gutters. */
-  --container-site: calc((100% + 72rem) / 2);
+  /* Header, page content and footer share one centered width. */
+  --container-site: 72rem;
   --container-content: calc((100% + 56rem) / 2);
 
   --font-*: initial;
@@ -100,9 +100,6 @@
   --shadow-popover: 0 8px 24px rgb(3 8 15 / 0.5), 0 2px 6px rgb(3 8 15 / 0.4);
   --shadow-dialog: 0 24px 64px rgb(3 8 15 / 0.6);
   --shadow-glow: 0 0 0 1px var(--color-accent), 0 0 16px rgb(0 200 240 / 0.35);
-  /* The sheet's edges: a hairline and the old site's soft blue halo. */
-  --shadow-sheet:
-    0 0 0 1px rgb(61 79 112 / 0.6), 0 0 24px 1px rgb(54 71 100 / 0.45);
   /* Text laid over a picture (a map's banner), readable without darkening the picture. */
   --text-shadow-over-image:
     0 1px 2px rgb(3 8 15 / 0.9), 0 0 12px rgb(3 8 15 / 0.7);

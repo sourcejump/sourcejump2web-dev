@@ -23,7 +23,7 @@
     cursor: pointer;
   }
 
-  /* The window either side of the sheet; pages sit on the sheet (the root layout). */
+  /* One background across the viewport, with centered content in the root layout. */
   body {
     background: var(--color-gutter);
     color: var(--color-text);
