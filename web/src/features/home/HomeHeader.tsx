@@ -1,77 +1,88 @@
-// The home page's header: the site's picture with its name over it, and the way in.
-import Image from "next/image";
-import type { CSSProperties } from "react";
-import { ButtonLink } from "@/ui/Button";
-import { HeaderDepth } from "./HeaderDepth";
-import header from "./header.png";
-import headerDepth from "./header-depth.webp";
+import { ArrowUpRight } from "lucide-react";
+import { Dot } from "@/ui/Dot";
+import { formatDate } from "@/features/runs/time";
+import { latestUpload, youtubeChannel } from "./latestUpload";
+import { UploadPlayer } from "./UploadPlayer";
 
-// Wider than a phone, the picture is shown at its own size, centered and cropped: shrinking it to fit averages
-// away its fine grain, which is what makes it look sharp. Centered by position rather than a transform, which
-// the browser snaps to whole pixels; a half-pixel offset would blur the picture again.
-const nativeSize =
-  "sm:absolute sm:top-(--top) sm:left-(--left) sm:h-(--height) sm:w-(--width) sm:max-w-none";
-const nativePlacement = {
-  "--width": `${header.width}px`,
-  "--height": `${header.height}px`,
-  "--left": `calc(50% - ${header.width / 2}px)`,
-  "--top": `calc(50% - ${header.height / 2}px)`,
-} as CSSProperties;
+const views = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 
-/** A static import, so Next.js knows the size, serves modern formats at the screen's width, and blurs in. */
-export function HomeHeader() {
+export async function HomeHeader() {
+  const upload = await latestUpload().catch(() => null);
+  const hasRun = upload?.map && upload.player && upload.time;
+
   return (
-    <header className="border-border relative flex h-80 overflow-hidden rounded-md border sm:h-72">
-      {/* On a phone the text takes the lower half, so the picture fills only the top two thirds and fades out
-          there: the jumper then sits between the top edge and the text instead of behind it. The settle zoom is
-          on this box so the depth canvas moves with the picture. */}
-      <div className="motion-settle absolute inset-x-0 top-0 h-2/3 sm:inset-0 sm:h-auto">
-        <Image
-          src={header}
-          alt=""
-          priority
-          quality={90}
-          placeholder="blur"
-          sizes={`(min-width: 40rem) ${header.width}px, 100vw`}
-          style={nativePlacement}
-          className={`size-full object-cover ${nativeSize}`}
-        />
-        <HeaderDepth
-          depth={headerDepth.src}
-          style={nativePlacement}
-          className={`pointer-events-none hidden ${nativeSize} sm:block`}
-        />
-        <div className="from-bg absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t to-transparent sm:hidden" />
-      </div>
-      {/* Fades the picture into the page at the bottom and darkens its left side, so the text stays readable on
-          any part of it. */}
-      <div className="from-bg absolute inset-0 bg-linear-to-t via-transparent to-transparent" />
-      <div className="from-bg/80 absolute inset-0 bg-linear-to-r to-transparent to-60%" />
-      <div className="relative mt-auto flex flex-col gap-4 p-6 sm:p-8">
-        <div className="flex flex-col gap-1">
-          <h1 className="motion-enter xs:text-4xl text-3xl font-bold tracking-tight">
-            SourceJump
-          </h1>
-          <p className="motion-enter text-text-muted text-lg" style={delay(80)}>
-            The global bunnyhop community for Counter-Strike: Source.
-          </p>
-        </div>
-        {/* Its own compositing layer: with the depth canvas redrawing beneath every frame, some GPU browsers drew a
-            hovered button's new color for a frame and then the stale one again (Chromium, NVIDIA, 2026-11-08). */}
-        <div
-          className="motion-enter flex flex-wrap items-center gap-3 will-change-transform"
-          style={delay(160)}
+    <section
+      aria-labelledby="latest-upload-heading"
+      className="flex flex-col gap-3"
+    >
+      <h1 className="sr-only">SourceJump</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h2 id="latest-upload-heading" className="text-lg font-bold">
+          Latest upload
+        </h2>
+        <a
+          href={youtubeChannel}
+          target="_blank"
+          rel="noreferrer"
+          className="text-text-muted hover:text-accent inline-flex items-center gap-1 text-sm transition-colors"
         >
-          <ButtonLink href="/servers" variant="primary">
-            Find a server
-          </ButtonLink>
-          <ButtonLink href="/maps">Browse maps</ButtonLink>
-        </div>
+          Open channel <ArrowUpRight aria-hidden className="size-4" />
+        </a>
       </div>
-    </header>
+      {upload ? (
+        <div className="border-border bg-surface grid overflow-hidden rounded-md border md:grid-cols-5">
+          <UploadPlayer
+            key={upload.id}
+            id={upload.id}
+            title={upload.title}
+            thumbnail={upload.thumbnail}
+          />
+          <div className="flex min-w-0 flex-col justify-center gap-5 p-5 sm:p-7 md:col-span-2">
+            <div className="flex flex-col gap-4">
+              <h3 className="text-xl font-bold wrap-anywhere sm:text-2xl">
+                {hasRun ? upload.title.split(/\s+in\s+\d/)[0] : upload.title}
+              </h3>
+              {hasRun && (
+                <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span
+                    aria-label={`Run time ${upload.time}`}
+                    className="text-accent text-2xl font-bold tabular-nums"
+                  >
+                    {upload.time}
+                  </span>
+                  <span className="text-text-muted text-sm">
+                    by <span className="text-text">{upload.player}</span>
+                  </span>
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-4">
+              <p className="text-text-subtle flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                {upload.views !== undefined && (
+                  <>
+                    <span>{views.format(upload.views)} views</span>
+                    <Dot />
+                  </>
+                )}
+                <time
+                  dateTime={upload.publishedAt}
+                  title={formatDate(upload.publishedAt)}
+                >
+                  {upload.age}
+                </time>
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="border-border bg-surface text-text-muted rounded-md border p-6 text-sm">
+          The latest upload couldn&apos;t be loaded. You can still watch it on
+          the channel.
+        </p>
+      )}
+    </section>
   );
-}
-
-function delay(ms: number): CSSProperties {
-  return { "--motion-delay": `${ms}ms` } as CSSProperties;
 }
