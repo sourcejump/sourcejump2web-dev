@@ -1,5 +1,4 @@
-// Maps page: every map with a finished run, searchable, with its world record in a chosen style. MapList sets out
-// the page, title included, since the count beside the title comes with the list.
+// Maps page: the difficulty overview, filters and maps with a finished run in the chosen style.
 import type { Metadata } from "next";
 import { MapList } from "@/features/maps/MapList";
 import { Page } from "@/ui/Page";

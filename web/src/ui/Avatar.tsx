@@ -1,7 +1,7 @@
 "use client";
 // A player's picture, or their initials when there is none or it doesn't load (the API's avatar route before an
 // API that has it is deployed, or Steam's CDN failing).
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { classNames } from "./classNames";
 
 type Size = "sm" | "md" | "lg" | "xl";
@@ -31,11 +31,19 @@ export function Avatar({
   );
   // The picture this element failed to load, so a new `src` gets its own try.
   const [failed, setFailed] = useState<string>();
+  // A cached failure can arrive before hydration attaches the error handler.
+  const imageRef = useCallback(
+    (image: HTMLImageElement | null) => {
+      if (image?.complete && image.naturalWidth === 0) setFailed(src);
+    },
+    [src],
+  );
   if (src && src !== failed) {
     // Steam serves avatars pre-sized from its CDN, so next/image's resizing would add nothing.
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
+        ref={imageRef}
         src={src}
         alt=""
         className={classes}

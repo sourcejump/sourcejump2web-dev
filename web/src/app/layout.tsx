@@ -56,7 +56,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </div>
         {/* The sheet, as the old sourcejump.net had it: one column down the middle of the window, edges lit,
             holding the header, the page and the footer, the gutters either side. */}
-        <div className="bg-bg shadow-sheet mx-auto flex w-full max-w-6xl flex-1 flex-col">
+        <div className="bg-bg shadow-sheet max-w-site mx-auto flex w-full flex-1 flex-col">
           {/* The header and page fill at least the window, so the footer starts right at the fold: the page
               always scrolls, and the scrollbar doesn't come and go between short and long pages. The space
               above the footer is padding in here, not a margin on the footer, so it doesn't push it lower. */}

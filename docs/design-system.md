@@ -3,7 +3,7 @@ One visual language for every page, so pages can't drift apart. See it at `/dev/
 
 ## Direction
 "Classic" (2026-11-07): the old sourcejump.net, updated. Replaced "Navy".
-- A slate sheet (`bg`, `shadow-sheet`) between darker gutters. One cyan accent; at most one primary button per view.
+- A slate sheet (`bg`, `shadow-sheet`) with gutters, halfway from 72rem to full width. One cyan accent; at most one primary button per view.
 - Gamified but professional: medals, tier colors, WR badges, count-ups and small motions. No mascots, confetti, slogans or sales copy.
 - Geist: 450 regular, 700 bold, matched to the old Play; Exo 2 bold (`font-server`) for server names. Times and tables use equal-width digits.
 - Corners: `rounded-md` (8px) for every frame, from a panel to a field or button; `rounded-sm` (4px) for badges and rows inside a frame.
@@ -41,7 +41,7 @@ One visual language for every page, so pages can't drift apart. See it at `/dev/
 | `DividedList`, `DividedSection` | Rows with lines between them, and a part set off by a line above, inside a `Card` or `Dialog`. The lines run to the surface's edges |
 | `StepChart` | A value that changes in steps over time (WR history). Hover snaps a crosshair to the nearest point; points take focus and open their link |
 | `LineChart` | One count over time from zero (players online). CSS-stretched, so it fills its box before scripts load. Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
-| `TierSpread` | Maps per tier: a donut beside each tier's count and share; slices and rows link to that tier's maps, the rest dim; "All tiers" goes back (Maps page) |
+| `TierSpread` | Tier donut (bar on phones) and count/share legend. Rows and slices filter maps; "All tiers" resets; other slices dim |
 | `Dot` | "·" in a wrapping line; hidden on phones, where it could end one |
 | `Tooltip` | Hint on hover and focus; child takes focus |
 | `Menu`, `MenuItem`, `MenuLink`, `MenuSeparator` | Menu button (account; `sheet`: phone menu) |

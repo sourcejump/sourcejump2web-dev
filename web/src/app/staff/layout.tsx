@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function StaffLayout({ children }: LayoutProps<"/staff">) {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-10 lg:flex-row lg:gap-10">
+    <div className="mx-auto flex w-full max-w-full flex-1 flex-col gap-6 px-4 py-10 lg:flex-row lg:gap-10">
       <StaffSidebar />
       {children}
     </div>

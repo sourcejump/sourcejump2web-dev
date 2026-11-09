@@ -55,6 +55,10 @@
   /* Below 360px (the narrowest common phones) the header and home headline need to shed a little width. */
   --breakpoint-xs: 22.5rem;
 
+  /* Halfway from the old 72rem sheet to the viewport, without removing the desktop gutters. */
+  --container-site: calc((100% + 72rem) / 2);
+  --container-content: calc((100% + 56rem) / 2);
+
   --font-*: initial;
   --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   /* Game servers' names, as a server browser shows them. */

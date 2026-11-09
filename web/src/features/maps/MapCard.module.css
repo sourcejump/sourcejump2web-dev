@@ -1,0 +1,89 @@
+/* Shared podium columns switch with the card's width, not the viewport's. */
+.picture {
+  mask-image: linear-gradient(to right, black 40%, transparent 60%);
+}
+
+.cards {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.podium {
+  align-content: start;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  min-block-size: calc(var(--spacing) * 38);
+}
+
+.entry {
+  min-block-size: calc(var(--spacing) * 12);
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.rank {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.avatar {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.player {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.result {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+/* Intrinsic name and time columns stay together instead of filling the card with blank space. */
+@container (min-width: 20rem) {
+  .podium {
+    grid-template-columns:
+      auto auto minmax(0, max-content)
+      max-content max-content;
+    min-block-size: calc(var(--spacing) * 26);
+  }
+
+  .entry {
+    min-block-size: calc(var(--spacing) * 8);
+  }
+
+  .player,
+  .result {
+    align-self: center;
+  }
+
+  .rank,
+  .avatar {
+    grid-row: 1;
+  }
+
+  .result {
+    display: grid;
+    grid-column: 4 / span 2;
+    grid-row: 1;
+    grid-template-columns: subgrid;
+  }
+}
+
+@container (min-width: 42rem) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 64rem) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 88rem) {
+  .cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
