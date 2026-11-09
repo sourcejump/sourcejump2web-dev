@@ -1,0 +1,97 @@
+.stat {
+  isolation: isolate;
+  background-image: radial-gradient(
+    ellipse at 100% 0%,
+    color-mix(in srgb, var(--stat-color) 12%, transparent),
+    transparent 70%
+  );
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+}
+
+.stat::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background-image: inherit;
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.stat[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--stat-color) 45%, var(--color-border));
+  background-color: color-mix(
+    in srgb,
+    var(--stat-color) 6%,
+    var(--color-surface)
+  );
+}
+
+.stat:focus-visible {
+  outline-color: var(--stat-color);
+}
+
+.icon {
+  color: var(--stat-color);
+  background-color: color-mix(in srgb, var(--stat-color) 20%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--stat-color) 12%, transparent);
+  transition:
+    background-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+}
+
+.value {
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.progress {
+  background-color: var(--stat-color);
+}
+
+@media (hover: hover) {
+  .stat:is(:hover, :focus-visible) {
+    border-color: color-mix(
+      in srgb,
+      var(--stat-color) 45%,
+      var(--color-border)
+    );
+    box-shadow: 0 4px 20px
+      color-mix(in srgb, var(--stat-color) 10%, transparent);
+    transform: translateY(-2px);
+  }
+
+  .stat:is(:hover, :focus-visible)::before {
+    opacity: 1;
+  }
+
+  .stat:is(:hover, :focus-visible) .icon {
+    background-color: color-mix(in srgb, var(--stat-color) 30%, transparent);
+    box-shadow:
+      0 0 24px color-mix(in srgb, var(--stat-color) 25%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--stat-color) 25%, transparent);
+    transform: scale(1.06);
+  }
+
+  .stat:is(:hover, :focus-visible) .value {
+    color: color-mix(in srgb, var(--stat-color) 65%, var(--color-text));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat,
+  .stat::before,
+  .icon,
+  .value {
+    transition: none;
+  }
+
+  .stat:is(:hover, :focus-visible),
+  .stat:is(:hover, :focus-visible) .icon {
+    transform: none;
+  }
+}

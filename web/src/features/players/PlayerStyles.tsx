@@ -4,7 +4,25 @@
 // arrives with the profile, so switching styles happens in place; bonuses, world records and the normal
 // style's pre-2.0 views load when chosen. The counts are 2.0's in every view.
 import { useSearchParams } from "next/navigation";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  Globe,
+  Trophy,
+  Medal as MedalIcon,
+  Star,
+  Map as MapIcon,
+  Gem,
+} from "lucide-react";
+import { ProfileHistory } from "./ProfileHistory";
+import type { ProfileHistoryPoint } from "./sampleHistory";
+import styles from "./PlayerStyles.module.css";
 import { api, type Schemas } from "@/api/client";
 import { LegacyBadge } from "@/features/legacy/LegacyBadge";
 import { ReplayLink } from "@/features/replays/ReplayLink";
@@ -49,29 +67,48 @@ import {
 
 const PAGE_SIZE = 50;
 const numbers = new Intl.NumberFormat("en");
-const percent = new Intl.NumberFormat("en", { style: "percent" });
 /** The Style and Track menus' choice of every style or every track. */
 const ANY = "any";
 
 type Tracks = "main" | "bonuses" | typeof ANY;
+type Show = "all" | "records" | "top10";
 
 export function PlayerStyles({
   player,
   styleOrder,
   styleNames,
+  history,
+  details,
+  bonusTotal,
 }: {
   player: Schemas["PlayerProfile"];
   /** Style keys in the ruleset's order. */
   styleOrder: string[];
   styleNames: Record<string, string>;
+  history?: Record<string, ProfileHistoryPoint[]>;
+  details?: ReactNode;
+  bonusTotal?: number;
 }) {
   const params = useSearchParams();
+  const times = useRef<HTMLElement>(null);
+  const choiceKey = `${player.steamid64}:${params.get("style") ?? ""}:${params.get("tracks") ?? ""}`;
+  const [loaded, setLoaded] = useState<{
+    key: string;
+    rows: Schemas["PersonalBest"][];
+  }>();
+  const acceptRows = useCallback(
+    (rows: Schemas["PersonalBest"][]) => setLoaded({ key: choiceKey, rows }),
+    [choiceKey],
+  );
   const hasLegacy = player.legacy_maps > 0;
   const tracksParam = params.get("tracks");
   const tracks: Tracks =
     tracksParam === "bonuses" || tracksParam === ANY ? tracksParam : "main";
-  // World records are 2.0 placements, so showing them alone sets aside the pre-2.0 views.
-  const records = params.get("show") === "records";
+  // Placements are 2.0's, so filtering by them sets aside the pre-2.0 views.
+  const showParam = params.get("show");
+  const show: Show =
+    showParam === "records" || showParam === "top10" ? showParam : "all";
+  const records = show === "records";
   // The same choices on every profile, as on map pages: any style, every ranked style, then any the ruleset no
   // longer ranks that the player has times in. Styles without times are dimmed.
   const retired = player.styles
@@ -91,7 +128,10 @@ export function PlayerStyles({
   // The cards' numbers: one style's, or across every style.
   const counts = anyStyle ? player.all_styles : current;
   const withViews =
-    hasLegacy && styleKey === LEGACY_STYLE && tracks === "main" && !records;
+    hasLegacy &&
+    styleKey === LEGACY_STYLE &&
+    tracks === "main" &&
+    show === "all";
   // 2.0 first (lead, 2026-10-26); a player with no 2.0 runs in the style opens on their pre-2.0 runs.
   const view: View = withViews
     ? viewFrom(params.get("view"), current ? "current" : "legacy")
@@ -101,41 +141,128 @@ export function PlayerStyles({
   const shownTotal =
     tracks === "main" ? maps : tracks === "bonuses" ? bonuses : maps + bonuses;
   const styleName = anyStyle ? "" : `${styleNames[styleKey] ?? styleKey} `;
-  // The leaderboards and the map list are per style and kind of track; "any" opens their defaults.
-  const boardStyle =
-    anyStyle || styleKey === styleOrder[0] ? {} : { style: styleKey };
+  const ranked = anyStyle
+    ? styleKeys
+        .map(summary)
+        .find(
+          (style) =>
+            style &&
+            (tracks === "bonuses" ? style.bonus_standing : style.main_standing),
+        )
+    : current;
+  const standing =
+    tracks === "bonuses" ? ranked?.bonus_standing : ranked?.main_standing;
+  const historyStyle = ranked?.style ?? styleKey;
+  const historyName = styleNames[historyStyle] ?? historyStyle;
+  const rows = loaded?.key === choiceKey ? loaded.rows : undefined;
+  const completeFirst =
+    tracks === "main" && current && !current.next_cursor
+      ? current.personal_bests
+      : undefined;
+  const top10 =
+    view !== "current"
+      ? undefined
+      : !shownTotal
+        ? 0
+        : (rows ?? completeFirst)?.filter(
+            (pb) => pb.rank != null && pb.rank <= 10,
+          ).length;
+  const pointsStyle = ranked?.style ?? (anyStyle ? styleOrder[0] : styleKey);
+  const pointsHref = withQuery("/leaderboards/points", {
+    style: pointsStyle !== styleOrder[0] ? pointsStyle : undefined,
+    ...(tracks === "bonuses" && { track: "bonuses" }),
+  });
 
   // The choice lives in the address, so a view can be shared, but changing it doesn't load a page.
   function choose(choice: {
     style?: string;
     tracks?: Tracks;
     view?: View;
-    records?: boolean;
+    show?: Show;
   }) {
     const url = new URL(window.location.href);
     url.searchParams.set("style", choice.style ?? styleKey ?? LEGACY_STYLE);
     const nextTracks = choice.tracks ?? tracks;
     if (nextTracks === "main") url.searchParams.delete("tracks");
     else url.searchParams.set("tracks", nextTracks);
-    if (choice.records ?? records) url.searchParams.set("show", "records");
+    const nextShow = choice.show ?? show;
+    if (nextShow !== "all") url.searchParams.set("show", nextShow);
     else url.searchParams.delete("show");
     if (choice.view) url.searchParams.set("view", choice.view);
     else url.searchParams.delete("view");
     window.history.replaceState(null, "", url);
   }
 
+  function showTimes(nextShow: Show, nextTracks: Tracks = tracks) {
+    choose({ show: nextShow, tracks: nextTracks, view: "current" });
+    times.current?.focus({ preventScroll: true });
+    times.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "start",
+    });
+  }
+
   return (
     <>
-      {/* The style's progress, split into what each number opens: completed maps and world records, compact like the
-          home page's numbers. The rank leads the header above. */}
-      <div className="motion-enter border-border bg-surface divide-border grid grid-cols-2 divide-x overflow-hidden rounded-md border">
+      <section
+        aria-label="Player statistics"
+        className="motion-enter grid grid-cols-2 gap-3 sm:grid-cols-3"
+      >
+        <StatLink href={pointsHref} color="var(--color-profile-rank)">
+          <StatText>Global rank</StatText>
+          <StatIcon>
+            <Globe />
+          </StatIcon>
+          <StatValue>
+            {standing ? `#${numbers.format(standing.rank)}` : "—"}
+          </StatValue>
+        </StatLink>
         <StatLink
-          href={withQuery("/maps", {
-            player: player.steamid64,
-            completed: "yes",
-            ...boardStyle,
-          })}
+          color="var(--color-gold)"
+          pressed={records}
+          onClick={() => showTimes(records ? "all" : "records", ANY)}
         >
+          <StatText>World records</StatText>
+          <StatIcon>
+            <Trophy />
+          </StatIcon>
+          <StatValue>
+            <CountUp value={counts?.world_records ?? 0} />
+          </StatValue>
+        </StatLink>
+        <StatLink
+          color="var(--color-profile-top10)"
+          pressed={show === "top10"}
+          onClick={() => showTimes(show === "top10" ? "all" : "top10")}
+        >
+          <StatText>Top 10s</StatText>
+          <StatIcon>
+            <MedalIcon />
+          </StatIcon>
+          <StatValue>
+            {top10 === undefined ? "—" : numbers.format(top10)}
+          </StatValue>
+        </StatLink>
+        <StatLink href={pointsHref} color="var(--color-accent)">
+          <StatText>Points</StatText>
+          <StatIcon>
+            <Star />
+          </StatIcon>
+          <StatValue>
+            <CountUp value={standing?.points ?? 0} />
+          </StatValue>
+        </StatLink>
+        <StatLink
+          color="var(--color-profile-maps)"
+          pressed={tracks === "main" && show === "all" && view === "current"}
+          onClick={() => showTimes("all", "main")}
+        >
+          <StatText>Maps completed</StatText>
+          <StatIcon>
+            <MapIcon />
+          </StatIcon>
           <StatValue>
             <CountUp value={maps} />
             <span className="text-text-muted text-sm font-normal">
@@ -143,78 +270,72 @@ export function PlayerStyles({
               / {numbers.format(player.map_count)}
             </span>
           </StatValue>
-          <StatText>
-            completed maps
-            {bonuses > 0 && (
-              <span className="max-sm:hidden">
-                {` · ${bonuses} ${bonuses === 1 ? "bonus" : "bonuses"}`}
-              </span>
-            )}
-          </StatText>
           {player.map_count > 0 && (
-            <span className="text-text-muted ml-auto shrink-0 text-xs font-bold tabular-nums max-lg:hidden">
-              {percent.format(maps / player.map_count)}
+            <span
+              aria-hidden
+              className="bg-surface-overlay absolute inset-x-0 bottom-0 h-1"
+            >
+              <span
+                className={classNames("block h-full", styles.progress)}
+                style={{
+                  width: `${Math.min(100, (maps / player.map_count) * 100)}%`,
+                }}
+              />
             </span>
           )}
-          {/* How far through the map list they are, along the cell's foot; the numbers say it for screen readers. */}
-          <span
-            aria-hidden
-            className="bg-surface-overlay absolute inset-x-0 bottom-0 h-0.5"
-          >
-            <span
-              className="bg-accent/60 block h-full"
-              style={{
-                width: `${player.map_count ? Math.min(100, (maps / player.map_count) * 100) : 0}%`,
-              }}
-            />
-          </span>
         </StatLink>
-        {/* Every world record, newest first: any style, any track, 2.0 runs; pressed again, back to the opening view. A
-            player without one has nothing to open. */}
         <StatLink
-          pressed={records}
-          onClick={
-            counts?.world_records || records
-              ? () =>
-                  records
-                    ? choose({
-                        style: styleKeys.find(hasTimes) ?? styleKeys[0],
-                        tracks: "main",
-                        records: false,
-                      })
-                    : choose({ style: ANY, tracks: ANY, records: true })
-              : undefined
-          }
+          color="var(--color-success)"
+          pressed={tracks === "bonuses" && show === "all"}
+          onClick={() => showTimes("all", "bonuses")}
         >
-          <StatValue color={counts?.world_records ? "text-accent" : undefined}>
-            <CountUp value={counts?.world_records ?? 0} />
+          <StatText>Bonuses completed</StatText>
+          <StatIcon>
+            <Gem />
+          </StatIcon>
+          <StatValue>
+            <CountUp value={bonuses} />
+            {bonusTotal != null && (
+              <span className="text-text-muted text-sm font-normal">
+                {" "}
+                / {numbers.format(bonusTotal)}
+              </span>
+            )}
           </StatValue>
-          <StatText>world records</StatText>
-          {counts?.world_records ? (
-            <span className="text-text-subtle group-hover:text-text ml-auto shrink-0 text-xs transition-colors duration-(--duration-fast) max-lg:hidden">
-              {records ? "Showing all" : "Show all"}
+          {bonusTotal != null && bonusTotal > 0 && (
+            <span
+              aria-hidden
+              className="bg-surface-overlay absolute inset-x-0 bottom-0 h-1"
+            >
+              <span
+                className={classNames("block h-full", styles.progress)}
+                style={{
+                  width: `${Math.min(100, (bonuses / bonusTotal) * 100)}%`,
+                }}
+              />
             </span>
-          ) : null}
+          )}
         </StatLink>
-      </div>
+      </section>
+      <ProfileHistory
+        series={
+          history?.[
+            `${historyStyle}:${tracks === "bonuses" ? "bonuses" : "main"}`
+          ]
+        }
+        styleName={historyName}
+        bonuses={tracks === "bonuses"}
+      />
+      {details}
 
       {/* The choices sit with the list they narrow, under the overview. */}
-      <div className="flex flex-col gap-3">
+      <section
+        ref={times}
+        aria-label="Player times"
+        tabIndex={-1}
+        className="flex scroll-mt-20 flex-col gap-3 focus-visible:-outline-offset-2"
+      >
         <ChoiceBar>
-          <ChoiceMenu
-            label="Style"
-            options={[
-              { value: ANY, label: "Any" },
-              ...styleKeys.map((key, index) => ({
-                value: key,
-                label: styleNames[key] ?? key,
-                quiet: !hasTimes(key),
-                startsGroup: index === 0,
-              })),
-            ]}
-            value={styleKey}
-            onChange={(style) => choose({ style })}
-          />
           <ChoiceMenu
             label="Track"
             options={[
@@ -230,7 +351,7 @@ export function PlayerStyles({
             }
           />
           <ChoiceMenu
-            // Its values ("All runs", "World records") say what it is, so a phone leaves the word out.
+            // Its values say what it is, so a phone leaves the word out.
             label={<span className="max-sm:hidden">Show</span>}
             options={[
               { value: "all", label: "All runs" },
@@ -239,9 +360,14 @@ export function PlayerStyles({
                 label: "World records",
                 quiet: !counts?.world_records,
               },
+              { value: "top10", label: "Top 10s", quiet: top10 === 0 },
             ]}
-            value={records ? "records" : "all"}
-            onChange={(value) => choose({ records: value === "records" })}
+            value={show}
+            onChange={(value) =>
+              choose({
+                show: value === "records" || value === "top10" ? value : "all",
+              })
+            }
           />
           <ViewMenu
             value={view}
@@ -265,11 +391,13 @@ export function PlayerStyles({
           <PersonalBests
             key={`${styleKey}-${tracks}-${view}-${records}`}
             steamid64={player.steamid64}
+            onLoaded={view === "current" && !records ? acceptRows : undefined}
             style={anyStyle ? undefined : styleKey}
             styleName={(key) => styleNames[key] ?? key}
             tracks={tracks === ANY ? undefined : tracks}
             view={view}
             records={records}
+            top10Only={show === "top10"}
             first={
               view === "current" && tracks === "main" && current && !records
                 ? {
@@ -282,13 +410,13 @@ export function PlayerStyles({
             // The world record count covers main tracks and bonuses together, so it can't total one of them; across
             // styles the counts are of maps, not of each style's personal best on them.
             total={
-              view === "current" && !records && !anyStyle
+              view === "current" && show === "all" && !anyStyle
                 ? shownTotal
                 : undefined
             }
           />
         )}
-      </div>
+      </section>
     </>
   );
 }
@@ -314,6 +442,7 @@ function StatLink({
   href,
   onClick,
   pressed,
+  color,
   className,
   children,
 }: {
@@ -321,24 +450,21 @@ function StatLink({
   onClick?: () => void;
   /** For a cell that switches a view: whether that view is showing. */
   pressed?: boolean;
+  color: string;
   className?: string;
   children: ReactNode;
 }) {
-  // Number over its words on narrow screens, side by side from lg, as the home page's numbers.
   const classes = classNames(
-    "group relative flex min-w-0 flex-col px-3 py-2 text-left sm:px-4 sm:py-3 lg:flex-row lg:items-baseline lg:gap-2",
+    "group border-border bg-surface relative flex min-h-28 min-w-0 flex-col gap-3 overflow-hidden rounded-md border p-4 text-left sm:p-5",
+    styles.stat,
     className,
   );
+  const style = { "--stat-color": color } as CSSProperties;
   // The panel clips its corners, so the focus ring is drawn inside the cell.
-  const clickable = classNames(
-    classes,
-    "hover:bg-text/4 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2",
-    // On, in the accent, as a pressed ghost button shows it.
-    pressed && "bg-accent-soft hover:bg-accent-soft",
-  );
+  const clickable = classNames(classes, "focus-visible:-outline-offset-2");
   if (href) {
     return (
-      <Link href={href} className={clickable}>
+      <Link href={href} className={clickable} style={style}>
         {children}
       </Link>
     );
@@ -350,27 +476,26 @@ function StatLink({
         onClick={onClick}
         aria-pressed={pressed}
         className={clickable}
+        style={style}
       >
         {children}
       </button>
     );
   }
-  return <div className={classes}>{children}</div>;
+  return (
+    <div className={classes} style={style}>
+      {children}
+    </div>
+  );
 }
 
-/** A standing cell's number: in its own color (a medal, the record accent), or the accent on hover as at home. */
-function StatValue({
-  color,
-  children,
-}: {
-  color?: string;
-  children: ReactNode;
-}) {
+/** A standing cell's number, accented in the card's color on hover. */
+function StatValue({ children }: { children: ReactNode }) {
   return (
     <span
       className={classNames(
-        "shrink-0 text-lg font-bold transition-colors duration-(--duration-fast)",
-        color ?? "group-hover:text-accent",
+        "flex min-w-0 flex-wrap items-baseline gap-x-2 text-xl font-bold tabular-nums sm:text-2xl",
+        styles.value,
       )}
     >
       {children}
@@ -381,7 +506,21 @@ function StatValue({
 /** What a standing cell's number counts. */
 function StatText({ children }: { children: ReactNode }) {
   return (
-    <span className="text-text-muted group-hover:text-text min-w-0 text-xs transition-colors duration-(--duration-fast) sm:text-sm lg:truncate">
+    <span className="text-text-muted group-hover:text-text min-h-10 min-w-0 pr-8 text-sm transition-colors duration-(--duration-fast)">
+      {children}
+    </span>
+  );
+}
+
+function StatIcon({ children }: { children: ReactNode }) {
+  return (
+    <span
+      aria-hidden
+      className={classNames(
+        "absolute top-4 right-4 inline-flex size-8 items-center justify-center rounded-md sm:top-5 sm:right-5 [&_svg]:size-4",
+        styles.icon,
+      )}
+    >
       {children}
     </span>
   );
@@ -395,9 +534,11 @@ function PersonalBests({
   tracks,
   view,
   records,
+  top10Only,
   first,
   total,
   tierCount,
+  onLoaded,
 }: {
   steamid64: string;
   /** Left out for every style, listed most recently finished first. */
@@ -408,12 +549,14 @@ function PersonalBests({
   view: View;
   /** World records alone. */
   records: boolean;
+  top10Only: boolean;
   /** The first page when it came with the profile; left out, it's loaded here. */
   first?: Pick<Schemas["PersonalBestPage"], "personal_bests" | "next_cursor">;
   /** How many there are, when known up front (2.0's counts); the other views count what they've shown. */
   total?: number;
   /** Tiers in force, for the badges; undefined until the community sets tiers. */
   tierCount?: number;
+  onLoaded?: (rows: Schemas["PersonalBest"][]) => void;
 }) {
   // The API's own order: by map in one style, newest first across styles.
   const apiOrder: PbSort = style
@@ -527,6 +670,11 @@ function PersonalBests({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the key remounts this for another style or view
   }, []);
 
+  useEffect(() => {
+    if (personalBests && !cursor && !loading && !failed)
+      onLoaded?.(personalBests);
+  }, [personalBests, cursor, loading, failed, onLoaded]);
+
   if (!personalBests) {
     return failed ? (
       <p className="text-danger text-sm">
@@ -539,12 +687,15 @@ function PersonalBests({
       </p>
     );
   }
-  const count = total ?? personalBests.length;
+  const matching = top10Only
+    ? personalBests.filter((pb) => pb.rank != null && pb.rank <= 10)
+    : personalBests;
+  const count = top10Only ? matching.length : (total ?? personalBests.length);
   // World records count bonuses with main tracks, so one kind of track can have none while the count doesn't.
-  if (personalBests.length === 0) {
+  if (matching.length === 0) {
     return (
       <p className="text-text-muted">
-        None
+        {top10Only ? "No top 10 finishes" : "None"}
         {tracks === "main"
           ? " on main tracks"
           : tracks === "bonuses"
@@ -571,8 +722,8 @@ function PersonalBests({
         : ("ascending" as const)
       : undefined;
   const rows = sameSort(sort, apiOrder)
-    ? personalBests
-    : sortedPbs(personalBests, sort, styleName);
+    ? matching
+    : sortedPbs(matching, sort, styleName);
 
   return (
     <div className="flex flex-col gap-4">
@@ -731,19 +882,23 @@ function PersonalBests({
       </Table>
       <div className="flex items-center justify-between gap-4">
         <span className="text-text-muted text-sm tabular-nums">
-          {records
-            ? !cursor
-              ? count === 1
-                ? "1 world record"
-                : `All ${count} world records`
-              : `${personalBests.length} world records so far`
-            : !cursor
-              ? count === 1
-                ? "1 personal best"
-                : `All ${count} personal bests`
-              : total != null
-                ? `${personalBests.length} of ${total} personal bests`
-                : `${personalBests.length} personal bests so far`}
+          {top10Only
+            ? count === 1
+              ? "1 top 10 finish"
+              : `All ${count} top 10 finishes`
+            : records
+              ? !cursor
+                ? count === 1
+                  ? "1 world record"
+                  : `All ${count} world records`
+                : `${personalBests.length} world records so far`
+              : !cursor
+                ? count === 1
+                  ? "1 personal best"
+                  : `All ${count} personal bests`
+                : total != null
+                  ? `${personalBests.length} of ${total} personal bests`
+                  : `${personalBests.length} personal bests so far`}
         </span>
         {failed && (
           <span className="text-danger text-sm">

@@ -1,0 +1,19 @@
+.reveal {
+  transform-origin: 0 0;
+  animation: history-reveal 900ms var(--ease-out) both;
+}
+
+@keyframes history-reveal {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none;
+  }
+}
