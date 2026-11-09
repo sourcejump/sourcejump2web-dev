@@ -41,7 +41,7 @@ export function ServerActivity({
   servers,
   activity,
 }: {
-  /** Sits in the chart's top row, so the page doesn't spend a line on its own title. */
+  /** Page heading for screen readers. */
   heading: string;
   /**
    * The listed servers, so the headline can count online servers and players from what this viewer actually
@@ -64,8 +64,7 @@ export function ServerActivity({
   // The longer ranges' buckets are averages, so "now" always comes from the day's.
   const now = live ?? activity.day?.points.at(-1) ?? points.at(-1);
   const hovered = active === null ? undefined : points[active];
-  const title = <h1 className="text-xl font-bold max-sm:order-1">{heading}</h1>;
-  // Without a chart to draw, the board still opens with its title.
+  const title = <h1 className="sr-only">{heading}</h1>;
   if (!current || !now || points.length < 2)
     return <div className="px-4 py-4">{title}</div>;
   // The most players online at once over the whole range, from the API (which counts the bucket still in
@@ -76,8 +75,6 @@ export function ServerActivity({
 
   return (
     <div className="border-border bg-surface flex flex-col gap-3 rounded-md border p-5 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:pt-4">
-      {/* As on Activity: on a phone the title and the range share a line and the figures take the next; the
-          title's column dissolves there (`contents`) so its two parts can take those places. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-y-3 sm:px-4">
         <div className="flex min-w-0 flex-col gap-1 max-sm:contents">
           {title}
