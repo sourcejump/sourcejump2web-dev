@@ -1,0 +1,334 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT r.id, r.map_id, m.name AS map, r.style, r.track, r.time, r.jumps, r.strafes, r.sync, r.perfs,\n               r.avg_velocity, r.max_velocity, r.tickrate, r.finished_at, r.ruleset_version,\n               r.invalidated_at IS NOT NULL AS \"invalidated!\", s.id AS server_id, s.name AS server_name,\n               p.steamid64::text AS \"steamid64!\", p.name, p.avatar_url, p.country_code,\n               EXISTS (SELECT 1 FROM personal_bests WHERE run_id = r.id) AS \"personal_best!\",\n               (SELECT min(time) FROM personal_bests\n                WHERE map_id = r.map_id AND style = r.style AND track = r.track) AS world_record_time,\n               (SELECT tier FROM current_map_tiers WHERE map_id = r.map_id AND track = r.track) AS tier,\n               ci.id AS \"image_id?\", ci.key AS \"image_key?\", ci.focus AS \"image_focus?\",\n               (SELECT host(h.ip) || ':' || h.port FROM server_heartbeats h\n                JOIN server_listings l ON l.ip = h.ip AND l.port = h.port\n                WHERE h.server_id = s.id ORDER BY h.received_at DESC LIMIT 1) AS server_address\n        FROM runs r\n        JOIN maps m ON m.id = r.map_id\n        LEFT JOIN map_images ci ON ci.map_id = m.id AND ci.position = 0\n        JOIN servers s ON s.id = r.server_id\n        JOIN players p ON p.steamid64 = r.player_steamid64\n        WHERE r.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "map_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "map_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "map",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "style",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "track",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "track"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "time",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "jumps",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "jumps"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "strafes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "strafes"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "sync",
+        "type_info": "Float4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "sync"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "perfs",
+        "type_info": "Float4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "perfs"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "avg_velocity",
+        "type_info": "Float4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "avg_velocity"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "max_velocity",
+        "type_info": "Float4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "max_velocity"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "tickrate",
+        "type_info": "Float4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "tickrate"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "finished_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "finished_at"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "ruleset_version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "ruleset_version"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "invalidated!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 16,
+        "name": "server_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "servers",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "server_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "servers",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 19,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "country_code"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "personal_best!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 23,
+        "name": "world_record_time",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 24,
+        "name": "tier",
+        "type_info": "Int2",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 25,
+        "name": "image_id?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 26,
+        "name": "image_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 27,
+        "name": "image_focus?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "focus"
+          }
+        }
+      },
+      {
+        "ordinal": 28,
+        "name": "server_address",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true,
+      null,
+      null,
+      null,
+      true,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "2a38093fec6e9d0acd79a5b259840efd337e92717d9581aaa6ffab06b750704d"
+}

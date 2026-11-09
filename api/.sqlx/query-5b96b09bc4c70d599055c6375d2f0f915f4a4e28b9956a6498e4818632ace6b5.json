@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH now AS MATERIALIZED (\n            SELECT b.map_id, b.style, b.track,\n                   (SELECT min(pb.time) FROM personal_bests pb\n                    WHERE pb.map_id = b.map_id AND pb.style = b.style AND pb.track = b.track) AS best,\n                   CASE WHEN $5 THEN (SELECT t.tier FROM current_map_tiers t\n                                      WHERE t.map_id = b.map_id AND t.track = b.track) END AS tier\n            FROM unnest($1::int8[], $2::text[], $3::int2[]) AS b (map_id, style, track)\n        ), runners AS MATERIALIZED (\n            SELECT DISTINCT player_steamid64, style, track > 0 AS bonus FROM runs WHERE id = ANY($4)\n        ), moved AS (\n            SELECT now.*, stored.best AS stored_best, stored.tier AS stored_tier\n            FROM now JOIN standings_boards stored USING (map_id, style, track)\n            WHERE now.best IS NOT NULL AND (now.best, now.tier) IS DISTINCT FROM (stored.best, stored.tier)\n        ), changes AS (\n            SELECT pb.style, pb.track > 0 AS bonus, pb.player_steamid64,\n                   sum(coalesce(points_for(m.tier, pb.time, m.best, pb.track > 0, $6, $7, $8, $9, $10), 0)\n                       - coalesce(points_for(m.stored_tier, pb.time, m.stored_best, pb.track > 0,\n                                             $6, $7, $8, $9, $10), 0)) AS change\n            FROM moved m\n            JOIN personal_bests pb ON pb.map_id = m.map_id AND pb.style = m.style AND pb.track = m.track\n            -- The runs' players are summed again below.\n            WHERE NOT EXISTS (\n                SELECT 1 FROM runners r\n                WHERE r.player_steamid64 = pb.player_steamid64 AND r.style = pb.style AND r.bonus = (pb.track > 0)\n            )\n            GROUP BY 1, 2, 3\n        ), moved_totals AS (\n            UPDATE standings s SET points = s.points + c.change FROM changes c\n            WHERE s.style = c.style AND s.bonus = c.bonus AND s.player_steamid64 = c.player_steamid64\n              AND c.change <> 0\n        ), emptied AS (\n            DELETE FROM standings_boards stored USING now\n            WHERE stored.map_id = now.map_id AND stored.style = now.style AND stored.track = now.track\n              AND now.best IS NULL\n        )\n        INSERT INTO standings_boards (map_id, style, track, best, tier)\n        SELECT map_id, style, track, best, tier FROM now WHERE best IS NOT NULL\n        ON CONFLICT (map_id, style, track) DO UPDATE SET best = excluded.best, tier = excluded.tier\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array",
+        "TextArray",
+        "Int2Array",
+        "Int8Array",
+        "Bool",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5b96b09bc4c70d599055c6375d2f0f915f4a4e28b9956a6498e4818632ace6b5"
+}

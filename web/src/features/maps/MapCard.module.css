@@ -1,0 +1,104 @@
+/* Shared podium columns switch with the card's width, not the viewport's. */
+.cards {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cover {
+  aspect-ratio: 5 / 2;
+  min-block-size: calc(var(--spacing) * 32);
+}
+
+.preview {
+  transition: filter var(--duration-fast);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview {
+    transition: none;
+  }
+}
+
+.podium {
+  align-content: start;
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+
+.entry {
+  min-block-size: calc(var(--spacing) * 12);
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.rank {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.playerLink {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  grid-template-columns: subgrid;
+}
+
+.avatar {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+}
+
+.player {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.result {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+/* Wide cards share aligned time and gap columns; narrow cards put both below the name. */
+@container (min-width: 20rem) {
+  .podium {
+    grid-template-columns:
+      auto auto minmax(0, 1fr)
+      max-content max-content;
+  }
+
+  .entry {
+    min-block-size: calc(var(--spacing) * 8);
+  }
+
+  .playerLink,
+  .result {
+    align-self: center;
+  }
+
+  .playerLink {
+    grid-column: 2 / span 2;
+  }
+
+  .result {
+    display: grid;
+    grid-column: 4 / span 2;
+    grid-row: 1;
+    grid-template-columns: subgrid;
+  }
+}
+
+@container (min-width: 42rem) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 64rem) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 88rem) {
+  .cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

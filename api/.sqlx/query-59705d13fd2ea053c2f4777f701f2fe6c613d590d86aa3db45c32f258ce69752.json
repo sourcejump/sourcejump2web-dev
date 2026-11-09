@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT tier.tier AS \"tier?\", count(*) AS \"maps!\" FROM maps m\n           LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0\n           WHERE m.last_run_at IS NOT NULL\n           GROUP BY tier.tier",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tier?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "current_map_tiers",
+            "name": "tier"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "maps!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      null
+    ]
+  },
+  "hash": "59705d13fd2ea053c2f4777f701f2fe6c613d590d86aa3db45c32f258ce69752"
+}

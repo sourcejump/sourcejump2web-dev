@@ -78,6 +78,13 @@ pub struct RunPlayer {
     #[schema(value_type = String, example = "76561197960287930")]
     pub steamid64: SteamId64,
     pub name: String,
+    /// The player's country, as the game server found it from their address with SourceMod's `GeoipCode2`: an ISO
+    /// 3166-1 alpha-2 code. Leave it out when the lookup finds nothing; send only the code, never the address. It
+    /// becomes the player's flag. A code SourceJump doesn't know as a country is ignored and the run is stored
+    /// anyway. Runs only: detections ignore it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(example = "SE")]
+    pub country_code: Option<String>,
 }
 
 /// SourceJump's answer to a run. A resend gets the same answer, with a fresh upload link if one applies.
@@ -129,6 +136,24 @@ async fn submit_run(
     let mut tx = state.db.begin().await?;
     let stored = store(&mut tx, key, &run).await?;
     tx.commit().await?;
+
+    // A player is otherwise fetched from Steam only when they sign in or their profile is opened, so one who just
+    // plays would show initials everywhere they're listed. Their runs keep the copy fresh instead; the queue's
+    // spacing and cap keep this to Steam's pace however busy the servers are.
+    if stored.created {
+        let fetched_at = sqlx::query_scalar!(
+            "SELECT steam_profile_fetched_at FROM players WHERE steamid64 = $1",
+            run.player.steamid64.get()
+        )
+        .fetch_one(&state.db)
+        .await?;
+        players::steam_profile::refresh_if_stale(
+            state.db.clone(),
+            state.steam.clone(),
+            run.player.steamid64,
+            fetched_at,
+        );
+    }
 
     let status = if stored.created {
         StatusCode::CREATED
@@ -206,6 +231,15 @@ async fn store(
 
     let finished_at = DateTime::from_timestamp(run.finished_at, 0).expect("checked before storing");
     players::record_name(conn, run.player.steamid64, &run.player.name, finished_at).await?;
+    // An unknown code costs the player a flag, never their run.
+    if let Some(code) = run
+        .player
+        .country_code
+        .as_deref()
+        .and_then(players::countries::known_code)
+    {
+        players::record_server_country(conn, run.player.steamid64, code, finished_at).await?;
+    }
     let ban = restrictions::records_ban(conn, run.player.steamid64).await?;
     let map_id = maps::id_for(conn, &run.map).await?;
 
@@ -590,6 +624,82 @@ pub(crate) mod tests {
         let mut any = run("c", 31.0);
         any["tickrate"] = json!(66.666_664);
         assert_eq!(submit(&db, &key, &any).await.status, 201);
+    }
+
+    /// The run player's `country_code`, `country_from_server` and `country_chosen`.
+    async fn country(db: &PgPool) -> (Option<String>, bool, bool) {
+        sqlx::query_as(
+            "SELECT country_code, country_from_server, country_chosen FROM players WHERE steamid64 = 76561197960287930",
+        )
+        .fetch_one(db)
+        .await
+        .unwrap()
+    }
+
+    fn with_country(server_run_id: &str, code: &str) -> Value {
+        let mut body = run(server_run_id, 30.0);
+        body["player"]["country_code"] = json!(code);
+        body
+    }
+
+    #[sqlx::test]
+    async fn the_country_a_server_found_replaces_a_pick_and_steams(db: PgPool) {
+        let key = setup(&db).await;
+
+        assert_eq!(
+            submit(&db, &key, &with_country("a", "se")).await.status,
+            201
+        );
+        assert_eq!(country(&db).await, (Some("SE".into()), true, false));
+
+        // The player picks their own; a run without a country leaves it, the next one with a country replaces it.
+        sqlx::query("UPDATE players SET country_code = 'NO', country_chosen = true, country_from_server = false")
+            .execute(&db)
+            .await
+            .unwrap();
+        assert_eq!(submit(&db, &key, &run("b", 31.0)).await.status, 201);
+        assert_eq!(country(&db).await, (Some("NO".into()), false, true));
+        assert_eq!(
+            submit(&db, &key, &with_country("c", "SE")).await.status,
+            201
+        );
+        assert_eq!(country(&db).await, (Some("SE".into()), true, false));
+
+        // A resend changes nothing, whatever country it carries.
+        assert_eq!(
+            submit(&db, &key, &with_country("a", "fi")).await.status,
+            200
+        );
+        assert_eq!(country(&db).await, (Some("SE".into()), true, false));
+    }
+
+    #[sqlx::test]
+    async fn a_country_sourcejump_doesnt_know_is_ignored_and_the_run_stored(db: PgPool) {
+        let key = setup(&db).await;
+
+        for (id, code) in [("a", "XX"), ("b", "A1"), ("c", "EU"), ("d", "Sweden")] {
+            assert_eq!(
+                submit(&db, &key, &with_country(id, code)).await.status,
+                201,
+                "{code}"
+            );
+        }
+
+        assert_eq!(count(&db, "runs").await, 4);
+        assert_eq!(country(&db).await, (None, false, false));
+    }
+
+    #[sqlx::test]
+    async fn a_run_sent_late_cant_roll_the_country_back(db: PgPool) {
+        let key = setup(&db).await;
+        let mut newer = with_country("a", "SE");
+        newer["finished_at"] = json!(1_792_400_100);
+
+        submit(&db, &key, &newer).await;
+        submit(&db, &key, &with_country("b", "FI")).await;
+
+        assert_eq!(count(&db, "runs").await, 2);
+        assert_eq!(country(&db).await, (Some("SE".into()), true, false));
     }
 
     #[sqlx::test]

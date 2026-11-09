@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT coalesce(max(players), 0) AS \"players!\" FROM server_activity_peaks\n           WHERE day >= (now() AT TIME ZONE 'UTC')::date - $1::int",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "players!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "93eea59cfcf180c2a844d37d091ea617589d12ed2e0a83bdd21fadded3c3d003"
+}

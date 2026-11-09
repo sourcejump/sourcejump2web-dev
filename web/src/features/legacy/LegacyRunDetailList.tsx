@@ -13,6 +13,7 @@ import { DividedList } from "@/ui/Divided";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
 import { LegacyBadge } from "./LegacyBadge";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 export function LegacyRunDetailList({
   run,
@@ -37,7 +38,7 @@ export function LegacyRunDetailList({
             <LegacyBadge />
             {/* Behind the pre-2.0 record, put before the time as for 2.0 runs. */}
             {gap > 0 && (
-              <span className="text-text-subtle text-xs font-normal">
+              <span className="text-danger text-xs font-normal">
                 {formatGap(gap)}
               </span>
             )}
@@ -51,11 +52,13 @@ export function LegacyRunDetailList({
           >
             <Avatar
               name={run.player.name}
-              src={run.player.avatar_url ?? undefined}
+              src={avatarSrc(run.player)}
               size="sm"
             />
-            {run.player.name}
-            <Flag code={run.player.country_code} />
+            <span className="inline-flex items-center gap-1.5">
+              {run.player.name}
+              <Flag code={run.player.country_code} />
+            </span>
           </Link>
         </Row>
         {run.player_name !== run.player.name && (

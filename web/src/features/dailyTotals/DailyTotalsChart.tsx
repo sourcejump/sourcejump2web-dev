@@ -2,11 +2,13 @@
 // A chart of the site's daily totals over a month, a year or all time: players with a recorded time on the
 // Players page, runs and world records per day on the Activity page. Hovering, tapping or arrow keys read a
 // point. Every range arrives with the page, so switching is instant.
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { Schemas } from "@/api/client";
-import { Card, Label } from "@/ui/Card";
+import { Card } from "@/ui/Card";
+import { classNames } from "@/ui/classNames";
 import { LineChart } from "@/ui/LineChart";
 import { Segmented } from "@/ui/Segmented";
+import { Dot } from "@/ui/Dot";
 
 export type TotalsRange = Schemas["TotalsRange"];
 
@@ -52,9 +54,13 @@ interface Point {
 export function DailyTotalsChart({
   data,
   initialRange,
+  heading,
+  plain = false,
 }: {
   data: DailyTotalsData;
   initialRange: TotalsRange;
+  heading?: string;
+  plain?: boolean;
 }) {
   const [range, setRange] = useState<TotalsRange>(initialRange);
   const [active, setActive] = useState<number | null>(null);
@@ -77,14 +83,97 @@ export function DailyTotalsChart({
   const bucketDays = current?.bucket_days ?? 1;
   const rangeLabel = ranges.find((r) => r.value === range)?.label ?? "";
 
-  return (
-    <Card className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Label>
-          {data.kind === "players" ? "Players with a recorded time" : "Runs"}
-        </Label>
+  const stats = shown && (
+    <p
+      aria-live="polite"
+      className="text-text-muted flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm tabular-nums max-sm:order-3 max-sm:w-full sm:gap-x-2"
+    >
+      {data.kind === "players" ? (
+        <Stat value={shown.y}>
+          {shown.y === 1 ? "player" : "players"} with a recorded time
+        </Stat>
+      ) : (
+        <>
+          {/* Each number in its line's color, so the line reads as the legend. */}
+          <Stat value={shown.y} tone="text-accent">
+            {shown.y === 1 ? "run" : "runs"}
+          </Stat>
+          <Dot />
+          <Stat value={shown.y2 ?? 0} tone="text-gold">
+            {shown.y2 === 1 ? "world record" : "world records"}
+          </Stat>
+        </>
+      )}
+      <Dot />
+      <span className="text-text-subtle">{when(shown.day, bucketDays)}</span>
+    </p>
+  );
+
+  const plot =
+    points.length < 2 ? (
+      <p
+        className={classNames(
+          "text-text-subtle flex h-28 items-center justify-center text-sm",
+          plain && "bg-bg",
+        )}
+      >
+        {current
+          ? "Not enough days yet to draw a chart."
+          : "This range couldn't be loaded."}
+      </p>
+    ) : (
+      <div
+        className={classNames(
+          "flex flex-col gap-1",
+          // Darker than the board, so the trace reads as a screen rather than more flat fill.
+          plain && "bg-bg px-4 pt-2 pb-3",
+        )}
+      >
+        <LineChart
+          size="sm"
+          label={
+            data.kind === "players"
+              ? `Players with a recorded time, ${rangeLabel.toLowerCase()}. Use the arrow keys to read each point.`
+              : `Runs and world records per ${bucketDays === 1 ? "day" : `${bucketDays} days`}, ${rangeLabel.toLowerCase()}. Use the arrow keys to read each point.`
+          }
+          points={points.map((p) => ({
+            x: Date.parse(p.day),
+            y: p.y,
+            y2: p.y2,
+          }))}
+          active={active}
+          onActive={setActive}
+          formatValue={(value) => axis.format(Math.round(value))}
+        />
+        {/* Indented by the value labels' width, so the dates sit under the plot's ends. */}
+        <div className="text-text-subtle flex justify-between pl-10 text-xs tabular-nums max-sm:pl-0">
+          <span>{date.format(new Date(points[0]?.day ?? 0))}</span>
+          <span>{date.format(new Date(points.at(-1)?.day ?? 0))}</span>
+        </div>
+      </div>
+    );
+
+  const frame = (
+    <>
+      {/* On a phone: the title and the range on one line, the totals on the next, so the board starts sooner.
+          The title's column dissolves there (`contents`) so its two parts can take those places. */}
+      <div
+        className={classNames(
+          "flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-y-3",
+          plain && "px-4",
+        )}
+      >
+        {heading ? (
+          <div className="flex min-w-0 flex-col gap-1 max-sm:contents">
+            <h1 className="text-xl font-bold max-sm:order-1">{heading}</h1>
+            {stats}
+          </div>
+        ) : (
+          stats
+        )}
         <Segmented
           label="Range"
+          className="max-sm:order-2"
           options={ranges}
           value={range}
           onChange={(value) => {
@@ -93,89 +182,27 @@ export function DailyTotalsChart({
           }}
         />
       </div>
-
-      {shown && (
-        <p
-          aria-live="polite"
-          className="flex flex-wrap items-baseline gap-x-4 gap-y-1"
-        >
-          {data.kind === "players" ? (
-            <Amount value={shown.y} unit="player" />
-          ) : (
-            <>
-              <Amount value={shown.y} unit="run" swatch="bg-accent" />
-              <Amount
-                value={shown.y2 ?? 0}
-                unit="world record"
-                swatch="bg-gold"
-              />
-            </>
-          )}
-          <span className="text-text-subtle text-sm tabular-nums">
-            {active === null ? "Latest: " : ""}
-            {when(shown.day, bucketDays)}
-          </span>
-        </p>
-      )}
-
-      {points.length < 2 ? (
-        <p className="text-text-subtle flex h-40 items-center justify-center text-sm">
-          {current
-            ? "Not enough days yet to draw a chart."
-            : "This range couldn't be loaded."}
-        </p>
-      ) : (
-        <div className="flex flex-col gap-1">
-          <LineChart
-            label={
-              data.kind === "players"
-                ? `Players with a recorded time, ${rangeLabel.toLowerCase()}. Use the arrow keys to read each point.`
-                : `Runs and world records per ${bucketDays === 1 ? "day" : `${bucketDays} days`}, ${rangeLabel.toLowerCase()}. Use the arrow keys to read each point.`
-            }
-            points={points.map((p) => ({
-              x: Date.parse(p.day),
-              y: p.y,
-              y2: p.y2,
-            }))}
-            active={active}
-            onActive={setActive}
-            formatValue={(value) => axis.format(Math.round(value))}
-          />
-          {/* Indented by the value labels' width, so the dates sit under the plot's ends. */}
-          <div className="text-text-subtle flex justify-between pl-10 text-xs tabular-nums">
-            <span>{date.format(new Date(points[0]?.day ?? 0))}</span>
-            <span>{date.format(new Date(points.at(-1)?.day ?? 0))}</span>
-          </div>
-        </div>
-      )}
-    </Card>
+      {plot}
+    </>
   );
+
+  if (plain) return <div className="flex flex-col gap-3 pt-4">{frame}</div>;
+  return <Card className="flex flex-col gap-3">{frame}</Card>;
 }
 
-function Amount({
+function Stat({
   value,
-  unit,
-  swatch,
+  tone = "text-text",
+  children,
 }: {
   value: number;
-  unit: string;
-  /** The line's color, beside its number, when the chart has two. */
-  swatch?: string;
+  tone?: string;
+  children: ReactNode;
 }) {
   return (
-    <span className="inline-flex items-baseline gap-1.5">
-      {swatch && (
-        <span
-          aria-hidden
-          className={`${swatch} size-2.5 self-center rounded-full`}
-        />
-      )}
-      <span className="text-2xl font-bold tabular-nums">
-        {count.format(value)}
-      </span>
-      <span className="text-text-muted text-sm">
-        {value === 1 ? unit : `${unit}s`}
-      </span>
+    <span>
+      <span className={`font-bold ${tone}`}>{count.format(value)}</span>{" "}
+      {children}
     </span>
   );
 }

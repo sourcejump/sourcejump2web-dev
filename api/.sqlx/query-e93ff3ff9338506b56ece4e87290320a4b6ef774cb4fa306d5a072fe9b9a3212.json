@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT own.style AS \"style!\", own.map AS \"map!\", own.track AS \"track!\", own.time AS \"time!\",\n               1 + (SELECT count(*) FROM personal_bests faster\n                    WHERE faster.map_id = own.map_id AND faster.style = own.style\n                      AND faster.track = own.track AND faster.time < own.time) AS \"rank!\",\n               (SELECT min(best.time) FROM personal_bests best\n                WHERE best.map_id = own.map_id AND best.style = own.style\n                  AND best.track = own.track) AS \"world_record_time!\",\n               own.run_id AS \"run_id!\", own.finished_at AS \"finished_at!\", tier.tier AS \"tier?\"\n        FROM (\n            SELECT pb.style, pb.map_id, m.name AS map, pb.track, pb.time, pb.run_id, pb.finished_at\n            FROM personal_bests pb\n            JOIN maps m ON m.id = pb.map_id\n            WHERE pb.player_steamid64 = $1\n              AND ($2::text IS NULL OR pb.style = $2)\n              AND ($3::text IS NULL OR (m.name, pb.track) > ($3, $4::smallint))\n              AND ($6::bool IS NULL OR (pb.track > 0) = $6)\n              AND (NOT $7 OR EXISTS (\n                  SELECT 1 FROM world_record_holders h\n                  WHERE h.player_steamid64 = $1 AND h.map_id = pb.map_id AND h.style = pb.style\n                    AND h.track = pb.track))\n              AND ($9::timestamptz IS NULL OR (pb.finished_at, pb.run_id) < ($9, $10::int8))\n            ORDER BY CASE WHEN $8 THEN pb.finished_at END DESC, CASE WHEN $8 THEN pb.run_id END DESC,\n                     pb.style, m.name, pb.track\n            LIMIT $5\n        ) own\n        LEFT JOIN current_map_tiers tier ON $11 AND tier.map_id = own.map_id AND tier.track = own.track\n        ORDER BY CASE WHEN $8 THEN own.finished_at END DESC, CASE WHEN $8 THEN own.run_id END DESC,\n                 own.style, own.map, own.track\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "style!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "map!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "track!",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "track"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "time!",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "rank!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "world_record_time!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "run_id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "run_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "finished_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "finished_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "tier?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "current_map_tiers",
+            "name": "tier"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Int2",
+        "Int8",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Timestamptz",
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "e93ff3ff9338506b56ece4e87290320a4b6ef774cb4fa306d5a072fe9b9a3212"
+}

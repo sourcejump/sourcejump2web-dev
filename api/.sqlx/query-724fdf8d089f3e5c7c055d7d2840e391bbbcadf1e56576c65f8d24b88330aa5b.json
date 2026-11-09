@@ -1,0 +1,93 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT m.name, ci.id AS \"image_id?\", ci.key AS \"image_key?\", ci.focus AS \"image_focus?\", m.last_run_at,\n               (SELECT tier FROM current_map_tiers t WHERE t.map_id = m.id AND t.track = 0) AS tier,\n               (SELECT max(version) FROM map_zones z WHERE z.map_id = m.id) AS zone_version\n        FROM maps m\n        LEFT JOIN map_images ci ON ci.map_id = m.id AND ci.position = 0\n        WHERE m.name ILIKE $1 ESCAPE '\\' AND (NOT $4 OR m.last_run_at IS NULL)\n        ORDER BY m.name\n        LIMIT $2 OFFSET $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "image_id?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "image_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "image_focus?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "focus"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "last_run_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "last_run_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "tier",
+        "type_info": "Int2",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "zone_version",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "724fdf8d089f3e5c7c055d7d2840e391bbbcadf1e56576c65f8d24b88330aa5b"
+}

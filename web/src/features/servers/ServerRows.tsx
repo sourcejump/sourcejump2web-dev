@@ -8,7 +8,6 @@ import type { CSSProperties, ReactNode } from "react";
 import type { Schemas } from "@/api/client";
 import { StaffServerRow } from "@/features/staff/servers/StaffServerRow";
 import { useStaffServers } from "@/features/staff/servers/useStaffServers";
-import { Card } from "@/ui/Card";
 import { ChoiceBar } from "@/ui/ChoiceBar";
 import { classNames } from "@/ui/classNames";
 import { LinkTabs } from "@/ui/LinkTabs";
@@ -24,18 +23,18 @@ export function ServerRows({
 
   if (staff) {
     if (staff.servers.length === 0) {
-      return (
-        <Card className="text-text-muted">
-          No server has sent a heartbeat or been listed yet.
-        </Card>
-      );
+      return <Note>No server has sent a heartbeat or been listed yet.</Note>;
     }
     // A server listed before it was ever heard from has no mark to read, so it stays under Public.
     const marked = (server: Schemas["StaffServer"]) =>
       server.server?.whitelist ?? false;
-    const shown = staff.servers.filter(
-      (server) => marked(server) === whitelist,
-    );
+    const shown = staff.servers
+      .filter((server) => marked(server) === whitelist)
+      .sort(
+        (a, b) =>
+          Number(!(a.server?.online ?? true)) -
+          Number(!(b.server?.online ?? true)),
+      );
     return (
       <View
         whitelist={whitelist}
@@ -50,13 +49,11 @@ export function ServerRows({
   }
 
   if (servers.length === 0) {
-    return (
-      <Card className="text-text-muted">
-        No listed server has been online in the last day.
-      </Card>
-    );
+    return <Note>No listed server has been online in the last day.</Note>;
   }
-  const shown = servers.filter((server) => server.whitelist === whitelist);
+  const shown = servers
+    .filter((server) => server.whitelist === whitelist)
+    .sort((a, b) => Number(!a.online) - Number(!b.online));
   return (
     <View
       whitelist={whitelist}
@@ -86,31 +83,33 @@ function View({
   rows: { address: string; row: ReactNode }[];
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 sm:gap-0">
       {(hasWhitelist || whitelist) && (
-        <ChoiceBar>
-          <LinkTabs
-            label="Servers"
-            className="ml-auto"
-            tabs={[
-              { href: "/servers", label: "Public", current: !whitelist },
-              {
-                href: "/servers?view=whitelist",
-                label: "Whitelist",
-                current: whitelist,
-              },
-            ]}
-          />
-        </ChoiceBar>
+        <div className="sm:border-border sm:border-t sm:px-4 sm:py-2">
+          <ChoiceBar>
+            <LinkTabs
+              label="Servers"
+              className="ml-auto"
+              tabs={[
+                { href: "/servers", label: "Public", current: !whitelist },
+                {
+                  href: "/servers?view=whitelist",
+                  label: "Whitelist",
+                  current: whitelist,
+                },
+              ]}
+            />
+          </ChoiceBar>
+        </div>
       )}
       {rows.length > 0 ? (
         <Rows rows={rows} pairs={pairs} />
       ) : (
-        <Card className="text-text-muted">
+        <Note>
           {whitelist
             ? "No whitelist server has been online in the last day."
             : "No public server has been online in the last day."}
-        </Card>
+        </Note>
       )}
     </div>
   );
@@ -125,17 +124,22 @@ function Rows({
   pairs: boolean;
 }) {
   return (
-    <div className="@container">
+    <div className="sm:border-border @container sm:border-t">
+      {/* From sm up each cell draws the line below it; pulled down a pixel so the last row's line sits on the
+          board's edge. A phone keeps the rows apart as separate cards instead. */}
       <ul
         className={classNames(
-          "grid gap-2",
+          "grid gap-2 sm:-mb-px sm:gap-0",
           pairs && "lg:grid-cols-2 @lg:max-sm:grid-cols-2",
         )}
       >
         {rows.map(({ address, row }, index) => (
           <li
             key={address}
-            className="motion-enter"
+            className={classNames(
+              "motion-enter sm:border-border sm:border-b",
+              pairs && "lg:odd:border-r @lg:max-sm:odd:border-r",
+            )}
             style={
               {
                 "--motion-delay": `${Math.min(index, 12) * 25}ms`,
@@ -147,5 +151,13 @@ function Rows({
         ))}
       </ul>
     </div>
+  );
+}
+
+function Note({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-text-muted border-border rounded-md border p-5 sm:rounded-none sm:border-x-0 sm:border-t sm:border-b-0 sm:px-4 sm:py-6">
+      {children}
+    </p>
   );
 }

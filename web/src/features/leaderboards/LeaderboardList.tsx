@@ -1,4 +1,5 @@
-// One leaderboard in full, by points or by completions, under the same choices as the overview it opens from.
+// One leaderboard in full, by points or by completions, a page at a time, under the same choices as the overview
+// it opens from.
 import { ArrowLeft } from "lucide-react";
 import { api } from "@/api/client";
 import { currentStyles } from "@/features/ruleset/styles";
@@ -12,6 +13,7 @@ import {
   boardQuery,
   completedLabel,
   LIST_PAGE_SIZE,
+  STANDINGS_CHUNK,
 } from "./BoardChoices";
 import { PointsNote } from "./PointsNote";
 import { StandingsTable } from "./StandingsTable";
@@ -27,17 +29,27 @@ export function listTitle(ranking: Ranking, track: string | undefined) {
 export async function LeaderboardList({
   ranking,
   params,
+  page: requested,
 }: {
   ranking: Ranking;
   params: BoardParams;
+  /** `?page=` as given. */
+  page?: string;
 }) {
+  const page = Math.max(1, Math.floor(Number(requested)) || 1);
+  // The chunk of players the page falls in; the table turns pages within it, and loads the chunks beside it ahead.
+  const chunk = Math.floor(((page - 1) * LIST_PAGE_SIZE) / STANDINGS_CHUNK);
   const styles = await currentStyles();
   const board = boardFrom(params, styles);
   const list = await api
     .GET("/v1/leaderboards/{ranking}", {
       params: {
         path: { ranking },
-        query: { ...boardApiQuery(board), limit: LIST_PAGE_SIZE },
+        query: {
+          ...boardApiQuery(board),
+          limit: STANDINGS_CHUNK,
+          offset: chunk * STANDINGS_CHUNK,
+        },
       },
     })
     .then((result) => result.data)
@@ -68,14 +80,28 @@ export async function LeaderboardList({
         <p>This leaderboard couldn&apos;t be loaded. Try again in a moment.</p>
       ) : list.standings.length === 0 ? (
         <Card className="text-text-muted">
-          {ranking === "points"
-            ? !board.legacy && !list.points.tiers
-              ? "Points start once maps have tiers."
-              : "Nobody has points here yet."
-            : "Nobody has finished one yet."}
+          {chunk > 0
+            ? "There's no page this far."
+            : ranking === "points"
+              ? !board.legacy && !list.points.tiers
+                ? "Points start once maps have tiers."
+                : "Nobody has points here yet."
+              : "Nobody has finished one yet."}
         </Card>
       ) : (
-        <StandingsTable key={query} first={list} completedLabel={label} />
+        // Keyed by the board, so another choice starts again from what the server sent.
+        <StandingsTable
+          key={query}
+          ranking={ranking}
+          apiQuery={boardApiQuery(board)}
+          first={list.standings}
+          firstChunk={chunk}
+          total={list.total}
+          outOf={list.out_of}
+          legacy={list.view === "legacy"}
+          path={`/leaderboards/${ranking}`}
+          completedLabel={label}
+        />
       )}
       {list && ranking === "points" && (
         <PointsNote formula={list.points} legacy={board.legacy} />

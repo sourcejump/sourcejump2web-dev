@@ -1,144 +1,106 @@
 // The Leaderboards page: in one style and kind of track, the top players by points and by completions, side
-// by side. Pre-2.0 switches both lists to the old site's records.
-import { ArrowRight } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+// by side, each a page at a time with its own pager, turning without a wait (StandingsPanel). Pre-2.0 switches
+// both lists to the old site's records.
 import { api, type Schemas } from "@/api/client";
 import { currentStyles } from "@/features/ruleset/styles";
-import { Avatar } from "@/ui/Avatar";
-import { Card } from "@/ui/Card";
-import { Flag } from "@/ui/Flag";
-import { Link } from "@/ui/Link";
-import { Medal } from "@/ui/Medal";
 import {
+  type Board,
   type BoardParams,
   BoardChoices,
   boardApiQuery,
   boardFrom,
   boardQuery,
   completedLabel,
+  STANDINGS_CHUNK as CHUNK,
+  OVERVIEW_PAGE_SIZE as PAGE_SIZE,
 } from "./BoardChoices";
 import { PointsNote } from "./PointsNote";
+import { StandingsPanel } from "./StandingsPanel";
 
-type Standing = Schemas["Standing"];
+type Ranking = Schemas["Ranking"];
+
+/** Each list keeps its own page in the address, so paging one leaves the other where it is. */
+const PAGE_PARAM: Record<Ranking, string> = {
+  points: "points_page",
+  completed: "completed_page",
+};
 
 const numbers = new Intl.NumberFormat("en");
-const percent = new Intl.NumberFormat("en", { style: "percent" });
 
-export async function Leaderboards({ params }: { params: BoardParams }) {
+export async function Leaderboards({
+  params,
+  pages,
+}: {
+  params: BoardParams;
+  /** The `points_page` and `completed_page` from the address, as given. */
+  pages: Partial<Record<Ranking, string>>;
+}) {
   const styles = await currentStyles();
   const choice = boardFrom(params, styles);
-  const legacy = choice.legacy;
-  const board = await api
-    .GET("/v1/leaderboards", { params: { query: boardApiQuery(choice) } })
-    .then((result) => result.data)
-    .catch(() => undefined);
   const query = boardQuery(choice, styles);
+  const chunkOf = (ranking: Ranking) => {
+    const page = Math.max(1, Math.floor(Number(pages[ranking])) || 1);
+    return Math.floor(((page - 1) * PAGE_SIZE) / CHUNK);
+  };
+  const [points, completed] = await Promise.all([
+    load("points", choice, chunkOf("points")),
+    load("completed", choice, chunkOf("completed")),
+  ]);
+  const formula = points?.points ?? completed?.points;
+  const apiQuery = boardApiQuery(choice);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <BoardChoices board={choice} styles={styles} path="/leaderboards" />
-
-      {!board ? (
-        <p>The leaderboards couldn&apos;t be loaded. Try again in a moment.</p>
-      ) : (
-        <>
-          {/* Keyed by what's shown, so every row enters on a new choice, not only the players who are new. */}
-          <div key={query} className="grid gap-4 md:grid-cols-2">
-            <List
-              title="Top players"
-              more={`/leaderboards/points${query}`}
-              standings={board.top_players}
-              empty={
-                !legacy && !board.points.tiers
-                  ? "Points start once maps have tiers."
-                  : "Nobody has points here yet."
-              }
-              value={(standing) => numbers.format(standing.points)}
-            />
-            <List
-              title={completedLabel(choice.track)}
-              more={`/leaderboards/completed${query}`}
-              standings={board.completed}
-              empty="Nobody has finished one yet."
-              value={(standing) => (
-                <>
-                  {numbers.format(standing.completed)}
-                  {board.out_of > 0 && (
-                    <span className="text-text-subtle ml-2 font-normal">
-                      {percent.format(standing.completed / board.out_of)}
-                    </span>
-                  )}
-                </>
-              )}
-            />
-          </div>
-          <PointsNote formula={board.points} legacy={legacy} />
-        </>
-      )}
+      {/* Keyed by the board, so another choice starts both lists again from what the server sent. */}
+      <div key={query} className="grid items-start gap-4 lg:grid-cols-2">
+        <StandingsPanel
+          ranking="points"
+          title="Top players"
+          note={formula?.draft && !choice.legacy ? "Draft points" : undefined}
+          full={`/leaderboards/points${query}`}
+          param={PAGE_PARAM.points}
+          apiQuery={apiQuery}
+          first={points?.standings}
+          firstChunk={chunkOf("points")}
+          total={points?.total ?? 0}
+          outOf={points?.out_of ?? 0}
+          bonuses={choice.track === "bonuses"}
+          empty={
+            !choice.legacy && formula && !formula.tiers
+              ? "Points start once maps have tiers."
+              : "Nobody has points here yet."
+          }
+        />
+        <StandingsPanel
+          ranking="completed"
+          title={completedLabel(choice.track)}
+          note={completed && `Out of ${numbers.format(completed.out_of)}`}
+          full={`/leaderboards/completed${query}`}
+          param={PAGE_PARAM.completed}
+          apiQuery={apiQuery}
+          first={completed?.standings}
+          firstChunk={chunkOf("completed")}
+          total={completed?.total ?? 0}
+          outOf={completed?.out_of ?? 0}
+          bonuses={choice.track === "bonuses"}
+          empty="Nobody has finished one yet."
+        />
+      </div>
+      {formula && <PointsNote formula={formula} legacy={choice.legacy} />}
     </div>
   );
 }
 
-function List({
-  title,
-  more,
-  standings,
-  empty,
-  value,
-}: {
-  title: string;
-  /** The full list's page. */
-  more: string;
-  standings: Standing[];
-  empty: string;
-  value: (standing: Standing) => ReactNode;
-}) {
-  return (
-    <Card className="flex flex-col gap-3">
-      <h2 className="font-bold">{title}</h2>
-      {standings.length === 0 ? (
-        <p className="text-text-muted text-sm">{empty}</p>
-      ) : (
-        <ol className="flex flex-col">
-          {standings.map((standing, index) => (
-            <li
-              key={standing.player.steamid64}
-              className="motion-enter flex h-9 items-center gap-3 text-sm"
-              style={
-                {
-                  "--motion-delay": `${Math.min(index, 12) * 20}ms`,
-                } as CSSProperties
-              }
-            >
-              <Medal placement={standing.rank} />
-              <Link
-                href={`/players/${standing.player.steamid64}`}
-                className="hover:text-accent flex min-w-0 items-center gap-2"
-              >
-                <Avatar
-                  name={standing.player.name}
-                  src={standing.player.avatar_url ?? undefined}
-                  size="sm"
-                />
-                <span className="truncate">{standing.player.name}</span>
-              </Link>
-              <Flag code={standing.player.country_code} />
-              <span className="ml-auto font-bold whitespace-nowrap tabular-nums">
-                {value(standing)}
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
-      {standings.length > 0 && (
-        <Link
-          href={more}
-          className="text-text-muted hover:text-accent mt-auto flex items-center gap-1 self-start pt-1 text-sm"
-        >
-          Show more
-          <ArrowRight aria-hidden className="size-3.5" />
-        </Link>
-      )}
-    </Card>
-  );
+/** The chunk of players the page asked for falls in; undefined when it can't be loaded. */
+function load(ranking: Ranking, board: Board, chunk: number) {
+  return api
+    .GET("/v1/leaderboards/{ranking}", {
+      params: {
+        path: { ranking },
+        query: { ...boardApiQuery(board), limit: CHUNK, offset: chunk * CHUNK },
+      },
+    })
+    .then((result) => result.data)
+    .catch(() => undefined);
 }

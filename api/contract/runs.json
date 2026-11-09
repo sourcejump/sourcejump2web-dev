@@ -6,7 +6,8 @@
     "server_run_id": "9b2f6a1e-4c1d-4e7a-9a51-3f0f6f1c2d10",
     "player": {
       "steamid64": "76561197960287930",
-      "name": "gabe"
+      "name": "gabe",
+      "country_code": "SE"
     },
     "map": "bhop_badges",
     "style": "normal",

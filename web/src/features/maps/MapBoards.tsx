@@ -1,9 +1,11 @@
 "use client";
-// A map page's style, track and view menus, and what they show: the world record, the board's players and runs,
-// the WR history and the leaderboard. Every style and track's 2.0 board arrives with the page, so switching them
+// A map page's style, track and view menus, and what they show: the leaderboard, with the world record and the
+// board's players and runs beside the menus, then the WR history. Every style and track's 2.0 board arrives with the page, so switching them
 // happens in place; the normal style's pre-2.0 leaderboards load when chosen. The record and its history are
 // 2.0's in every view; the players and runs follow the view.
 import { useSearchParams } from "next/navigation";
+import { useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import type { Schemas } from "@/api/client";
 import { RunLink } from "@/features/runs/RunLink";
 import {
@@ -16,7 +18,7 @@ import { formatTime, trackName } from "@/features/runs/time";
 import { Card, Label } from "@/ui/Card";
 import { ChoiceBar } from "@/ui/ChoiceBar";
 import { ChoiceMenu } from "@/ui/ChoiceMenu";
-import { StatCard } from "@/ui/StatCard";
+import { classNames } from "@/ui/classNames";
 import { TierBadge } from "@/ui/TierBadge";
 import { Leaderboard } from "./Leaderboard";
 import { WrHistoryChart } from "./WrHistoryChart";
@@ -34,6 +36,12 @@ export function MapBoards({
   me: string | undefined;
 }) {
   const params = useSearchParams();
+  // The banner's slot for the figures on a phone (MapHeader), found once the page is in the browser.
+  const bannerSlot = useSyncExternalStore(
+    noChanges,
+    () => document.getElementById("map-banner-figures"),
+    () => null,
+  );
   const hasLegacy = map.legacy_players > 0;
   if (map.tracks.length === 0 && !hasLegacy) {
     return (
@@ -86,102 +94,177 @@ export function MapBoards({
     window.history.replaceState(null, "", url);
   }
 
+  const history =
+    // The Pre-2.0 view shows the old site's records instead; the two histories are never mixed.
+    view === "legacy" ? (
+      <HistoryCard
+        label="Pre-2.0 record history"
+        records={map.legacy_record_history}
+        end={map.legacy_last_run_at ?? undefined}
+        legacy
+      />
+    ) : (
+      board && (
+        <HistoryCard
+          label="WR history"
+          records={board.wr_history}
+          end={map.last_run_at ?? undefined}
+        />
+      )
+    );
+
+  // The board comes first, so it starts within the first screen; the record and totals sit on the choices' line,
+  // and the history follows the board.
+  // The choices sit close to the board they pick; the history, a separate thing, stands a step further off.
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {board ? (
-          <WorldRecordCard record={board.world_record} />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <ChoiceBar>
+            <ChoiceMenu
+              label="Style"
+              options={styleKeys.map((key) => ({
+                value: key,
+                label: name(key),
+                quiet: !hasRuns(key),
+              }))}
+              value={styleKey}
+              onChange={(style) => choose({ style })}
+            />
+            <ChoiceMenu
+              label="Track"
+              options={tracks.map((t) => ({
+                value: String(t),
+                label: trackName(t),
+                quiet: !map.tracks.some((known) => known.track === t),
+              }))}
+              value={String(trackNumber)}
+              onChange={(value) => choose({ track: Number(value) })}
+            />
+            <ViewMenu
+              value={view}
+              available={onLegacyBoard}
+              onChange={(next) => choose({ view: next })}
+            />
+            {track &&
+              track.track > 0 &&
+              track.tier != null &&
+              map.tier_count != null && (
+                <TierBadge tier={track.tier} tierCount={map.tier_count} />
+              )}
+          </ChoiceBar>
+          <Figures
+            board={board}
+            totals={totals}
+            className={classNames(bannerSlot && "max-lg:hidden")}
+          />
+          {bannerSlot &&
+            createPortal(
+              <Figures board={board} totals={totals} compact />,
+              bannerSlot,
+            )}
+        </div>
+
+        {view === "current" && !board ? (
+          <Card className="text-text-muted">
+            Nobody has a {name(styleKey)} run on{" "}
+            {trackNumber === 0 ? "the main track" : trackName(trackNumber)} yet.
+            {onLegacyBoard && " Its pre-2.0 runs are under Runs."}
+          </Card>
         ) : (
-          <StatCard
-            label="World record"
-            value={null}
-            className="col-span-2 sm:col-span-1"
+          <Leaderboard
+            key={`${styleKey}-${trackNumber}-${view}`}
+            map={map.name}
+            style={styleKey}
+            track={trackNumber}
+            view={view}
+            first={
+              view === "current" && board
+                ? {
+                    entries: board.leaderboard,
+                    next_cursor: board.next_cursor,
+                    total: board.players,
+                    world_record_time: board.world_record.time,
+                    fastest_time: board.world_record.time,
+                  }
+                : undefined
+            }
+            me={me}
           />
         )}
-        <StatCard label="Players" value={totals.players} />
-        <StatCard label="Runs" value={totals.runs} />
       </div>
 
-      <ChoiceBar>
-        <ChoiceMenu
-          label="Style"
-          options={styleKeys.map((key) => ({
-            value: key,
-            label: name(key),
-            quiet: !hasRuns(key),
-          }))}
-          value={styleKey}
-          onChange={(style) => choose({ style })}
-        />
-        <ChoiceMenu
-          label="Track"
-          options={tracks.map((t) => ({
-            value: String(t),
-            label: trackName(t),
-            quiet: !map.tracks.some((known) => known.track === t),
-          }))}
-          value={String(trackNumber)}
-          onChange={(value) => choose({ track: Number(value) })}
-        />
-        <ViewMenu
-          value={view}
-          available={onLegacyBoard}
-          onChange={(next) => choose({ view: next })}
-        />
-        {track &&
-          track.track > 0 &&
-          track.tier != null &&
-          map.tier_count != null && (
-            <TierBadge tier={track.tier} tierCount={map.tier_count} />
-          )}
-      </ChoiceBar>
-
-      {/* The Pre-2.0 view shows the old site's records instead; the two histories are never mixed. */}
-      {view === "legacy" ? (
-        <HistoryCard
-          label="Pre-2.0 record history"
-          records={map.legacy_record_history}
-          end={map.legacy_last_run_at ?? undefined}
-          legacy
-        />
-      ) : (
-        board && (
-          <HistoryCard
-            label="WR history"
-            records={board.wr_history}
-            end={map.last_run_at ?? undefined}
-          />
-        )
-      )}
-
-      {view === "current" && !board ? (
-        <Card className="text-text-muted">
-          Nobody has a {name(styleKey)} run on{" "}
-          {trackNumber === 0 ? "the main track" : trackName(trackNumber)} yet.
-          {onLegacyBoard && " Its pre-2.0 runs are under Runs."}
-        </Card>
-      ) : (
-        <Leaderboard
-          key={`${styleKey}-${trackNumber}-${view}`}
-          map={map.name}
-          style={styleKey}
-          track={trackNumber}
-          view={view}
-          first={
-            view === "current" && board
-              ? {
-                  entries: board.leaderboard,
-                  next_cursor: board.next_cursor,
-                  total: board.players,
-                  world_record_time: board.world_record.time,
-                  fastest_time: board.world_record.time,
-                }
-              : undefined
-          }
-          me={me}
-        />
-      )}
+      {history && <div className="mt-2">{history}</div>}
     </>
+  );
+}
+
+const number = new Intl.NumberFormat("en");
+
+/** The banner slot never changes once the page is drawn, so there's nothing to subscribe to. */
+function noChanges() {
+  return () => {};
+}
+
+/** The chosen board's world record, players and runs: on the choices' line, or (compact) on the banner. */
+function Figures({
+  board,
+  totals,
+  compact = false,
+  className,
+}: {
+  board: Schemas["MapStyle"] | undefined;
+  totals: { players: number; runs: number };
+  compact?: boolean;
+  className?: string;
+}) {
+  const figure = compact ? "font-bold" : "text-lg font-bold";
+  return (
+    <dl
+      className={classNames(
+        "text-text-muted flex flex-wrap items-baseline gap-y-1 text-sm",
+        compact ? "gap-x-3" : "gap-x-5",
+        className,
+      )}
+    >
+      <div className="flex items-baseline gap-1.5">
+        <dt>World record</dt>
+        <dd className={classNames(figure, "tabular-nums")}>
+          {board ? (
+            <RunLink
+              runId={board.world_record.run_id}
+              className="text-accent underline-offset-4 hover:underline"
+            >
+              {formatTime(board.world_record.time)}
+            </RunLink>
+          ) : (
+            <span className="text-text-subtle">–</span>
+          )}
+        </dd>
+      </div>
+      <Total label="players" value={totals.players} figure={figure} />
+      <Total label="runs" value={totals.runs} figure={figure} />
+    </dl>
+  );
+}
+
+/** A count on the choices' line, the number first: "69 players". */
+function Total({
+  label,
+  value,
+  figure,
+}: {
+  label: string;
+  value: number;
+  figure: string;
+}) {
+  return (
+    <div className="flex flex-row-reverse items-baseline gap-1.5">
+      <dt>{label}</dt>
+      <dd className={classNames("text-text tabular-nums", figure)}>
+        {number.format(value)}
+      </dd>
+    </div>
   );
 }
 
@@ -226,22 +309,6 @@ function HistoryCard({
         </span>
       </div>
       <WrHistoryChart records={records} end={end} legacy={legacy} />
-    </Card>
-  );
-}
-
-function WorldRecordCard({ record }: { record: Schemas["WorldRecord"] }) {
-  return (
-    <Card className="col-span-2 sm:col-span-1">
-      {/* Laid out like StatCard, so the three cards' labels and numbers line up. */}
-      <div className="flex items-center">
-        <Label>World record</Label>
-      </div>
-      <p className="mt-1 text-3xl font-bold tabular-nums">
-        <RunLink runId={record.run_id} className="hover:text-accent">
-          {formatTime(record.time)}
-        </RunLink>
-      </p>
     </Card>
   );
 }

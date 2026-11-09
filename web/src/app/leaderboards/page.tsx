@@ -1,4 +1,5 @@
-// Leaderboards page: the top players by points and by completions, per style and track, and pre-2.0.
+// Leaderboards page: the top players by points and by completions, per style and track, and pre-2.0, each list
+// paged on its own.
 import type { Metadata } from "next";
 import { Leaderboards } from "@/features/leaderboards/Leaderboards";
 import { Page } from "@/ui/Page";
@@ -12,17 +13,24 @@ export default function LeaderboardsPage({
   searchParams,
 }: PageProps<"/leaderboards">) {
   return (
-    <Page className="gap-6">
+    <Page className="gap-4">
       <h1 className="text-3xl font-bold">Leaderboards</h1>
-      {searchParams.then(({ style, track, view }) => (
-        <Leaderboards
-          params={{
-            style: typeof style === "string" ? style : undefined,
-            track: typeof track === "string" ? track : undefined,
-            view: typeof view === "string" ? view : undefined,
-          }}
-        />
-      ))}
+      {searchParams.then(
+        ({ style, track, view, points_page, completed_page }) => (
+          <Leaderboards
+            params={{
+              style: typeof style === "string" ? style : undefined,
+              track: typeof track === "string" ? track : undefined,
+              view: typeof view === "string" ? view : undefined,
+            }}
+            pages={{
+              points: typeof points_page === "string" ? points_page : undefined,
+              completed:
+                typeof completed_page === "string" ? completed_page : undefined,
+            }}
+          />
+        ),
+      )}
     </Page>
   );
 }

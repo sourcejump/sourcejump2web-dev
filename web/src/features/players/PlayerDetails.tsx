@@ -1,5 +1,5 @@
 // The top of a player's profile: their setup as they describe it (mouse, DPI, sensitivity and so on), with a
-// way to change it for the player themself and for staff who manage bans. A line sets it apart from runs.
+// way to change it for the player themself and for staff who manage bans.
 import { api, type Schemas } from "@/api/client";
 import type { signedInPlayer } from "@/features/auth/signedInPlayer";
 import { detailFields } from "./detailFields";
@@ -20,16 +20,20 @@ export async function PlayerDetails({
   const countries = own || staff ? await countryOptions() : [];
 
   return (
-    <section className="flex flex-col gap-8">
+    <section className="flex flex-col gap-8 max-sm:gap-6">
       <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
         {shown.length > 0 ? (
-          <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4 lg:flex lg:flex-wrap lg:gap-x-10">
+          // One row of specs on wider screens, ruled apart like a spec sheet; a three-column grid on a phone.
+          <dl className="grid grid-cols-3 gap-x-4 gap-y-3 sm:flex sm:flex-wrap sm:gap-x-0 sm:gap-y-4">
             {shown.map(({ key, label }) => (
-              <div key={key} className="flex min-w-0 flex-col gap-0.5">
-                <dt className="text-text-muted text-xs tracking-widest uppercase">
+              <div
+                key={key}
+                className="sm:border-border flex min-w-0 flex-col gap-0.5 sm:border-l sm:px-6 sm:first:border-l-0 sm:first:pl-0"
+              >
+                <dt className="text-text-muted truncate text-xs tracking-wider uppercase sm:tracking-widest">
                   {label}
                 </dt>
-                <dd className="truncate tabular-nums">
+                <dd className="truncate text-sm tabular-nums sm:text-base">
                   {String(details?.[key])}
                 </dd>
               </div>
@@ -56,7 +60,6 @@ export async function PlayerDetails({
           From the old site{own ? ", until you save your own" : ""}.
         </p>
       )}
-      <hr className="border-border" />
     </section>
   );
 }

@@ -13,10 +13,10 @@ export function Page({
   children,
 }: {
   /**
-   * `narrow` is a reading width for text-heavy pages. `fill` is for pages inside a section layout that
+   * `narrow` is a reading width for text-heavy pages; `medium` for a single table that would stretch thin. `fill` is for pages inside a section layout that
    * already sets the width and padding, such as the staff area with its sidebar.
    */
-  width?: "wide" | "narrow" | "fill";
+  width?: "wide" | "medium" | "narrow" | "fill";
   className?: string;
   children: ReactNode;
 }) {
@@ -25,9 +25,10 @@ export function Page({
       <main
         className={classNames(
           "flex w-full flex-1 flex-col",
-          width === "fill" ? "min-w-0" : "mx-auto px-4 py-10",
+          width === "fill" ? "min-w-0" : "mx-auto px-4 pt-6 pb-10 sm:px-8",
           width === "narrow" && "max-w-3xl",
-          width === "wide" && "max-w-6xl",
+          width === "medium" && "max-w-content",
+          width === "wide" && "max-w-full",
           className,
         )}
       >

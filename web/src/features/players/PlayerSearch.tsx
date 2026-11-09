@@ -1,75 +1,56 @@
-// The Players page's search and results: players matching a name or SteamID, or recently active players. Staff
-// who hold manage_bans also get a Banned tab, and staff who act on players can open a SteamID nobody has seen.
-import { Search } from "lucide-react";
-import Form from "next/form";
-import type { CSSProperties } from "react";
+// The Players page's board: the search beside the title, and under it recently active players, or for staff who
+// hold manage_bans a Banned tab. Loads what the first view shows; PlayerFinder answers searches as they're typed.
+import type { ReactNode } from "react";
 import { api } from "@/api/client";
 import { signedInPlayer } from "@/features/auth/signedInPlayer";
-import { formatDate } from "@/features/runs/time";
-import { Avatar } from "@/ui/Avatar";
 import { BannedPlayers } from "@/features/staff/players/BannedPlayers";
-import { Button, ButtonLink } from "@/ui/Button";
-import { Card } from "@/ui/Card";
-import { Flag } from "@/ui/Flag";
-import { Input } from "@/ui/Input";
-import { Link } from "@/ui/Link";
 import { LinkTabs } from "@/ui/LinkTabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-} from "@/ui/Table";
 import { managesPlayers } from "./PlayerHeader";
-import { STEAMID } from "./steamId";
+import { PlayerFinder } from "./PlayerFinder";
+import { PlayerRows, SEARCH_LIMIT } from "./PlayerRows";
 
-export async function PlayerSearch({
-  q,
+export async function PlayersBoard({
+  q: search,
   banned,
+  heading,
 }: {
+  /** The search in the address, trimmed; empty for recently active players. */
   q: string;
   /** The Banned tab, for staff who hold manage_bans. */
   banned: boolean;
+  heading: ReactNode;
 }) {
-  const search = q.trim();
-  const [result, me] = await Promise.all([
+  const recentPlayers = () =>
     api
-      .GET("/v1/players", { params: { query: search ? { q: search } : {} } })
-      .catch(() => undefined),
+      .GET("/v1/players", { params: { query: { limit: SEARCH_LIMIT } } })
+      .then((result) => result.data?.players)
+      .catch(() => undefined);
+  const [recent, found, me] = await Promise.all([
+    recentPlayers(),
+    search
+      ? api
+          .GET("/v1/players", {
+            params: { query: { q: search, limit: SEARCH_LIMIT } },
+          })
+          .then((result) => result.data?.players)
+          .catch(() => undefined)
+      : undefined,
     signedInPlayer(),
   ]);
   const seesBans = me?.privileges.includes("manage_bans") ?? false;
-  const showBans = banned && seesBans && !search;
+  const showBans = banned && seesBans;
+  const now = new Date();
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* The search and what the list below shows share one line, the tabs at its end. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Prefetching stays off here too, as for links (docs/design-system.md). */}
-        <Form
-          action="/players"
-          prefetch={false}
-          className="flex max-w-xl min-w-0 flex-1 basis-80 gap-2"
-        >
-          <Input
-            icon={Search}
-            type="search"
-            name="q"
-            defaultValue={search}
-            placeholder="Name, SteamID…"
-            aria-label="Search players"
-            className="flex-1"
-          />
-          <Button type="submit">Search</Button>
-        </Form>
-
-        {search ? (
-          <h2 className="text-text-muted text-sm">
-            Players matching “{search}”
-          </h2>
-        ) : seesBans ? (
+    <PlayerFinder
+      heading={heading}
+      initialQuery={search}
+      initialPlayers={found}
+      initialNow={now.toISOString()}
+      canManage={managesPlayers(me?.privileges)}
+      defaultTitle={showBans ? "Banned" : "Recently active"}
+      defaultAside={
+        seesBans ? (
           <LinkTabs
             label="Players"
             tabs={[
@@ -86,81 +67,25 @@ export async function PlayerSearch({
             ]}
           />
         ) : (
-          <h2 className="text-text-muted text-sm">Recently active</h2>
-        )}
-      </div>
+          <p className="text-text-subtle text-sm">Latest finished run</p>
+        )
+      }
+    >
       {showBans ? (
-        <BannedPlayers />
-      ) : !result ? (
-        <p>Players couldn&apos;t be loaded. Try again in a moment.</p>
-      ) : !result.data ? (
-        <p className="text-text-muted">
-          {result.error?.error ?? "That search didn't work."}
+        <div className="border-border border-t p-5">
+          <BannedPlayers />
+        </div>
+      ) : !recent ? (
+        <p className="border-border border-t px-5 py-6">
+          Players couldn&apos;t be loaded. Try again in a moment.
         </p>
-      ) : result.data.players.length === 0 ? (
-        <Card className="text-text-muted flex flex-col items-start gap-3">
-          {search
-            ? "No player has that name or SteamID."
-            : "Nobody has finished a run in the last 30 days."}
-          {STEAMID.test(search) && managesPlayers(me?.privileges) && (
-            <ButtonLink
-              href={`/players/${encodeURIComponent(search)}/manage`}
-              size="sm"
-            >
-              Manage {search} anyway
-            </ButtonLink>
-          )}
-        </Card>
+      ) : recent.length === 0 ? (
+        <p className="border-border text-text-muted border-t px-5 py-6">
+          Nobody has finished a run in the last 30 days.
+        </p>
       ) : (
-        // Keyed by the search, so every row fades in on a new search, as on the Maps page.
-        <Table key={search}>
-          <TableHead>
-            <tr>
-              <TableHeaderCell>Player</TableHeaderCell>
-              <TableHeaderCell numeric>Latest run</TableHeaderCell>
-            </tr>
-          </TableHead>
-          <TableBody>
-            {result.data.players.map((player, index) => (
-              // The name link stretches over the whole row, so the row is one click target and still a
-              // plain link (middle-click, keyboard) rather than a row with a click handler.
-              <TableRow
-                key={player.steamid64}
-                className="motion-enter group relative"
-                style={
-                  {
-                    "--motion-delay": `${Math.min(index, 12) * 20}ms`,
-                  } as CSSProperties
-                }
-              >
-                <TableCell>
-                  <Link
-                    href={`/players/${player.steamid64}`}
-                    className="group-hover:text-accent flex items-center gap-3 after:absolute after:inset-0"
-                  >
-                    <Avatar
-                      name={player.name}
-                      src={player.avatar_url ?? undefined}
-                      size="sm"
-                    />
-                    {player.name}
-                    <Flag code={player.country_code} />
-                  </Link>
-                </TableCell>
-                <TableCell numeric className="text-text-muted">
-                  {player.last_run_at ? (
-                    <time dateTime={player.last_run_at}>
-                      {formatDate(player.last_run_at)}
-                    </time>
-                  ) : (
-                    "None yet"
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <PlayerRows players={recent} now={now} />
       )}
-    </div>
+    </PlayerFinder>
   );
 }

@@ -1,16 +1,24 @@
 // Root layout: fonts, global styles, the header and footer, the run dialog, and site-wide metadata.
 import type { Metadata } from "next";
-import { Play } from "next/font/google";
+import Image from "next/image";
+import { Exo_2, Geist } from "next/font/google";
 import { Suspense } from "react";
+import art from "@/features/site/header-interloper.webp";
 import { RunDialogHost } from "@/features/runs/RunDialogHost";
 import { SiteFooter } from "@/features/site/SiteFooter";
 import { SiteHeader } from "@/features/site/SiteHeader";
 import { NavigationProgress } from "@/ui/NavigationProgress";
 import "./globals.css";
 
-const play = Play({
-  variable: "--font-play",
-  weight: ["400", "700"],
+// A variable font, so the in-between weights the type tokens use (tokens.css) load in the one file.
+const geist = Geist({
+  variable: "--font-geist",
+  subsets: ["latin", "latin-ext", "cyrillic"],
+});
+// Game servers' names (the `font-server` token): a bold face with more character than Geist, in its one weight.
+const exo = Exo_2({
+  variable: "--font-exo",
+  weight: "700",
   subsets: ["latin", "latin-ext", "cyrillic"],
 });
 
@@ -25,17 +33,39 @@ export const instant = false;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${play.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${geist.variable} ${exo.variable} h-full antialiased`}
+    >
       <body className="flex min-h-full flex-col">
         <NavigationProgress />
-        {/* The header and page fill at least the window, so the footer starts right at the fold: the page
-            always scrolls, and the scrollbar doesn't come and go between short and long pages. The space
-            above the footer is padding in here, not a margin on the footer, so it doesn't push it lower. */}
-        <div className="flex min-h-svh flex-col">
-          <SiteHeader />
-          <div className="flex flex-1 flex-col pb-16">{children}</div>
+        {/* What shows in the gutters either side of the sheet: the header's map picture, blurred and darkened
+            far back, fixed while the page scrolls. Blurred anyway, so a small copy of it is plenty. */}
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+        >
+          <Image
+            src={art}
+            alt=""
+            sizes="640px"
+            quality={75}
+            className="size-full scale-110 object-cover opacity-80 blur-lg"
+          />
+          <div className="from-gutter/10 to-gutter/85 absolute inset-0 bg-linear-to-b" />
         </div>
-        <SiteFooter />
+        {/* The sheet, as the old sourcejump.net had it: one column down the middle of the window, edges lit,
+            holding the header, the page and the footer, the gutters either side. */}
+        <div className="bg-bg shadow-sheet max-w-site mx-auto flex w-full flex-1 flex-col">
+          {/* The header and page fill at least the window, so the footer starts right at the fold: the page
+              always scrolls, and the scrollbar doesn't come and go between short and long pages. The space
+              above the footer is padding in here, not a margin on the footer, so it doesn't push it lower. */}
+          <div className="flex min-h-svh flex-col">
+            <SiteHeader />
+            <div className="flex flex-1 flex-col pb-16">{children}</div>
+          </div>
+          <SiteFooter />
+        </div>
         {/* The run dialog, over whichever page opened it (`?run=` in the address). */}
         <Suspense>
           <RunDialogHost />

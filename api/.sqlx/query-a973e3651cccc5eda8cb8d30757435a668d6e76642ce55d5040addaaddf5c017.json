@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM server_activity_peaks WHERE day < current_date - 400",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "a973e3651cccc5eda8cb8d30757435a668d6e76642ce55d5040addaaddf5c017"
+}

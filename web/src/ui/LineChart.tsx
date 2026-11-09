@@ -81,7 +81,11 @@ export function LineChart({
   // Vertical padding leaves room for the top and bottom value labels, which center on their gridlines.
   return (
     <div
-      className={classNames("flex gap-2 py-2", size === "sm" ? "h-28" : "h-40")}
+      // The small chart is shorter still on a phone, where it sits above a board that should start on screen.
+      className={classNames(
+        "flex gap-2 py-2",
+        size === "sm" ? "h-20 sm:h-28" : "h-40",
+      )}
     >
       <div
         aria-hidden

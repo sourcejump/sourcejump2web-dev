@@ -1,5 +1,6 @@
 //! Players, identified by SteamID64.
 
+mod avatar;
 pub mod countries;
 mod details;
 mod list;
@@ -23,6 +24,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(list::list_players))
         .routes(routes!(profile::player_profile))
+        .routes(routes!(avatar::player_avatar))
         .routes(routes!(personal_bests::player_personal_bests))
         .routes(routes!(details::update_player_details))
         .routes(routes!(countries::list_countries))
@@ -156,6 +158,31 @@ pub async fn record_name(
         steamid64.get(),
         name,
         seen_at
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Makes `code`, found by a game server from the player's address, their country, replacing one they picked or
+/// Steam's (the order is in `docs/site-api.md`). Only from their latest run, as for names: `record_name` has
+/// already moved `name_seen_at` to the newest time a server saw them, so a run sent late from a queue can't roll
+/// the country back.
+pub async fn record_server_country(
+    conn: &mut PgConnection,
+    steamid64: SteamId64,
+    code: &str,
+    finished_at: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        UPDATE players SET country_code = $2, country_from_server = true, country_chosen = false
+        WHERE steamid64 = $1 AND name_seen_at <= $3
+          AND (country_code IS DISTINCT FROM $2 OR NOT country_from_server)
+        "#,
+        steamid64.get(),
+        code,
+        finished_at
     )
     .execute(conn)
     .await?;

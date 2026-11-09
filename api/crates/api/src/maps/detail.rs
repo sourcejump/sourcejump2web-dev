@@ -178,8 +178,7 @@ async fn tracks(
                pb.track, pb.style, pb.time, pb.run_id, r.finished_at,
                count(*) OVER (PARTITION BY pb.track, pb.style) AS "players!",
                p.steamid64::text AS "steamid64!", p.name, p.avatar_url, p.country_code,
-               (SELECT tier FROM map_tiers WHERE map_id = pb.map_id AND track = pb.track
-                ORDER BY assigned_at DESC LIMIT 1) AS tier
+               (SELECT tier FROM current_map_tiers WHERE map_id = pb.map_id AND track = pb.track) AS tier
         FROM personal_bests pb
         JOIN runs r ON r.id = pb.run_id
         JOIN players p ON p.steamid64 = pb.player_steamid64

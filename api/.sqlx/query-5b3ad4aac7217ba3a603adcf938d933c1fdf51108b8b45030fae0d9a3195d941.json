@@ -1,0 +1,209 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT r.id, m.name AS map, r.style, r.track, r.time, r.sync, r.strafes, r.jumps, r.finished_at, r.was_record,\n               r.player_steamid64::text AS \"steamid64!\", p.name AS player, s.name AS server_name,\n               (SELECT st->>'name' FROM rulesets, jsonb_array_elements(document->'styles') st\n                WHERE st->>'key' = r.style ORDER BY version DESC LIMIT 1) AS style_name,\n               (SELECT min(o.time) FROM runs o\n                WHERE o.map_id = r.map_id AND o.style = r.style AND o.track = r.track\n                  AND o.invalidated_at IS NULL AND (o.finished_at, o.id) < (r.finished_at, r.id))\n                 AS previous_record,\n               (SELECT min(o.time) FROM runs o\n                WHERE o.map_id = r.map_id AND o.style = r.style AND o.track = r.track\n                  AND o.player_steamid64 = r.player_steamid64\n                  AND o.invalidated_at IS NULL AND (o.finished_at, o.id) < (r.finished_at, r.id))\n                 AS previous_personal_best,\n               (SELECT tier FROM current_map_tiers WHERE map_id = r.map_id AND track = r.track) AS tier,\n               (SELECT key FROM map_images WHERE map_id = r.map_id AND position = 0) AS image_key,\n               (SELECT host(h.ip) || ':' || h.port FROM server_heartbeats h\n                JOIN server_listings l ON l.ip = h.ip AND l.port = h.port\n                WHERE h.server_id = s.id ORDER BY h.received_at DESC LIMIT 1) AS server_address\n        FROM unnest($1::bigint[]) WITH ORDINALITY AS wanted (run_id, place)\n        JOIN runs r ON r.id = wanted.run_id\n        JOIN maps m ON m.id = r.map_id\n        JOIN players p ON p.steamid64 = r.player_steamid64\n        JOIN servers s ON s.id = r.server_id\n        ORDER BY wanted.place\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "map",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "style",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "track",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "track"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "time",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "sync",
+        "type_info": "Float4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "sync"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "strafes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "strafes"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "jumps",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "jumps"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "finished_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "finished_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "was_record",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "was_record"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 11,
+        "name": "player",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "server_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "servers",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "style_name",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 14,
+        "name": "previous_record",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 15,
+        "name": "previous_personal_best",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 16,
+        "name": "tier",
+        "type_info": "Int2",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 17,
+        "name": "image_key",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 18,
+        "name": "server_address",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "5b3ad4aac7217ba3a603adcf938d933c1fdf51108b8b45030fae0d9a3195d941"
+}

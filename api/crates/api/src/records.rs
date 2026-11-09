@@ -1,5 +1,7 @@
 //! A map's records, `GET /v1/maps/{map}/records`: the top personal bests per style and track, for the
-//! plugin's in-game records display.
+//! plugin's in-game records display. Connected players' own bests on the map are in `records/personal_bests.rs`.
+
+pub mod personal_bests;
 
 use axum::{
     Json,
@@ -54,9 +56,11 @@ pub struct Record {
 }
 
 pub fn routes() -> OpenApiRouter<AppState> {
-    // Servers check a map's records on every map change; most of the time nothing's new.
+    // Servers check a map's records and their players' personal bests on every map change; most of the time
+    // nothing's new.
     OpenApiRouter::new()
         .routes(routes!(map_records))
+        .routes(routes!(personal_bests::players_personal_bests))
         .layer(axum::middleware::from_fn(crate::etag::conditional))
 }
 

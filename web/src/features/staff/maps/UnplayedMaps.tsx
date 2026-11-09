@@ -82,7 +82,13 @@ export async function UnplayedMaps({
           ))}
         </TableBody>
       </Table>
-      <Pager page={page} pageCount={Math.ceil(total / PAGE_SIZE)} href={href} />
+      <Pager
+        page={page}
+        pageCount={Math.ceil(total / PAGE_SIZE)}
+        total={total}
+        noun={total === 1 ? "map" : "maps"}
+        href={href}
+      />
     </>
   );
 }

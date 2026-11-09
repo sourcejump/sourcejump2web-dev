@@ -1,4 +1,4 @@
-// The top of a map's pages: its banner, name and main tier, when it was released and who made it, and the
+// The top of a map's pages: its banner with, laid over it, the name and main tier, when it was released and who made it, and the
 // Map / Zones switch (with Manage for staff). It sits in the map's layout, so switching between the views leaves it in place.
 import { notFound } from "next/navigation";
 import type { Schemas } from "@/api/client";
@@ -34,36 +34,55 @@ export async function MapHeader({ name }: { name: string }) {
     (map !== undefined || staffMap?.known === true);
 
   return (
-    <>
-      <MapBanner map={map?.name ?? name} images={images}>
-        {canEdit && cover && <CoverControls map={name} cover={cover} />}
-      </MapBanner>
-      <header className="flex flex-col gap-1.5">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-bold">{map?.name ?? name}</h1>
-          {mainTier != null && tierCount != null && (
-            <TierBadge tier={mainTier} tierCount={tierCount} />
-          )}
-          {/* A map without a finished run has no page to switch to. */}
-          {map && (
-            <PathTabs
-              label="View"
-              className="ml-auto"
-              tabs={[
-                { href: `/maps/${map.name}`, label: "Map" },
-                { href: `/maps/${map.name}/zones`, label: "Zones" },
-                ...(manager
-                  ? [{ href: `/maps/${map.name}/manage`, label: "Manage" }]
-                  : []),
-              ]}
-            />
-          )}
-        </div>
-        <p className="text-text-muted text-sm">
-          <Details map={map} staffMap={staffMap} />
-        </p>
-      </header>
-    </>
+    <MapBanner
+      map={map?.name ?? name}
+      images={images}
+      title={
+        <header className="min-w-0">
+          <div className="flex min-w-0 flex-col gap-1">
+            {/* Inline, so a long name wraps with the badge after it, and `align-middle` centers the badge on the
+                name's lowercase letters, where the eye reads its middle, rather than on the line box. */}
+            <div className="min-w-0 text-2xl font-bold break-words sm:text-3xl lg:text-4xl">
+              <h1 className="inline">{map?.name ?? name}</h1>
+              {mainTier != null && tierCount != null && (
+                <span className="ml-3 inline-flex align-middle">
+                  {/* Over the picture (lg up), a dark fill of its own, as the tabs and picture count have, so its
+                      outline and label read on any picture; on the page below lg it needs none. */}
+                  <TierBadge
+                    tier={mainTier}
+                    tierCount={tierCount}
+                    className="lg:bg-bg/85 lg:text-shadow-none"
+                  />
+                </span>
+              )}
+            </div>
+            <p className="text-text-muted text-sm">
+              <Details map={map} staffMap={staffMap} />
+            </p>
+            {/* Below lg, where the title sits under the picture, the map's boards put the chosen board's record, players and runs here (MapBoards), so
+                its leaderboard starts higher up the screen. */}
+            <div id="map-banner-figures" className="empty:hidden lg:hidden" />
+          </div>
+        </header>
+      }
+      tabs={
+        // A map without a finished run has no page to switch to.
+        map && (
+          <PathTabs
+            label="View"
+            tabs={[
+              { href: `/maps/${map.name}`, label: "Map" },
+              { href: `/maps/${map.name}/zones`, label: "Zones" },
+              ...(manager
+                ? [{ href: `/maps/${map.name}/manage`, label: "Manage" }]
+                : []),
+            ]}
+          />
+        )
+      }
+    >
+      {canEdit && cover && <CoverControls map={name} cover={cover} />}
+    </MapBanner>
   );
 }
 

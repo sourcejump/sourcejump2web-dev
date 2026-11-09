@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO server_activity_peaks AS p (day, players)\n            SELECT (now() AT TIME ZONE 'UTC')::date, coalesce(sum(latest.players), 0)\n            FROM (\n                SELECT DISTINCT ON (h.ip, h.port) h.players\n                FROM server_heartbeat_log h\n                JOIN server_listings l ON l.ip = h.ip AND l.port = h.port\n                WHERE h.received_at > now() - make_interval(mins => $1)\n                ORDER BY h.ip, h.port, h.received_at DESC\n            ) latest\n            ON CONFLICT (day) DO UPDATE SET players = greatest(p.players, excluded.players)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e9012bc9223b6610b7c31d60ea297dabf0f4666650de0b0bb02053016bbae597"
+}

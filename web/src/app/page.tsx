@@ -1,16 +1,13 @@
-// Home page: the site's header, what bunnyhopping is, how to start, and the latest records and servers.
-import { BhopIntro } from "@/features/home/BhopIntro";
-import { GetStarted } from "@/features/home/GetStarted";
+// Home page: the site's header with the way in, then what's happening now: how busy SourceJump is, the newest
+// world records beside the top players, and the servers people are playing on.
 import { HomeHeader } from "@/features/home/HomeHeader";
 import { LiveNow } from "@/features/home/LiveNow";
 import { Page } from "@/ui/Page";
 
 export default function HomePage() {
   return (
-    <Page className="gap-20">
+    <Page className="gap-4">
       <HomeHeader />
-      <BhopIntro />
-      <GetStarted />
       <LiveNow />
     </Page>
   );

@@ -1,5 +1,6 @@
 // A map's difficulty tier, colored by where it sits between the easiest and hardest tier.
 import type { CSSProperties } from "react";
+import { classNames } from "./classNames";
 
 /** Number of `--color-tier-N` stops in tokens.css. */
 const stops = 4;
@@ -24,16 +25,25 @@ export function tierColor(tier: number, tierCount: number): string {
 export function TierBadge({
   tier,
   tierCount,
+  className,
 }: {
   tier: number;
   tierCount: number;
+  /** E.g. a fill of its own, where it sits on a picture. */
+  className?: string;
 }) {
+  // The light foreground mix keeps small labels readable even at the darker end of the ramp.
   const style = { "--tier": tierColor(tier, tierCount) } as CSSProperties;
   return (
     <span
       style={style}
       title={`Tier ${tier} of ${tierCount}`}
-      className="inline-flex h-5 items-center rounded-sm border border-(color:--tier) px-1.5 text-xs font-bold text-(color:--tier)"
+      // The width fits T1 to T9 alike and grows only for two digits; it never stretches to a grid column, where
+      // one T10 would widen every badge beside it. Centered both ways, so the label sits in the middle of the box.
+      className={classNames(
+        "inline-flex h-5 min-w-7 shrink-0 items-center justify-center self-center justify-self-start rounded-sm bg-(--tier)/15 px-1 text-xs leading-none font-bold text-[color:color-mix(in_oklch,var(--tier)_70%,var(--color-text))] tabular-nums",
+        className,
+      )}
     >
       T{tier}
     </span>

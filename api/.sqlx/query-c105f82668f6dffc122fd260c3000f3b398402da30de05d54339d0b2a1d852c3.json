@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH bounds AS (\n            SELECT make_interval(mins => $1) AS bucket,\n                   date_bin(make_interval(mins => $1), now(), TIMESTAMPTZ '2000-01-01') AS current,\n                   date_bin(make_interval(mins => $3), now(), TIMESTAMPTZ '2000-01-01') AS latest\n        ), buckets AS (\n            SELECT generate_series(current - $2 * bucket, current - bucket, bucket) AS at FROM bounds\n        ), per_server AS (\n            SELECT date_bin(bounds.bucket, h.received_at, TIMESTAMPTZ '2000-01-01') AS at,\n                   h.ip, h.port, avg(h.players) AS players\n            FROM server_heartbeat_log h\n            CROSS JOIN bounds\n            JOIN server_listings l ON l.ip = h.ip AND l.port = h.port\n            WHERE h.received_at >= bounds.current - $2 * bounds.bucket AND h.received_at < bounds.current\n            GROUP BY 1, 2, 3\n        ), online AS (\n            SELECT m.at, sum(latest.players) AS players\n            FROM bounds\n            CROSS JOIN generate_series(\n                bounds.current - $2 * bounds.bucket,\n                bounds.latest,\n                make_interval(mins => $3)\n            ) AS m(at)\n            CROSS JOIN LATERAL (\n                SELECT DISTINCT ON (h.ip, h.port) h.players\n                FROM server_heartbeat_log h\n                JOIN server_listings l ON l.ip = h.ip AND l.port = h.port\n                WHERE h.received_at > m.at - make_interval(mins => $4) AND h.received_at <= m.at\n                ORDER BY h.ip, h.port, h.received_at DESC\n            ) latest\n            GROUP BY m.at\n        ), peaks AS (\n            SELECT date_bin(bounds.bucket, online.at, TIMESTAMPTZ '2000-01-01') AS at, max(online.players) AS players\n            FROM online CROSS JOIN bounds\n            GROUP BY 1\n        ), whole AS (\n            SELECT coalesce(max(online.players), 0)::int AS players\n            FROM online CROSS JOIN bounds\n            WHERE online.at >= bounds.current - $2 * bounds.bucket\n        )\n        SELECT b.at AS \"at!\", count(p.ip)::int AS \"servers!\", coalesce(round(sum(p.players)), 0)::int AS \"players!\",\n               coalesce(pk.players, 0)::int AS \"peak_players!\", whole.players AS \"range_peak!\"\n        FROM buckets b\n        CROSS JOIN whole\n        LEFT JOIN per_server p ON p.at = b.at\n        LEFT JOIN peaks pk ON pk.at = b.at\n        GROUP BY b.at, pk.players, whole.players\n        ORDER BY b.at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "servers!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "players!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "peak_players!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "range_peak!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Float8",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "c105f82668f6dffc122fd260c3000f3b398402da30de05d54339d0b2a1d852c3"
+}

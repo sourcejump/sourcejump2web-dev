@@ -1,21 +1,20 @@
 // The Maps page's totals (maps, tiered maps, maps per tier), its search, sort, style and completion choices,
-// and one row per map with its picture, tier and world record. Staff who manage maps also get a "No runs yet" tab
+// and one card per map with its picture, tier and top three. Staff who manage maps also get a "No runs yet" tab
 // and a "Map files" tab for uploading viewer files in bulk, and can set up a map by name before its first run.
-import { Search, X } from "lucide-react";
-import Form from "next/form";
+import { X } from "lucide-react";
 import type { CSSProperties } from "react";
 import { api, type Schemas } from "@/api/client";
 import { signedInPlayer } from "@/features/auth/signedInPlayer";
 import { currentStyles } from "@/features/ruleset/styles";
 import { STEAMID } from "@/features/players/steamId";
-import { formatSince, formatTime } from "@/features/runs/time";
+import { formatSince } from "@/features/runs/time";
 import { BulkUpload } from "@/features/staff/maps/BulkUpload";
 import { UnplayedMaps } from "@/features/staff/maps/UnplayedMaps";
 import { Avatar } from "@/ui/Avatar";
-import { Button, ButtonLink } from "@/ui/Button";
+import { ButtonLink } from "@/ui/Button";
 import { Card } from "@/ui/Card";
-import { Flag } from "@/ui/Flag";
-import { Input } from "@/ui/Input";
+import { classNames } from "@/ui/classNames";
+import { SearchField } from "@/ui/SearchField";
 import { Link } from "@/ui/Link";
 import { ChoiceBar } from "@/ui/ChoiceBar";
 import { ChoiceMenu } from "@/ui/ChoiceMenu";
@@ -24,9 +23,13 @@ import { Pager } from "@/ui/Pager";
 import { TierBadge } from "@/ui/TierBadge";
 import { TierSpread } from "@/ui/TierSpread";
 import { managesMaps } from "./MapHeader";
-import { MapImage } from "./MapImage";
+import { MapCard } from "./MapCard";
+import { mapPodiums } from "./mapPodiums";
+import cardStyles from "./MapCard.module.css";
+import overviewStyles from "./MapOverview.module.css";
 import { MAP_NAME } from "./mapName";
 import { tierParam } from "./tierParam";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 const PAGE_SIZE = 50;
 /** In groups (players, name, tier, record), each starting below a line in the menu. */
@@ -116,6 +119,7 @@ export async function MapList({ params }: { params: MapListParams }) {
   if (files) {
     return (
       <div className="flex flex-col gap-6">
+        <h1 className="text-3xl font-bold">Maps</h1>
         <ChoiceBar>
           <div className="ml-auto">{staffTabs}</div>
         </ChoiceBar>
@@ -150,6 +154,7 @@ export async function MapList({ params }: { params: MapListParams }) {
         .catch(() => undefined);
   const list = result?.data;
   const style = list?.style ?? requestedStyle;
+  const podiums = await mapPodiums(list?.maps ?? [], style, me?.steamid64);
   const typedName = q.toLowerCase();
   const offerSetUp =
     staff &&
@@ -203,91 +208,78 @@ export async function MapList({ params }: { params: MapListParams }) {
         };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
+      <h1 className="sr-only">Maps</h1>
       {list && (
-        <MapStats
-          stats={list.stats}
-          tierCount={list.tier_count}
-          selected={tier}
-          tierHref={(choice) => href({ tier: choice })}
-          newestHref={href({ sort: "newest", tier: null, page: 1 })}
-        />
+        <Card className="w-full min-w-0 xl:w-fit xl:self-center">
+          <MapStats
+            stats={list.stats}
+            tierCount={list.tier_count}
+            selected={tier}
+            tierHref={(choice) => href({ tier: choice })}
+            newestHref={href({ sort: "newest", page: 1 })}
+          />
+        </Card>
       )}
-      <Form action="/maps" prefetch={false} className="flex max-w-xl gap-2">
-        {/* Searching keeps the chosen tab, sort, style and completion filter. */}
-        {unplayed && <input type="hidden" name="view" value="unplayed" />}
-        {completion !== "all" && filterPlayer && (
-          <>
-            <input type="hidden" name="player" value={filterPlayer} />
-            <input type="hidden" name="completed" value={completion} />
-          </>
-        )}
-        {sort !== DEFAULT_SORT && (
-          <input type="hidden" name="sort" value={sort} />
-        )}
-        {requestedStyle && (
-          <input type="hidden" name="style" value={requestedStyle} />
-        )}
-        {tier != null && <input type="hidden" name="tier" value={tier} />}
-        <Input
-          icon={Search}
-          type="search"
+
+      <div className={overviewStyles.toolbar}>
+        <ChoiceBar>
+          {!unplayed && (
+            <>
+              <ChoiceMenu
+                label="Sort"
+                options={sorts.map((s) => ({
+                  value: s.key,
+                  label: s.label,
+                  startsGroup: "startsGroup" in s,
+                  href: href({ sort: s.key }),
+                }))}
+                value={sort}
+              />
+              {styles.keys.length > 1 && (
+                <ChoiceMenu
+                  label="Records in"
+                  options={styles.keys.map((key) => ({
+                    value: key,
+                    label: styles.name(key),
+                    href: href({ style: key }),
+                  }))}
+                  value={style ?? styles.keys[0] ?? ""}
+                />
+              )}
+              <ChoiceMenu
+                label="Completion"
+                options={completions.map((c) => ({
+                  value: c.key,
+                  label: c.label,
+                  detail: completionDetail[c.key],
+                  href: href({ completion: c.key }),
+                  disabled: c.key !== "all" && !filterPlayer,
+                }))}
+                value={completion}
+              />
+              {completion !== "all" && player && (
+                <FilterPlayer
+                  player={list?.player}
+                  steamid={player}
+                  clearHref={href({ completion: "all" })}
+                />
+              )}
+            </>
+          )}
+          {/* Staff only, out of the way of the menus everyone uses. */}
+          {staff && <div className="ml-auto">{staffTabs}</div>}
+        </ChoiceBar>
+        <SearchField
+          key={q}
+          live
           name="q"
           defaultValue={q}
-          placeholder="Map name, or a SteamID for their maps"
-          aria-label="Search maps, or enter a SteamID"
-          className="flex-1"
+          placeholder="Map name, WR holder or SteamID"
+          label="Search maps, WR holders, or enter a SteamID"
+          className={overviewStyles.search}
         />
-        <Button type="submit">Search</Button>
-      </Form>
-
-      <ChoiceBar>
-        {!unplayed && (
-          <>
-            <ChoiceMenu
-              label="Sort"
-              options={sorts.map((s) => ({
-                value: s.key,
-                label: s.label,
-                startsGroup: "startsGroup" in s,
-                href: href({ sort: s.key }),
-              }))}
-              value={sort}
-            />
-            {styles.keys.length > 1 && (
-              <ChoiceMenu
-                label="Records in"
-                options={styles.keys.map((key) => ({
-                  value: key,
-                  label: styles.name(key),
-                  href: href({ style: key }),
-                }))}
-                value={style ?? styles.keys[0] ?? ""}
-              />
-            )}
-            <ChoiceMenu
-              label="Completion"
-              options={completions.map((c) => ({
-                value: c.key,
-                label: c.label,
-                detail: completionDetail[c.key],
-                href: href({ completion: c.key }),
-                disabled: c.key !== "all" && !filterPlayer,
-              }))}
-              value={completion}
-            />
-            {completion !== "all" && player && (
-              <FilterPlayer
-                player={list?.player}
-                steamid={player}
-                clearHref={href({ completion: "all" })}
-              />
-            )}
-          </>
-        )}
-        {/* Staff only, out of the way of the menus everyone uses. */}
-        {staff && <div className="ml-auto">{staffTabs}</div>}
-      </ChoiceBar>
+      </div>
 
       {/* With no results, the empty card below offers this instead. */}
       {offerSetUp && list && list.maps.length > 0 && (
@@ -314,7 +306,7 @@ export async function MapList({ params }: { params: MapListParams }) {
               : completion === "no"
                 ? "This player has completed every map here."
                 : q
-                  ? "No map with a run has that name."
+                  ? "No maps match that name or WR holder."
                   : tier != null
                     ? `No map with a run has tier ${tier}.`
                     : "No map has a finished run yet."}
@@ -326,30 +318,59 @@ export async function MapList({ params }: { params: MapListParams }) {
           )}
         </Card>
       ) : (
-        <>
-          {/* Keyed by what's shown, so a new sort or style remounts every row and they all enter together;
-              keyed by map alone, rows that stay on the page would swap in place without moving. */}
-          <ul key={href({ page })} className="flex flex-col gap-2">
+        <section className="@container">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 pb-3">
+            <h2 className="text-xl font-bold">
+              {q
+                ? `Maps matching “${q}”`
+                : tier != null
+                  ? `Tier ${tier} maps`
+                  : "All maps"}
+            </h2>
+            <p className="text-text-subtle text-sm">
+              {number.format(list.total)} maps in this view
+            </p>
+          </div>
+          <ul
+            key={href({ page })}
+            className={classNames("grid gap-4", cardStyles.cards)}
+          >
             {list.maps.map((map, index) => (
               <li
                 key={map.name}
-                className="motion-enter"
+                className="motion-enter min-w-0"
                 style={
                   {
                     "--motion-delay": `${Math.min(index, 12) * 25}ms`,
                   } as CSSProperties
                 }
               >
-                <MapRow map={map} tierCount={list.tier_count} />
+                <MapCard
+                  map={map}
+                  tierCount={list.tier_count}
+                  leaders={podiums.get(map.name)?.entries ?? null}
+                  showPersonalBest={me != null}
+                  personalBest={podiums.get(map.name)?.personalBest}
+                  styleName={style ? styles.name(style) : "this style"}
+                  styleKey={
+                    style && style !== styles.keys[0] ? style : undefined
+                  }
+                />
               </li>
             ))}
           </ul>
-          <Pager
-            page={page}
-            pageCount={Math.ceil(list.total / PAGE_SIZE)}
-            href={(p) => href({ page: p })}
-          />
-        </>
+          {list.total > PAGE_SIZE && (
+            <div className="border-border mt-4 border-t pt-2">
+              <Pager
+                page={page}
+                pageCount={Math.ceil(list.total / PAGE_SIZE)}
+                total={list.total}
+                noun={list.total === 1 ? "map" : "maps"}
+                href={(p) => href({ page: p })}
+              />
+            </div>
+          )}
+        </section>
       )}
     </div>
   );
@@ -376,92 +397,129 @@ function MapStats({
   newestHref: string;
 }) {
   const tiered = stats.by_tier.reduce((sum, count) => sum + count, 0);
-  const hasTiers = stats.by_tier.length > 0;
-  if (
-    !hasTiers &&
-    stats.newest.length === 0 &&
-    stats.played_this_week.length === 0
-  )
+  const hasTiers = stats.by_tier.length > 0 && stats.maps > 0;
+  const newest = stats.newest.filter(
+    (map) => selected == null || map.tier === selected,
+  );
+  const playedThisWeek = stats.played_this_week.filter(
+    (map) => selected == null || map.tier === selected,
+  );
+  if (!hasTiers && newest.length === 0 && playedThisWeek.length === 0)
     return null;
-  // The chart keeps the width it needs; the lists share what is left equally, each with a full-height divider.
+  const weeklyScoped =
+    selected == null ||
+    stats.tier === selected ||
+    stats.played_this_week.length < 5 ||
+    playedThisWeek.length === 5;
+  const hasWeekly = stats.maps > 0;
   return (
-    <Card className="flex flex-col gap-6 py-4 lg:flex-row lg:gap-10">
+    <div
+      role="region"
+      aria-label="Map overview"
+      className={overviewStyles.overview}
+    >
       {hasTiers && (
-        <TierSpread
-          byTier={stats.by_tier}
-          untiered={stats.maps - tiered}
-          selected={selected}
-          tierHref={tierHref}
-        />
+        <div className="flex min-w-0 items-center justify-center">
+          <TierSpread
+            byTier={stats.by_tier}
+            untiered={stats.maps - tiered}
+            selected={selected}
+            tierHref={tierHref}
+          />
+        </div>
       )}
-      {stats.newest.length > 0 && (
+      <div className={overviewStyles.summaries}>
         <MapStatsList
           title="New"
+          empty="No maps to show"
           href={newestHref}
-          maps={stats.newest.map((map) => ({
+          maps={newest.map((map) => ({
             name: map.name,
             tier: map.tier,
             detail: formatSince(map.listed_at),
           }))}
           tierCount={tierCount}
         />
-      )}
-      {stats.played_this_week.length > 0 && (
-        <MapStatsList
-          title="Played this week"
-          maps={stats.played_this_week.map((map) => ({
-            name: map.name,
-            tier: map.tier,
-            detail: `${number.format(map.players)} ${map.players === 1 ? "player" : "players"}`,
-          }))}
-          tierCount={tierCount}
-        />
-      )}
-    </Card>
+        {hasWeekly && (
+          <MapStatsList
+            title="Played this week"
+            empty={
+              weeklyScoped
+                ? "No maps played in the last seven days."
+                : "Weekly activity for this tier could not be loaded."
+            }
+            maps={(weeklyScoped ? playedThisWeek : []).map((map) => ({
+              name: map.name,
+              tier: map.tier,
+              detail: `${number.format(map.players)} ${map.players === 1 ? "player" : "players"}`,
+            }))}
+            tierCount={tierCount}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 
 /** One of the map stats' lists: a heading, linked to the matching sort if there is one, then a few maps with a detail each. */
 function MapStatsList({
   title,
+  empty,
   href,
   maps,
   tierCount,
 }: {
   title: string;
+  empty?: string;
   href?: string;
   maps: { name: string; tier?: number | null; detail: string }[];
   tierCount: number | null | undefined;
 }) {
   return (
-    <section className="border-border flex min-w-0 flex-1 basis-0 flex-col gap-2 lg:border-l lg:pl-10">
-      <h2 className="text-text-muted text-xs tracking-widest uppercase">
+    <section aria-label={title} className={overviewStyles.summary}>
+      <h2 className="text-sm font-bold">
         {href ? (
-          <Link href={href} className="hover:text-text">
+          <Link href={href} className="hover:text-accent">
             {title}
           </Link>
         ) : (
           title
         )}
       </h2>
-      <ul className="flex flex-col gap-0.5 text-sm">
-        {maps.map((map) => (
-          <li key={map.name}>
-            <Link
-              href={`/maps/${map.name}`}
-              className="hover:bg-surface-raised -mx-2 flex items-center gap-2 rounded-md px-2 py-0.5"
-            >
-              {map.tier != null && tierCount != null && (
-                <TierBadge tier={map.tier} tierCount={tierCount} />
-              )}
-              <span className="min-w-0 flex-1 truncate font-semibold">
-                {map.name}
-              </span>
-              <span className="text-text-subtle shrink-0">{map.detail}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {maps.length === 0 ? (
+        <p className="text-text-muted text-sm">{empty}</p>
+      ) : (
+        <ul className={overviewStyles.list}>
+          {maps.map((map) => (
+            <li key={map.name} className="min-w-0">
+              <Link
+                href={`/maps/${map.name}`}
+                className={classNames(
+                  "group rounded-sm text-sm",
+                  overviewStyles.link,
+                )}
+              >
+                {map.tier != null && tierCount != null ? (
+                  <TierBadge tier={map.tier} tierCount={tierCount} />
+                ) : (
+                  <span />
+                )}
+                <span className="group-hover:text-accent max-xs:text-xs min-w-0 wrap-anywhere underline-offset-4 group-hover:underline">
+                  {map.name}
+                </span>
+                <span
+                  className={classNames(
+                    "text-text-muted text-xs tabular-nums",
+                    overviewStyles.detail,
+                  )}
+                >
+                  {map.detail}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -484,11 +542,7 @@ function FilterPlayer({
           href={`/players/${player.steamid64}`}
           className="hover:text-accent flex items-center gap-2"
         >
-          <Avatar
-            name={player.name}
-            src={player.avatar_url ?? undefined}
-            size="sm"
-          />
+          <Avatar name={player.name} src={avatarSrc(player)} size="sm" />
           {player.name}
         </Link>
       ) : (
@@ -502,51 +556,5 @@ function FilterPlayer({
         <X aria-hidden className="size-4" />
       </Link>
     </span>
-  );
-}
-
-function MapRow({
-  map,
-  tierCount,
-}: {
-  map: Schemas["MapSummary"];
-  tierCount: number | null | undefined;
-}) {
-  const wr = map.world_record;
-  return (
-    <Link
-      href={`/maps/${map.name}`}
-      className="border-border bg-surface motion-lift flex items-center gap-4 rounded-lg border p-2 pr-4"
-    >
-      <MapImage image={map.image} size="thumbnail" />
-      <span className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-        <span className="flex items-center gap-2">
-          {map.tier != null && tierCount != null && (
-            <TierBadge tier={map.tier} tierCount={tierCount} />
-          )}
-          <span className="truncate font-bold">{map.name}</span>
-        </span>
-        <span className="text-text-subtle text-sm">
-          {map.players === 1 ? "1 player" : `${map.players} players`}
-          {map.bonuses > 0 &&
-            ` · ${map.bonuses === 1 ? "1 bonus" : `${map.bonuses} bonuses`}`}
-        </span>
-      </span>
-      {wr ? (
-        <span className="flex flex-col items-end gap-0.5 text-right">
-          <span className="text-accent font-bold tabular-nums">
-            {formatTime(wr.time)}
-          </span>
-          <span className="text-text-muted flex items-center gap-1.5 text-sm">
-            {wr.player.name}
-            <Flag code={wr.player.country_code} />
-          </span>
-        </span>
-      ) : (
-        <span className="text-text-subtle text-sm">
-          No record in this style
-        </span>
-      )}
-    </Link>
   );
 }

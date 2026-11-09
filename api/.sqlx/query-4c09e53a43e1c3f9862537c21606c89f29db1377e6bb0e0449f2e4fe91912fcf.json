@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.name, week.players AS \"players!\",\n                  (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0) AS tier\n           FROM (SELECT map_id, count(DISTINCT player_steamid64) AS players FROM runs\n                 WHERE invalidated_at IS NULL AND finished_at > now() - interval '7 days'\n                 GROUP BY map_id) week\n           JOIN maps m ON m.id = week.map_id\n           WHERE $2::smallint IS NULL OR $2 =\n                 (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0)\n           ORDER BY week.players DESC, m.name LIMIT $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "players!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "tier",
+        "type_info": "Int2",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "4c09e53a43e1c3f9862537c21606c89f29db1377e6bb0e0449f2e4fe91912fcf"
+}

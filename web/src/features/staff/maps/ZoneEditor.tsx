@@ -351,7 +351,7 @@ export function ZoneEditor({
           "bg-bg relative w-full overflow-hidden outline-none",
           fullscreen
             ? "h-full"
-            : "border-border aspect-video rounded-lg border",
+            : "border-border aspect-video rounded-md border",
           state.adding && "cursor-crosshair",
         )}
       >

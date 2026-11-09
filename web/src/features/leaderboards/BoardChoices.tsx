@@ -7,8 +7,18 @@ import { ChoiceMenu } from "@/ui/ChoiceMenu";
 import { LinkTabs } from "@/ui/LinkTabs";
 
 export type Track = Schemas["LeaderboardTrack"];
-/** Players per page of a full list. */
-export const LIST_PAGE_SIZE = 50;
+/**
+ * Players per page: 15 on a full list (a screen's worth), 20 on each of the overview's two lists. Either turns
+ * pages in the browser, from chunks of players loaded a request at a time (`useStandingsPages`). Here and not in
+ * a client module, whose exports reach server code only as references.
+ */
+export const LIST_PAGE_SIZE = 15;
+export const OVERVIEW_PAGE_SIZE = 20;
+/**
+ * A multiple of both page sizes, so every page lies within one chunk: with 100, page 7 of 15 (players 91 to 105)
+ * spanned two chunks and showed only the first one's ten.
+ */
+export const STANDINGS_CHUNK = 60;
 type Styles = Awaited<ReturnType<typeof currentStyles>>;
 
 export interface BoardParams {

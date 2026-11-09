@@ -70,17 +70,21 @@ type Prepared = { map: string; loading: ReturnType<typeof prepareViewer> };
 export function ReplayPlayer({
   run,
   styleNames,
+  startNow = false,
 }: {
   run: Schemas["RunDetail"];
   /** Ranked styles' names by key, for a compared run of another style. */
   styleNames: Record<string, string>;
+  /** Start without waiting for a press, as in the replay dialog. */
+  startNow?: boolean;
 }) {
   const [pressedPhase, setPhase] = useState<Phase>({ kind: "poster" });
-  const autoStart = useSyncExternalStore(
+  const openedAtAnchor = useSyncExternalStore(
     subscribeToHash,
     openedAtReplay,
     () => false,
   );
+  const autoStart = startNow || openedAtAnchor;
   const phase: Phase =
     pressedPhase.kind === "poster" && autoStart
       ? { kind: "loading" }
@@ -386,7 +390,7 @@ export function ReplayPlayer({
       onKeyDown={onKeyDown}
       className={classNames(
         "bg-bg @container relative w-full scroll-mt-24 overflow-hidden outline-none",
-        fullscreen ? "h-full" : "border-border aspect-video rounded-lg border",
+        fullscreen ? "h-full" : "border-border aspect-video rounded-md border",
         idle && "cursor-none",
       )}
     >

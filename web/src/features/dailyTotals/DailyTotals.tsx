@@ -9,7 +9,17 @@ import {
 
 const ranges = ["month", "year", "all"] as const satisfies TotalsRange[];
 
-export async function DailyTotals({ kind }: { kind: DailyTotalsData["kind"] }) {
+export async function DailyTotals({
+  kind,
+  heading,
+  plain = false,
+}: {
+  kind: DailyTotalsData["kind"];
+  /** Sits in the chart's top row, so the page doesn't spend a line on its own title. */
+  heading?: string;
+  /** Draws on the parent's surface instead of its own card. */
+  plain?: boolean;
+}) {
   // Both endpoints take the same range and return their own totals type, so one fetch serves either kind.
   const data: DailyTotalsData = {
     kind,
@@ -34,6 +44,8 @@ export async function DailyTotals({ kind }: { kind: DailyTotalsData["kind"] }) {
     <DailyTotalsChart
       data={data}
       initialRange={kind === "players" ? "all" : "month"}
+      heading={heading}
+      plain={plain}
     />
   );
 }

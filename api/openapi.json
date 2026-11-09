@@ -134,6 +134,54 @@
         }
       }
     },
+    "/v1/auth/sign-out-everywhere": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Ends every session of the signed-in player, in every browser, and signs this one out. A form on the\nwebsite posts here. Unlike signing out, it needs a live session: answering a request without one as if it\nhad worked would tell the player their other browsers were signed out when nothing was ended.",
+        "operationId": "sign_out_everywhere",
+        "parameters": [
+          {
+            "name": "return_to",
+            "in": "query",
+            "description": "The page to come back to: a path on this site, such as `/maps`. Anything else means `/`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Back to the page the player came from, signed out everywhere"
+          },
+          "401": {
+            "description": "Not signed in; no session was ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not sent from SourceJump's own pages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/steam": {
       "get": {
         "tags": [
@@ -540,7 +588,7 @@
           {
             "name": "q",
             "in": "query",
-            "description": "Part of a map name. Case doesn't matter, and spaces stand for underscores. The map of exactly that\nname comes first, then maps with a word starting with it, then other matches, each in the chosen\nsort; near misses for a typo come last, closest first.",
+            "description": "Part of a map name or a main-track world record holder's name in the chosen style. Case doesn't\nmatter; spaces in map names stand for underscores. Exact map names come first, then word starts,\nother map matches and record holders, each in the chosen sort; near misses come last.",
             "required": false,
             "schema": {
               "type": [
@@ -861,6 +909,71 @@
         }
       }
     },
+    "/v1/maps/{map}/personal-bests": {
+      "get": {
+        "tags": [
+          "maps"
+        ],
+        "summary": "These players' SourceJump personal bests on the map, every style and track. An unknown map, or players\nwithout runs on it, give an empty list.",
+        "operationId": "players_personal_bests",
+        "parameters": [
+          {
+            "name": "map",
+            "in": "path",
+            "description": "Map name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "players",
+            "in": "query",
+            "description": "Players by SteamID64, comma-separated: 1 to 64 of them. Repeats count once.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayersPersonalBests"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, unknown or revoked API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a valid map name, or `players` isn't 1 to 64 SteamID64s",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "server_key": []
+          }
+        ]
+      }
+    },
     "/v1/maps/{map}/records": {
       "get": {
         "tags": [
@@ -1163,6 +1276,69 @@
                 "schema": {
                   "$ref": "#/components/schemas/PlayerProfile"
                 }
+              }
+            }
+          },
+          "404": {
+            "description": "SourceJump has no such player",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a SteamID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/players/{player}/avatar": {
+      "get": {
+        "tags": [
+          "players"
+        ],
+        "summary": "Redirects to the player's Steam avatar. Takes a `SteamID64`, `SteamID2` or `SteamID3`. Only players\nSourceJump knows are looked up on Steam; a player known only from the old site gets the avatar it had.",
+        "operationId": "player_avatar",
+        "parameters": [
+          {
+            "name": "player",
+            "in": "path",
+            "description": "SteamID64, SteamID2 (STEAM_0:1:2) or SteamID3 ([U:1:4])",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No avatar yet: a placeholder with the player's initials, cached five minutes",
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "To the avatar on Steam's CDN; cached a day",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The avatar's URL"
               }
             }
           },
@@ -2040,6 +2216,19 @@
             }
           },
           {
+            "name": "offset",
+            "in": "query",
+            "description": "Runs to skip, for going straight to a page. Default 0. Counted after `cursor` when both are given.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "description": "Continue after this point: a `next_cursor` from an earlier page with the same filters.",
@@ -2063,7 +2252,7 @@
             }
           },
           "422": {
-            "description": "Not a valid tier, limit or cursor",
+            "description": "Not a valid tier, limit, offset or cursor",
             "content": {
               "application/json": {
                 "schema": {
@@ -5917,13 +6106,19 @@
         "required": [
           "at",
           "servers",
-          "players"
+          "players",
+          "peak_players"
         ],
         "properties": {
           "at": {
             "type": "string",
             "format": "date-time",
             "description": "Where the bucket starts."
+          },
+          "peak_players": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The most players online at once during the bucket, across listed servers: each server's latest\nheartbeat count, summed at the same moment. Up to a month, sampled every 5 minutes; for a year, the\nday's highest total at any heartbeat."
           },
           "players": {
             "type": "integer",
@@ -6191,7 +6386,7 @@
               "string",
               "null"
             ],
-            "description": "An ISO 3166-1 alpha-2 code to show instead of the Steam profile's country; null to show Steam's."
+            "description": "An ISO 3166-1 alpha-2 code to show instead of Steam's or a game server's, until a run's server finds one;\nnull to stop showing the player's pick."
           },
           "dpi": {
             "type": [
@@ -7667,7 +7862,7 @@
       },
       "MapStats": {
         "type": "object",
-        "description": "The whole list at a glance, whatever the search or filter.",
+        "description": "Global totals and tier-scoped newest and weekly lists.",
         "required": [
           "maps",
           "by_tier",
@@ -7701,6 +7896,14 @@
               "$ref": "#/components/schemas/PlayedMap"
             },
             "description": "The maps the most players finished a run on in the last 7 days, most first."
+          },
+          "tier": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The tier the newest and weekly lists describe; None describes all tiers. Totals remain global."
           }
         }
       },
@@ -7945,6 +8148,14 @@
           "style": {
             "type": "string"
           },
+          "tier": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The board's tier. None while tiers aren't in force or staff haven't set this board's, and for a legacy\nrun."
+          },
           "time": {
             "type": "number",
             "format": "double",
@@ -7954,6 +8165,14 @@
             "type": "integer",
             "format": "int32",
             "description": "0 is the main track, 1 and up are bonuses."
+          },
+          "world_record_time": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The board's 2.0 record time, as on its map leaderboard, so a client can show the gap to it. None for a\nlegacy run."
           }
         }
       },
@@ -8094,6 +8313,50 @@
           }
         }
       },
+      "PlayerPersonalBest": {
+        "type": "object",
+        "required": [
+          "steamid64",
+          "style",
+          "track",
+          "time",
+          "rank",
+          "run_id",
+          "finished_at"
+        ],
+        "properties": {
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Place on the leaderboard; equal times share a place, as in `…/records`."
+          },
+          "run_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "steamid64": {
+            "type": "string",
+            "description": "SteamID64, as a string."
+          },
+          "style": {
+            "type": "string"
+          },
+          "time": {
+            "type": "number",
+            "format": "double",
+            "description": "Seconds."
+          },
+          "track": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 is the main track, 1 and up are bonuses."
+          }
+        }
+      },
       "PlayerPrivileges": {
         "type": "object",
         "required": [
@@ -8135,14 +8398,14 @@
           },
           "country_chosen": {
             "type": "boolean",
-            "description": "Whether the player picked `country_code` themselves, rather than it coming from Steam."
+            "description": "Whether the player picked `country_code` themselves, rather than it coming from a game server or Steam."
           },
           "country_code": {
             "type": [
               "string",
               "null"
             ],
-            "description": "ISO 3166-1 alpha-2: the one the player picked, or else their Steam profile's. None if neither has one."
+            "description": "ISO 3166-1 alpha-2: the latest one a game server found for them, the player's pick if they made it\nsince, or else their Steam profile's. None if none has one."
           },
           "details": {
             "oneOf": [
@@ -8202,6 +8465,14 @@
               "$ref": "#/components/schemas/PlayerStyle"
             },
             "description": "One entry per style they hold a personal best in, sorted by style key. Counts are 2.0 alone."
+          },
+          "tier_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Number of tiers in force; None while the community hasn't set tiers, and personal bests then have no\ntier."
           }
         }
       },
@@ -8380,6 +8651,25 @@
             "type": "integer",
             "format": "int32",
             "description": "Players with at least one recorded time, 2.0 or pre-2.0, at the end of the point's last day."
+          }
+        }
+      },
+      "PlayersPersonalBests": {
+        "type": "object",
+        "required": [
+          "map",
+          "personal_bests"
+        ],
+        "properties": {
+          "map": {
+            "type": "string"
+          },
+          "personal_bests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerPersonalBest"
+            },
+            "description": "Sorted by player, style and track. A player with no personal best on the map has no entries. One flat\nlist keeps it simple to read in SourcePawn."
           }
         }
       },
@@ -8858,7 +9148,8 @@
       "RecentRuns": {
         "type": "object",
         "required": [
-          "runs"
+          "runs",
+          "total"
         ],
         "properties": {
           "next_cursor": {
@@ -8882,6 +9173,11 @@
             ],
             "format": "int32",
             "description": "Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many runs match the filters, across all pages."
           }
         }
       },
@@ -9677,6 +9973,14 @@
           "name"
         ],
         "properties": {
+          "country_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The player's country, as the game server found it from their address with SourceMod's `GeoipCode2`: an ISO\n3166-1 alpha-2 code. Leave it out when the lookup finds nothing; send only the code, never the address. It\nbecomes the player's flag. A code SourceJump doesn't know as a country is ignored and the run is stored\nanyway. Runs only: detections ignore it.",
+            "example": "SE"
+          },
           "name": {
             "type": "string"
           },
@@ -9899,12 +10203,18 @@
         "required": [
           "range",
           "bucket_minutes",
+          "peak_players",
           "points"
         ],
         "properties": {
           "bucket_minutes": {
             "type": "integer",
             "format": "int32"
+          },
+          "peak_players": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The most players online at once across listed servers over the whole range, from the start of its\nfirst point up to now, the bucket in progress included: no point reads higher, and a shorter range never\nreads higher than a longer one."
           },
           "points": {
             "type": "array",

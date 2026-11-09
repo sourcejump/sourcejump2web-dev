@@ -6,6 +6,7 @@ import { api, failureMessage, type Schemas } from "@/api/client";
 import { Avatar } from "@/ui/Avatar";
 import { Button } from "@/ui/Button";
 import { Textarea } from "@/ui/Textarea";
+import { avatarSrc } from "@/features/players/avatarSrc";
 
 const MAX_CHARS = 1000;
 
@@ -59,11 +60,7 @@ export function CommentForm({
 
   return (
     <form onSubmit={post} className="flex gap-3">
-      <Avatar
-        name={me.name}
-        src={me.avatar_url ?? undefined}
-        size={replyTo ? "sm" : "md"}
-      />
+      <Avatar name={me.name} src={avatarSrc(me)} size={replyTo ? "sm" : "md"} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <Textarea
           value={body}

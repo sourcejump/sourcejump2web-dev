@@ -2,6 +2,7 @@
 // The run dialog, over whichever page is open. It opens the moment a run link is clicked and loads the run
 // inside, so the page behind never reloads (lead, 2026-10-19). It shows what everyone sees; staff act on the
 // run on its own page. Pre-2.0 runs open in it too, with what the old site kept; they have no run page.
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, type Schemas } from "@/api/client";
@@ -11,11 +12,19 @@ import { REPLAY_ANCHOR } from "@/features/replays/anchor";
 import { Button, ButtonLink } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
 import { Tooltip } from "@/ui/Tooltip";
+import type { Gap } from "./gapWhenFinished";
+import { loadGapWhenFinished } from "./loadGapWhenFinished";
 import { RunDetailList } from "./RunDetailList";
-import { closeRun, PRE_RUN_PARAM, RUN_PARAM } from "./runDialog";
+import { closeRun, PRE_RUN_PARAM, REPLAY_PARAM, RUN_PARAM } from "./runDialog";
+
+// The viewer is large, so it loads only once a replay is opened, not with every page.
+const ReplayPlayer = dynamic(
+  () => import("@/features/replays/ReplayPlayer").then((m) => m.ReplayPlayer),
+  { ssr: false },
+);
 
 type Run =
-  | { legacy: false; run: Schemas["RunDetail"] }
+  | { legacy: false; run: Schemas["RunDetail"]; gap: Gap | null }
   | { legacy: true; run: Schemas["LegacyRunDetail"] };
 type Loaded = { key: string } & (Run | { error: string });
 
@@ -44,18 +53,23 @@ async function loadRun(id: string, legacy: boolean): Promise<Run | string> {
       ? "SourceJump has no such run."
       : FAILED;
   }
-  return legacy
-    ? { legacy: true, run: result.data as Schemas["LegacyRunDetail"] }
-    : { legacy: false, run: result.data as Schemas["RunDetail"] };
+  if (legacy) {
+    return { legacy: true, run: result.data as Schemas["LegacyRunDetail"] };
+  }
+  const run = result.data as Schemas["RunDetail"];
+  // Against the record standing when it finished, as on Activity and the run's page.
+  return { legacy: false, run, gap: await loadGapWhenFinished(run) };
 }
 
 export function RunDialogHost() {
   const params = useSearchParams();
   const runId = params.get(RUN_PARAM);
+  const replayId = params.get(REPLAY_PARAM);
   const preRunId = params.get(PRE_RUN_PARAM);
-  const id = runId ?? preRunId;
-  const legacy = runId == null && preRunId != null;
-  const key = id && `${legacy ? "pre" : "run"}-${id}`;
+  const id = runId ?? replayId ?? preRunId;
+  const replay = runId == null && replayId != null;
+  const legacy = runId == null && replayId == null && preRunId != null;
+  const key = id && `${legacy ? "pre" : replay ? "replay" : "run"}-${id}`;
   const [loaded, setLoaded] = useState<Loaded>();
   const [names, setNames] = useState<Map<string, string>>(new Map());
 
@@ -81,6 +95,37 @@ export function RunDialogHost() {
   if (!id) return null;
   const shown = loaded?.key === key ? loaded : undefined;
   const run = shown && "run" in shown ? shown : undefined;
+
+  if (replay) {
+    return (
+      <Dialog
+        open
+        size="lg"
+        onClose={closeRun}
+        title={run ? `${run.run.player.name} on ${run.run.map}` : "Replay"}
+        footer={
+          <ButtonLink href={`/runs/${id}`} size="sm" variant="ghost">
+            Run page
+            <ArrowRight aria-hidden />
+          </ButtonLink>
+        }
+      >
+        {!shown ? null : run && !run.legacy ? (
+          run.run.replay ? (
+            <ReplayPlayer
+              run={run.run}
+              styleNames={Object.fromEntries(names)}
+              startNow
+            />
+          ) : (
+            <p className="text-text-muted">This run has no replay.</p>
+          )
+        ) : (
+          <p className="text-text-muted">{"error" in shown && shown.error}</p>
+        )}
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog
@@ -127,6 +172,7 @@ export function RunDialogHost() {
         ) : (
           <RunDetailList
             run={run.run}
+            gap={run.gap}
             styleName={names.get(run.run.style) ?? run.run.style}
           />
         )

@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { api, type Schemas } from "@/api/client";
 import { LegacyBadge } from "@/features/legacy/LegacyBadge";
+import { ReplayLink } from "@/features/replays/ReplayLink";
 import {
   LEGACY_STYLE,
   type View,
@@ -14,14 +15,29 @@ import {
   viewFrom,
 } from "@/features/legacy/views";
 import { RunLink } from "@/features/runs/RunLink";
-import { formatDate, formatTime } from "@/features/runs/time";
+import {
+  formatAge,
+  formatDate,
+  formatGap,
+  formatTime,
+} from "@/features/runs/time";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { ChoiceBar } from "@/ui/ChoiceBar";
 import { ChoiceMenu } from "@/ui/ChoiceMenu";
+import { classNames } from "@/ui/classNames";
+import { CountUp } from "@/ui/CountUp";
 import { Link } from "@/ui/Link";
 import { Medal } from "@/ui/Medal";
-import { StatCard } from "@/ui/StatCard";
+import { SortButton } from "@/ui/SortButton";
+import { TierBadge } from "@/ui/TierBadge";
+import {
+  gapOf,
+  type PbSort,
+  type PbSortKey,
+  sameSort,
+  sortedPbs,
+} from "./personalBestOrder";
 import {
   Table,
   TableBody,
@@ -33,6 +49,7 @@ import {
 
 const PAGE_SIZE = 50;
 const numbers = new Intl.NumberFormat("en");
+const percent = new Intl.NumberFormat("en", { style: "percent" });
 /** The Style and Track menus' choice of every style or every track. */
 const ANY = "any";
 
@@ -79,8 +96,6 @@ export function PlayerStyles({
   const view: View = withViews
     ? viewFrom(params.get("view"), current ? "current" : "legacy")
     : "current";
-  const standing =
-    tracks === "bonuses" ? current?.bonus_standing : current?.main_standing;
   const bonuses = counts?.completed_bonuses ?? 0;
   const maps = counts?.completed_maps ?? 0;
   const shownTotal =
@@ -111,141 +126,169 @@ export function PlayerStyles({
 
   return (
     <>
-      <ChoiceBar>
-        <ChoiceMenu
-          label="Style"
-          options={[
-            { value: ANY, label: "Any" },
-            ...styleKeys.map((key, index) => ({
-              value: key,
-              label: styleNames[key] ?? key,
-              quiet: !hasTimes(key),
-              startsGroup: index === 0,
-            })),
-          ]}
-          value={styleKey}
-          onChange={(style) => choose({ style })}
-        />
-        <ChoiceMenu
-          label="Track"
-          options={[
-            { value: ANY, label: "Any" },
-            { value: "main", label: "Main", startsGroup: true },
-            { value: "bonuses", label: "Bonuses", quiet: bonuses === 0 },
-          ]}
-          value={tracks}
-          onChange={(value) =>
-            choose({
-              tracks: value === "bonuses" || value === ANY ? value : "main",
-            })
-          }
-        />
-        <ChoiceMenu
-          label="Show"
-          options={[
-            { value: "all", label: "All runs" },
-            {
-              value: "records",
-              label: "World records",
-              quiet: !counts?.world_records,
-            },
-          ]}
-          value={records ? "records" : "all"}
-          onChange={(value) => choose({ records: value === "records" })}
-        />
-        <ViewMenu
-          value={view}
-          available={withViews}
-          onChange={(next) => choose({ view: next })}
-        />
-      </ChoiceBar>
-
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {/* Each card opens what its number comes from. The rank is the style's points leaderboard place, on
-            main tracks unless bonuses are shown; styles count apart, so any style has none. */}
+      {/* The style's progress, split into what each number opens: completed maps and world records, compact like the
+          home page's numbers. The rank leads the header above. */}
+      <div className="motion-enter border-border bg-surface divide-border grid grid-cols-2 divide-x overflow-hidden rounded-md border">
         <StatLink
-          index={0}
-          href={withQuery(
-            "/leaderboards/points",
-            view === "legacy"
-              ? { view: "legacy" }
-              : {
-                  ...boardStyle,
-                  ...(tracks === "bonuses" && { track: "bonuses" }),
-                },
-          )}
-        >
-          <StatCard
-            label="Rank"
-            value={standing?.rank ?? null}
-            detail={
-              standing &&
-              `${numbers.format(standing.points)} points${player.points_draft ? " · draft" : ""}`
-            }
-          />
-        </StatLink>
-        <StatLink
-          index={1}
           href={withQuery("/maps", {
             player: player.steamid64,
             completed: "yes",
             ...boardStyle,
           })}
         >
-          <StatCard
-            label="Completed maps"
-            value={maps}
-            detail={`of ${player.map_count}${bonuses > 0 ? ` · ${bonuses} ${bonuses === 1 ? "bonus" : "bonuses"}` : ""}`}
-          />
+          <StatValue>
+            <CountUp value={maps} />
+            <span className="text-text-muted text-sm font-normal">
+              {" "}
+              / {numbers.format(player.map_count)}
+            </span>
+          </StatValue>
+          <StatText>
+            completed maps
+            {bonuses > 0 && (
+              <span className="max-sm:hidden">
+                {` · ${bonuses} ${bonuses === 1 ? "bonus" : "bonuses"}`}
+              </span>
+            )}
+          </StatText>
+          {player.map_count > 0 && (
+            <span className="text-text-muted ml-auto shrink-0 text-xs font-bold tabular-nums max-lg:hidden">
+              {percent.format(maps / player.map_count)}
+            </span>
+          )}
+          {/* How far through the map list they are, along the cell's foot; the numbers say it for screen readers. */}
+          <span
+            aria-hidden
+            className="bg-surface-overlay absolute inset-x-0 bottom-0 h-0.5"
+          >
+            <span
+              className="bg-accent/60 block h-full"
+              style={{
+                width: `${player.map_count ? Math.min(100, (maps / player.map_count) * 100) : 0}%`,
+              }}
+            />
+          </span>
         </StatLink>
-        {/* Every world record, newest first: any style, any track, 2.0 runs. */}
+        {/* Every world record, newest first: any style, any track, 2.0 runs; pressed again, back to the opening view. A
+            player without one has nothing to open. */}
         <StatLink
-          index={2}
-          onClick={() =>
-            choose({
-              style: ANY,
-              tracks: ANY,
-              records: true,
-            })
+          pressed={records}
+          onClick={
+            counts?.world_records || records
+              ? () =>
+                  records
+                    ? choose({
+                        style: styleKeys.find(hasTimes) ?? styleKeys[0],
+                        tracks: "main",
+                        records: false,
+                      })
+                    : choose({ style: ANY, tracks: ANY, records: true })
+              : undefined
           }
         >
-          <StatCard label="World records" value={counts?.world_records ?? 0} />
+          <StatValue color={counts?.world_records ? "text-accent" : undefined}>
+            <CountUp value={counts?.world_records ?? 0} />
+          </StatValue>
+          <StatText>world records</StatText>
+          {counts?.world_records ? (
+            <span className="text-text-subtle group-hover:text-text ml-auto shrink-0 text-xs transition-colors duration-(--duration-fast) max-lg:hidden">
+              {records ? "Showing all" : "Show all"}
+            </span>
+          ) : null}
         </StatLink>
       </div>
 
-      {records && !counts?.world_records ? (
-        <p className="text-text-muted">No {styleName}world records yet.</p>
-      ) : view === "current" && !shownTotal ? (
-        <p className="text-text-muted">
-          No {styleName}personal bests
-          {tracks === "main"
-            ? " on main tracks"
-            : tracks === "bonuses"
-              ? " on bonuses"
-              : ""}{" "}
-          yet.
-        </p>
-      ) : (
-        <PersonalBests
-          key={`${styleKey}-${tracks}-${view}-${records}`}
-          steamid64={player.steamid64}
-          style={anyStyle ? undefined : styleKey}
-          styleName={(key) => styleNames[key] ?? key}
-          tracks={tracks === ANY ? undefined : tracks}
-          view={view}
-          records={records}
-          first={
-            view === "current" && tracks === "main" && current && !records
-              ? {
-                  personal_bests: current.personal_bests,
-                  next_cursor: current.next_cursor,
-                }
-              : undefined
-          }
-          // The world record count covers main tracks and bonuses together, so it can't total one of them.
-          total={view === "current" && !records ? shownTotal : undefined}
-        />
-      )}
+      {/* The choices sit with the list they narrow, under the overview. */}
+      <div className="flex flex-col gap-3">
+        <ChoiceBar>
+          <ChoiceMenu
+            label="Style"
+            options={[
+              { value: ANY, label: "Any" },
+              ...styleKeys.map((key, index) => ({
+                value: key,
+                label: styleNames[key] ?? key,
+                quiet: !hasTimes(key),
+                startsGroup: index === 0,
+              })),
+            ]}
+            value={styleKey}
+            onChange={(style) => choose({ style })}
+          />
+          <ChoiceMenu
+            label="Track"
+            options={[
+              { value: ANY, label: "Any" },
+              { value: "main", label: "Main", startsGroup: true },
+              { value: "bonuses", label: "Bonuses", quiet: bonuses === 0 },
+            ]}
+            value={tracks}
+            onChange={(value) =>
+              choose({
+                tracks: value === "bonuses" || value === ANY ? value : "main",
+              })
+            }
+          />
+          <ChoiceMenu
+            // Its values ("All runs", "World records") say what it is, so a phone leaves the word out.
+            label={<span className="max-sm:hidden">Show</span>}
+            options={[
+              { value: "all", label: "All runs" },
+              {
+                value: "records",
+                label: "World records",
+                quiet: !counts?.world_records,
+              },
+            ]}
+            value={records ? "records" : "all"}
+            onChange={(value) => choose({ records: value === "records" })}
+          />
+          <ViewMenu
+            value={view}
+            available={withViews}
+            onChange={(next) => choose({ view: next })}
+          />
+        </ChoiceBar>
+        {records && !counts?.world_records ? (
+          <p className="text-text-muted">No {styleName}world records yet.</p>
+        ) : view === "current" && !shownTotal ? (
+          <p className="text-text-muted">
+            No {styleName}personal bests
+            {tracks === "main"
+              ? " on main tracks"
+              : tracks === "bonuses"
+                ? " on bonuses"
+                : ""}{" "}
+            yet.
+          </p>
+        ) : (
+          <PersonalBests
+            key={`${styleKey}-${tracks}-${view}-${records}`}
+            steamid64={player.steamid64}
+            style={anyStyle ? undefined : styleKey}
+            styleName={(key) => styleNames[key] ?? key}
+            tracks={tracks === ANY ? undefined : tracks}
+            view={view}
+            records={records}
+            first={
+              view === "current" && tracks === "main" && current && !records
+                ? {
+                    personal_bests: current.personal_bests,
+                    next_cursor: current.next_cursor,
+                  }
+                : undefined
+            }
+            tierCount={player.tier_count ?? undefined}
+            // The world record count covers main tracks and bonuses together, so it can't total one of them; across
+            // styles the counts are of maps, not of each style's personal best on them.
+            total={
+              view === "current" && !records && !anyStyle
+                ? shownTotal
+                : undefined
+            }
+          />
+        )}
+      </div>
     </>
   );
 }
@@ -263,30 +306,84 @@ function withQuery(
   return text ? `${path}?${text}` : path;
 }
 
-/** A stat card that opens a page or changes the view, entering with the cards beside it. */
+/**
+ * One cell of the standing panel: opens the page its number comes from, or changes the view. With neither,
+ * it's a plain cell.
+ */
 function StatLink({
   href,
   onClick,
-  index,
+  pressed,
+  className,
   children,
 }: {
-  index: number;
+  href?: string;
+  onClick?: () => void;
+  /** For a cell that switches a view: whether that view is showing. */
+  pressed?: boolean;
+  className?: string;
   children: ReactNode;
-} & (
-  { href: string; onClick?: never } | { href?: never; onClick: () => void }
-)) {
-  // Each card fills its grid cell, so a card whose detail wraps on a phone doesn't leave its neighbor shorter.
-  const className =
-    "motion-lift motion-enter flex flex-col rounded-lg text-left *:flex-1";
-  const style = { "--motion-delay": `${index * 40}ms` } as CSSProperties;
-  return href ? (
-    <Link href={href} className={className} style={style}>
+}) {
+  // Number over its words on narrow screens, side by side from lg, as the home page's numbers.
+  const classes = classNames(
+    "group relative flex min-w-0 flex-col px-3 py-2 text-left sm:px-4 sm:py-3 lg:flex-row lg:items-baseline lg:gap-2",
+    className,
+  );
+  // The panel clips its corners, so the focus ring is drawn inside the cell.
+  const clickable = classNames(
+    classes,
+    "hover:bg-text/4 transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2",
+    // On, in the accent, as a pressed ghost button shows it.
+    pressed && "bg-accent-soft hover:bg-accent-soft",
+  );
+  if (href) {
+    return (
+      <Link href={href} className={clickable}>
+        {children}
+      </Link>
+    );
+  }
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={pressed}
+        className={clickable}
+      >
+        {children}
+      </button>
+    );
+  }
+  return <div className={classes}>{children}</div>;
+}
+
+/** A standing cell's number: in its own color (a medal, the record accent), or the accent on hover as at home. */
+function StatValue({
+  color,
+  children,
+}: {
+  color?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={classNames(
+        "shrink-0 text-lg font-bold transition-colors duration-(--duration-fast)",
+        color ?? "group-hover:text-accent",
+      )}
+    >
       {children}
-    </Link>
-  ) : (
-    <button type="button" onClick={onClick} className={className} style={style}>
+    </span>
+  );
+}
+
+/** What a standing cell's number counts. */
+function StatText({ children }: { children: ReactNode }) {
+  return (
+    <span className="text-text-muted group-hover:text-text min-w-0 text-xs transition-colors duration-(--duration-fast) sm:text-sm lg:truncate">
       {children}
-    </button>
+    </span>
   );
 }
 
@@ -300,6 +397,7 @@ function PersonalBests({
   records,
   first,
   total,
+  tierCount,
 }: {
   steamid64: string;
   /** Left out for every style, listed most recently finished first. */
@@ -314,13 +412,27 @@ function PersonalBests({
   first?: Pick<Schemas["PersonalBestPage"], "personal_bests" | "next_cursor">;
   /** How many there are, when known up front (2.0's counts); the other views count what they've shown. */
   total?: number;
+  /** Tiers in force, for the badges; undefined until the community sets tiers. */
+  tierCount?: number;
 }) {
-  const [personalBests, setPersonalBests] = useState(first?.personal_bests);
+  // The API's own order: by map in one style, newest first across styles.
+  const apiOrder: PbSort = style
+    ? { key: "map", descending: false }
+    : { key: "date", descending: true };
+  // Best place first, what a profile is read for. Pre-2.0 runs have no place, so their views keep the API's order.
+  const defaultSort: PbSort =
+    view === "current" ? { key: "place", descending: false } : apiOrder;
+  const sortsAll = !sameSort(defaultSort, apiOrder);
+  // A first page that isn't the whole list waits for the rest, so the table doesn't reorder under the reader.
+  const [personalBests, setPersonalBests] = useState(
+    sortsAll && first?.next_cursor ? undefined : first?.personal_bests,
+  );
   const [cursor, setCursor] = useState(first?.next_cursor);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [sort, setSort] = useState<PbSort>(defaultSort);
 
-  function fetchPage(after: string | undefined) {
+  function fetchPage(after: string | undefined, limit = PAGE_SIZE) {
     return api
       .GET("/v1/players/{player}/personal-bests", {
         params: {
@@ -330,7 +442,7 @@ function PersonalBests({
             tracks,
             view,
             records: records || undefined,
-            limit: PAGE_SIZE,
+            limit,
             cursor: after,
           },
         },
@@ -361,9 +473,57 @@ function PersonalBests({
     show(page, after);
   }
 
-  // Views other than 2.0's don't come with the profile; their first page loads once the view is chosen.
+  /**
+   * Any order but the API's needs every row: loads the rest after `shown`, `loading` being set already. False if a
+   * page failed.
+   * shortcut: loads every personal best in the browser, 100 a request; fine for the few hundred 2.0 runs a player has
+   * in a style, ask the API for a `sort` parameter if lists grow to thousands.
+   */
+  async function loadAll(
+    shown: Schemas["PersonalBest"][],
+    after: string | null | undefined,
+  ) {
+    let all = shown;
+    while (after) {
+      const page = await fetchPage(after, FULL_PAGE_SIZE);
+      if (!page) {
+        setLoading(false);
+        setFailed(true);
+        return false;
+      }
+      all = [...all, ...page.personal_bests];
+      after = page.next_cursor;
+    }
+    setPersonalBests(all);
+    setCursor(undefined);
+    setLoading(false);
+    return true;
+  }
+
+  /** Sorts by a column; again on the same one turns it around. */
+  async function sortBy(key: PbSortKey) {
+    const next: PbSort =
+      sort.key === key
+        ? { key, descending: !sort.descending }
+        : { key, descending: key === "date" };
+    if (!sameSort(next, apiOrder) && cursor) {
+      setLoading(true);
+      setFailed(false);
+      if (!(await loadAll(personalBests ?? [], cursor))) return;
+    }
+    setSort(next);
+  }
+
+  // Views other than 2.0's don't come with the profile; their first page loads once the view is chosen. An order
+  // the API doesn't give loads the rest straight away.
   useEffect(() => {
-    if (!first) void fetchPage(undefined).then((page) => show(page, undefined));
+    const start = first ? Promise.resolve(first) : fetchPage(undefined);
+    void start.then((page) => {
+      if (sortsAll && page?.next_cursor) {
+        setLoading(true);
+        void loadAll(page.personal_bests, page.next_cursor);
+      } else show(page, undefined);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the key remounts this for another style or view
   }, []);
 
@@ -372,7 +532,12 @@ function PersonalBests({
       <p className="text-danger text-sm">
         These personal bests couldn&apos;t be loaded. Try again.
       </p>
-    ) : null;
+    ) : (
+      // Held in the table's place, so choosing a view that wasn't loaded with the page doesn't leave a blank.
+      <p role="status" className="text-text-muted text-sm">
+        Loading…
+      </p>
+    );
   }
   const count = total ?? personalBests.length;
   // World records count bonuses with main tracks, so one kind of track can have none while the count doesn't.
@@ -390,23 +555,83 @@ function PersonalBests({
     );
   }
 
+  const heading = (key: PbSortKey, label: string) => (
+    <SortButton
+      label={label}
+      // The default order needs no arrow; it only shows once someone picks another.
+      active={sort.key === key && !sameSort(sort, defaultSort)}
+      descending={sort.descending}
+      onClick={() => void sortBy(key)}
+    />
+  );
+  const ariaSort = (key: PbSortKey) =>
+    sort.key === key
+      ? sort.descending
+        ? ("descending" as const)
+        : ("ascending" as const)
+      : undefined;
+  const rows = sameSort(sort, apiOrder)
+    ? personalBests
+    : sortedPbs(personalBests, sort, styleName);
+
   return (
     <div className="flex flex-col gap-4">
-      <Table>
+      <Table
+        aria-busy={loading}
+        className={classNames(
+          "transition-opacity duration-(--duration-fast)",
+          loading && "opacity-60",
+        )}
+      >
         <TableHead>
           <tr>
-            <TableHeaderCell className="w-16">Place</TableHeaderCell>
-            <TableHeaderCell>Map</TableHeaderCell>
-            {!style && <TableHeaderCell>Style</TableHeaderCell>}
-            <TableHeaderCell numeric>Time</TableHeaderCell>
-            <TableHeaderCell numeric>Date</TableHeaderCell>
+            {/* As on a map's board: Place centered over its medals, the play button close beside the time. On a
+                phone the style goes under the map and the date becomes an age under the time, so the row fits
+                without scrolling. */}
+            <TableHeaderCell
+              centered
+              className="w-px max-sm:px-2"
+              aria-sort={ariaSort("place")}
+            >
+              {heading("place", "Place")}
+            </TableHeaderCell>
+            <TableHeaderCell
+              className="max-sm:px-2"
+              aria-sort={ariaSort("map")}
+            >
+              {heading("map", "Map")}
+            </TableHeaderCell>
+            {!style && (
+              <TableHeaderCell
+                className="max-sm:hidden"
+                aria-sort={ariaSort("style")}
+              >
+                {heading("style", "Style")}
+              </TableHeaderCell>
+            )}
+            <TableHeaderCell
+              numeric
+              className="pr-2"
+              aria-sort={ariaSort("time")}
+            >
+              {heading("time", "Time")}
+            </TableHeaderCell>
+            <TableHeaderCell className="w-px pr-0 pl-0">
+              <span className="sr-only">Replay</span>
+            </TableHeaderCell>
+            <TableHeaderCell
+              numeric
+              className="max-sm:hidden"
+              aria-sort={ariaSort("date")}
+            >
+              {heading("date", "Date")}
+            </TableHeaderCell>
           </tr>
         </TableHead>
         <TableBody>
-          {personalBests.map((pb, index) => (
+          {rows.map((pb, index) => (
             <TableRow
               key={`${pb.legacy ? "pre" : "run"}-${pb.run_id}`}
-              highlight={pb.rank === 1}
               className="motion-enter"
               // Rows loaded by "Show more" stagger from the first new one, not from the top.
               style={
@@ -415,25 +640,31 @@ function PersonalBests({
                 } as CSSProperties
               }
             >
-              <TableCell>
+              <TableCell className="text-center max-sm:px-2">
                 {/* A legacy run has no 2.0 placement. */}
-                {pb.rank == null ? (
-                  <span className="text-text-muted inline-flex size-6 justify-center">
-                    –
-                  </span>
-                ) : (
-                  <Medal placement={pb.rank} />
-                )}
+                <span className="inline-flex justify-center align-middle">
+                  {pb.rank == null ? (
+                    <span className="text-text-muted inline-flex size-6 justify-center">
+                      –
+                    </span>
+                  ) : (
+                    <Medal placement={pb.rank} />
+                  )}
+                </span>
               </TableCell>
-              <TableCell>
-                <span className="flex items-center gap-2">
+              <TableCell className="max-sm:w-full max-sm:max-w-0 max-sm:px-2">
+                <span className="flex min-w-0 items-center gap-2">
+                  {pb.tier != null && tierCount != null && (
+                    <TierBadge tier={pb.tier} tierCount={tierCount} />
+                  )}
                   <Link
                     href={
                       pb.legacy
                         ? `/maps/${pb.map}?style=${pb.style}&view=legacy`
                         : `/maps/${pb.map}?style=${pb.style}${pb.track > 0 ? `&track=${pb.track}` : ""}`
                     }
-                    className="hover:text-accent"
+                    title={pb.map}
+                    className="hover:text-accent truncate"
                   >
                     {pb.map}
                   </Link>
@@ -441,26 +672,51 @@ function PersonalBests({
                   {pb.rank === 1 && <Badge tone="accent">WR</Badge>}
                   {pb.legacy && <LegacyBadge />}
                 </span>
+                {!style && (
+                  <span className="text-text-subtle block text-xs sm:hidden">
+                    {styleName(pb.style)}
+                  </span>
+                )}
               </TableCell>
               {!style && (
-                <TableCell className="text-text-muted">
+                <TableCell className="text-text-muted max-sm:hidden">
                   {styleName(pb.style)}
                 </TableCell>
               )}
-              <TableCell numeric>
-                {/* Legacy runs have no run page: the old site kept no more than this row. */}
-                {pb.legacy ? (
-                  formatTime(pb.time)
-                ) : (
-                  <RunLink
-                    runId={pb.run_id}
-                    className="hover:text-accent underline-offset-4 hover:underline"
-                  >
-                    {formatTime(pb.time)}
-                  </RunLink>
-                )}
+              <TableCell numeric className="pr-2 max-sm:pl-2">
+                <span className="inline-flex flex-col items-end">
+                  <span className="flex items-baseline gap-1.5">
+                    {/* Legacy runs have no run page: the old site kept no more than this row. */}
+                    {pb.legacy ? (
+                      formatTime(pb.time)
+                    ) : (
+                      <RunLink
+                        runId={pb.run_id}
+                        className="hover:text-accent font-bold underline-offset-4 hover:underline"
+                      >
+                        {formatTime(pb.time)}
+                      </RunLink>
+                    )}
+                    {/* The gap to the board's record, beside the time at every width. */}
+                    <Gap pb={pb} className="text-xs" />
+                  </span>
+                  {pb.finished_at && (
+                    // Counted from now, which differs between the server's render and the browser's.
+                    <time
+                      dateTime={pb.finished_at}
+                      suppressHydrationWarning
+                      className="text-text-subtle text-xs leading-4 sm:hidden"
+                    >
+                      {formatAge(pb.finished_at)}
+                    </time>
+                  )}
+                </span>
               </TableCell>
-              <TableCell numeric className="text-text-muted">
+              <TableCell className="pr-0 pl-0">
+                {/* Replays open by 2.0 run ID; a pre-2.0 run's ID is the old site's. */}
+                {!pb.legacy && <ReplayLink runId={pb.run_id} />}
+              </TableCell>
+              <TableCell numeric className="text-text-muted max-sm:hidden">
                 {pb.finished_at ? (
                   <time dateTime={pb.finished_at}>
                     {formatDate(pb.finished_at)}
@@ -505,5 +761,25 @@ function PersonalBests({
         )}
       </div>
     </div>
+  );
+}
+
+/** The API's largest page, for loading a whole list to sort. */
+const FULL_PAGE_SIZE = 100;
+
+/** The gap to the board's record in brackets, red, as on Activity; nothing for the record or a legacy run. */
+function Gap({
+  pb,
+  className,
+}: {
+  pb: Schemas["PersonalBest"];
+  className?: string;
+}) {
+  const gap = gapOf(pb);
+  if (gap == null || gap <= 0) return null;
+  return (
+    <span className={classNames("text-danger tabular-nums", className)}>
+      ({formatGap(gap)})
+    </span>
   );
 }

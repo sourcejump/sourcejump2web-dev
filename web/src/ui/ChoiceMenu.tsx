@@ -2,7 +2,7 @@
 // A compact choice of one option from a list, shown as "Label  Value ▾": a board's style, track or view. Opens a
 // Menu of radio items; picking one changes the view in place, or follows the option's link when it has one.
 import { Check, ChevronDown } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { classNames } from "./classNames";
 import { Menu, MenuItem, MenuLink, MenuSeparator } from "./Menu";
 
@@ -27,8 +27,8 @@ export function ChoiceMenu({
   value,
   onChange,
 }: {
-  /** What is being chosen, shown before the current value: "Style". */
-  label: string;
+  /** What is being chosen, shown before the current value: "Style". Can differ by width ("Tier" on a phone). */
+  label: ReactNode;
   options: Choice[];
   value: string;
   onChange?: (value: string) => void;
@@ -38,21 +38,27 @@ export function ChoiceMenu({
   const chosen = options.find((option) => option.value === value);
   return (
     <Menu
-      matchTriggerWidth
       trigger={
         <>
           <span className="text-text-subtle">{label}</span>
-          <span className="ml-auto sm:ml-0">{chosen?.label ?? value}</span>
-          <ChevronDown aria-hidden className="text-text-muted size-4" />
+          <span>{chosen?.label ?? value}</span>
+          <ChevronDown
+            aria-hidden
+            className="text-text-subtle size-3 shrink-0 transition-transform duration-(--duration-fast) group-aria-expanded:rotate-180 sm:size-4"
+          />
         </>
       }
-      // On a phone each menu takes a full row, label on the left and value on the right, so menus of different
-      // widths line up as one column instead of wrapping unevenly.
-      triggerClassName="border-border bg-surface hover:bg-surface-raised flex h-9 w-full items-center gap-2 rounded-md border px-3 text-sm whitespace-nowrap transition-colors duration-(--duration-fast) sm:inline-flex sm:w-auto"
+      // As wide as its words at every width, so a page's choices sit side by side on a phone instead of each
+      // taking a full row (which stacked three or four tall controls above every board). On a phone it's smaller,
+      // chevron included, so four fit on a line.
+      // Darker than the surface it sits on, like a well, so it reads as a control without competing with the data.
+      triggerClassName="group border-border bg-bg hover:border-border-strong hover:bg-surface-raised aria-expanded:border-border-strong aria-expanded:bg-surface-raised inline-flex h-8 items-center gap-1 rounded-md border pr-1 pl-1.5 text-[11px] font-medium whitespace-nowrap transition-colors duration-(--duration-fast) sm:h-9 sm:gap-2 sm:pr-2.5 sm:pl-3 sm:text-sm"
     >
       {options.map((option) => {
         const className = classNames(
-          (option.quiet || option.disabled) && "text-text-subtle",
+          option.quiet || option.disabled
+            ? "text-text-subtle"
+            : "text-text-muted hover:text-text aria-checked:text-accent",
           option.disabled && "cursor-not-allowed",
         );
         const content = (

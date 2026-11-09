@@ -24,9 +24,9 @@ const MAX_LIMIT: i64 = 100;
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct MapsQuery {
-    /// Part of a map name. Case doesn't matter, and spaces stand for underscores. The map of exactly that
-    /// name comes first, then maps with a word starting with it, then other matches, each in the chosen
-    /// sort; near misses for a typo come last, closest first.
+    /// Part of a map name or a main-track world record holder's name in the chosen style. Case doesn't
+    /// matter; spaces in map names stand for underscores. Exact map names come first, then word starts,
+    /// other map matches and record holders, each in the chosen sort; near misses come last.
     q: Option<String>,
     /// Default `name`.
     #[param(inline)]
@@ -114,7 +114,7 @@ pub struct MapList {
     pub stats: MapStats,
 }
 
-/// The whole list at a glance, whatever the search or filter.
+/// Global totals and tier-scoped newest and weekly lists.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MapStats {
     /// Maps with at least one run.
@@ -122,6 +122,8 @@ pub struct MapStats {
     /// Of those, the maps whose main track has each tier, tier 1 first. Empty until a tier count is
     /// published.
     pub by_tier: Vec<i64>,
+    /// The tier the newest and weekly lists describe; None describes all tiers. Totals remain global.
+    pub tier: Option<i16>,
     /// The maps that joined the list last, newest first.
     pub newest: Vec<NewestMap>,
     /// The maps the most players finished a run on in the last 7 days, most first.
@@ -191,6 +193,12 @@ pub async fn list_maps(
     let sort = query.sort.unwrap_or(MapSort::Name).key();
     let search = query.q.as_deref().and_then(search_name);
     let pattern = search.as_deref().map(name_search::contains_pattern);
+    let holder_pattern = query
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|q| !q.is_empty())
+        .map(name_search::contains_pattern);
     // Most map names start with "bhop_", which would make every map a near miss of every search.
     let near = search
         .as_deref()
@@ -203,6 +211,7 @@ pub async fn list_maps(
     };
     let filter = Filter {
         pattern: pattern.as_deref(),
+        holder_pattern: holder_pattern.as_deref(),
         near,
         style: style.as_deref(),
         completed_by: query.completed.and(player).map(SteamId64::get),
@@ -218,7 +227,7 @@ pub async fn list_maps(
     tx.commit().await?;
 
     let tier_count = tiers::tier_count(&state.db).await?;
-    let list_stats = map_stats(&state.db, tier_count).await?;
+    let list_stats = map_stats(&state.db, tier_count, query.tier).await?;
     let (player, completed) = match player {
         Some(player) => (
             known_player(&state.db, player).await?,
@@ -244,11 +253,14 @@ pub async fn list_maps(
 
 /// Maps with a run, how many hold each main-track tier once tiers are in force, the newest of them and the
 /// week's most played.
-async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStats, sqlx::Error> {
+async fn map_stats(
+    db: &sqlx::PgPool,
+    tier_count: Option<i16>,
+    tier: Option<i16>,
+) -> Result<MapStats, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT tier.tier AS "tier?", count(*) AS "maps!" FROM maps m
-           LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0
-                              ORDER BY assigned_at DESC LIMIT 1) tier ON true
+           LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0
            WHERE m.last_run_at IS NOT NULL
            GROUP BY tier.tier"#
     )
@@ -266,11 +278,13 @@ async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStat
     }
     let newest = sqlx::query!(
         r#"SELECT m.name, m.listed_at AS "listed_at!",
-                  (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0 ORDER BY assigned_at DESC LIMIT 1)
-                      AS tier
+                  (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0) AS tier
            FROM maps m WHERE m.last_run_at IS NOT NULL AND m.listed_at IS NOT NULL
+             AND ($2::smallint IS NULL OR $2 =
+                 (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0))
            ORDER BY m.listed_at DESC, m.name LIMIT $1"#,
-        NEWEST
+        NEWEST,
+        tier
     )
     .fetch_all(db)
     .await?
@@ -285,14 +299,16 @@ async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStat
     // server's finish time, which the `runs_recent` index covers.
     let played_this_week = sqlx::query!(
         r#"SELECT m.name, week.players AS "players!",
-                  (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0 ORDER BY assigned_at DESC LIMIT 1)
-                      AS tier
+                  (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0) AS tier
            FROM (SELECT map_id, count(DISTINCT player_steamid64) AS players FROM runs
                  WHERE invalidated_at IS NULL AND finished_at > now() - interval '7 days'
                  GROUP BY map_id) week
            JOIN maps m ON m.id = week.map_id
+           WHERE $2::smallint IS NULL OR $2 =
+                 (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0)
            ORDER BY week.players DESC, m.name LIMIT $1"#,
-        PLAYED_THIS_WEEK
+        PLAYED_THIS_WEEK,
+        tier
     )
     .fetch_all(db)
     .await?
@@ -306,6 +322,7 @@ async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStat
     Ok(MapStats {
         maps: rows.iter().map(|row| row.maps).sum(),
         by_tier,
+        tier,
         newest,
         played_this_week,
     })
@@ -375,14 +392,21 @@ async fn listed_page(
     sqlx::query_as!(
         ListedMap,
         r#"
-        WITH listed AS (
+        WITH holder_maps AS (
+            SELECT h.map_id FROM world_record_holders h
+            JOIN players p ON p.steamid64 = h.player_steamid64
+            WHERE $11::text IS NOT NULL AND h.style = $5 AND h.track = 0
+              AND p.name ILIKE $11 ESCAPE '\'
+        ), listed AS (
             SELECT m.id, m.name, m.last_run_at, m.players, tier.tier,
                    row_number() OVER (ORDER BY
                        -- How well the name matches: exactly, by a word's start ("candy" in bhop_candy), or within.
                        CASE WHEN $6::text IS NULL OR m.name = $6 THEN 0
                             WHEN starts_with(m.name, $6) OR strpos(m.name, '_' || $6) > 0 THEN 1
-                            WHEN m.name ILIKE $1 ESCAPE '\' THEN 2 ELSE 3 END,
-                       CASE WHEN m.name NOT ILIKE $1 ESCAPE '\' THEN word_similarity($7, m.name) END DESC NULLS LAST,
+                            WHEN m.name ILIKE $1 ESCAPE '\' THEN 2
+                            WHEN m.id IN (SELECT map_id FROM holder_maps) THEN 3 ELSE 4 END,
+                       CASE WHEN m.name NOT ILIKE $1 ESCAPE '\' AND $7 <% m.name
+                            THEN word_similarity($7, m.name) END DESC NULLS LAST,
                        CASE WHEN $2 = 'recent' THEN m.last_run_at END DESC,
                        CASE WHEN $2 = 'newest' THEN m.listed_at END DESC NULLS LAST,
                        CASE $2 WHEN 'popular' THEN -m.players WHEN 'least_popular' THEN m.players END,
@@ -395,8 +419,7 @@ async fn listed_page(
                        m.name
                    ) AS position
             FROM maps m
-            LEFT JOIN LATERAL (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0
-                               ORDER BY assigned_at DESC LIMIT 1) tier ON true
+            LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0
             -- Every map's record, read only for the sorts that need it: the page below reads the page's own.
             LEFT JOIN LATERAL (
                 SELECT pb.time, r.finished_at
@@ -405,7 +428,8 @@ async fn listed_page(
                 ORDER BY pb.time, r.finished_at
                 LIMIT 1
             ) record ON true
-            WHERE m.last_run_at IS NOT NULL AND ($1::text IS NULL OR m.name ILIKE $1 ESCAPE '\' OR $7 <% m.name)
+            WHERE m.last_run_at IS NOT NULL AND ($1::text IS NULL OR m.name ILIKE $1 ESCAPE '\'
+                OR $7 <% m.name OR m.id IN (SELECT map_id FROM holder_maps))
               AND ($8::bigint IS NULL OR $9 = EXISTS (
                   SELECT 1 FROM personal_bests WHERE player_steamid64 = $8 AND map_id = m.id AND style = $5 AND track = 0))
               AND ($10::smallint IS NULL OR tier.tier = $10)
@@ -442,7 +466,8 @@ async fn listed_page(
         filter.near,
         filter.completed_by,
         filter.completed,
-        filter.tier
+        filter.tier,
+        filter.holder_pattern
     )
     .fetch_all(tx)
     .await
@@ -499,6 +524,8 @@ impl ListedMap {
 struct Filter<'a> {
     /// The search as an `ILIKE` pattern.
     pattern: Option<&'a str>,
+    /// The original search, preserving spaces in player names.
+    holder_pattern: Option<&'a str>,
     /// The search's term for near misses.
     near: Option<&'a str>,
     style: Option<&'a str>,
@@ -513,17 +540,19 @@ struct Filter<'a> {
 async fn count_maps(tx: &mut sqlx::PgConnection, filter: &Filter<'_>) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar!(
         r#"SELECT count(*) AS "count!" FROM maps m
-           WHERE last_run_at IS NOT NULL AND ($1::text IS NULL OR name ILIKE $1 ESCAPE '\' OR $2 <% name)
+           WHERE last_run_at IS NOT NULL AND ($1::text IS NULL OR name ILIKE $1 ESCAPE '\' OR $2 <% name
+             OR EXISTS (SELECT 1 FROM world_record_holders h JOIN players p ON p.steamid64 = h.player_steamid64
+                        WHERE h.map_id = m.id AND h.style = $5 AND h.track = 0 AND p.name ILIKE $7 ESCAPE '\'))
              AND ($3::bigint IS NULL OR $4 = EXISTS (
                  SELECT 1 FROM personal_bests WHERE player_steamid64 = $3 AND map_id = m.id AND style = $5 AND track = 0))
-             AND ($6::smallint IS NULL OR $6 = (SELECT tier FROM map_tiers WHERE map_id = m.id AND track = 0
-                                                 ORDER BY assigned_at DESC LIMIT 1))"#,
+             AND ($6::smallint IS NULL OR $6 = (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0))"#,
         filter.pattern,
         filter.near,
         filter.completed_by,
         filter.completed,
         filter.style,
-        filter.tier
+        filter.tier,
+        filter.holder_pattern
     )
     .fetch_one(tx)
     .await
@@ -628,6 +657,73 @@ mod tests {
         );
     }
 
+    #[sqlx::test]
+    async fn searches_current_main_track_record_holders_in_the_selected_style(db: PgPool) {
+        let key = setup(&db).await;
+        sqlx::query(
+            r#"INSERT INTO rulesets (version, document)
+               SELECT 2, jsonb_set(document, '{styles}',
+                   (document->'styles') || '[{"key":"sw","name":"Sideways","settings":{}}]'::jsonb)
+               FROM rulesets WHERE version = 1"#,
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        for (id, map, player, name, time, style, track) in [
+            (
+                "holder-main",
+                "bhop_badges",
+                0,
+                "Speed Runner",
+                30.0,
+                "normal",
+                0,
+            ),
+            (
+                "holder-second",
+                "bhop_arcane",
+                0,
+                "Speed Runner",
+                15.0,
+                "normal",
+                0,
+            ),
+            ("slower", "bhop_badges", 1, "Bonus Hero", 40.0, "normal", 0),
+            ("bonus", "bhop_badges", 1, "Bonus Hero", 10.0, "normal", 1),
+            ("sideways", "bhop_badges", 1, "Bonus Hero", 20.0, "sw", 0),
+            ("tied", "bhop_badges", 2, "Co Holder", 30.0, "normal", 0),
+        ] {
+            let mut body = run(id, time);
+            body["map"] = json!(map);
+            body["player"] = json!({
+                "steamid64": (76_561_197_960_287_930_i64 + player).to_string(),
+                "name": name,
+            });
+            body["style"] = json!(style);
+            body["track"] = json!(track);
+            body["ruleset_version"] = json!(2);
+            assert_eq!(
+                test_client::post(&db, "/v1/runs", Some(&key), &body)
+                    .await
+                    .status,
+                201
+            );
+        }
+        let page: MapList = test_client::get(&db, "/v1/maps?q=SPEED%20RUNNER&limit=1&offset=1")
+            .await
+            .json();
+        assert_eq!(page.total, 2);
+        assert_eq!(page.maps.len(), 1);
+        assert_eq!(page.maps[0].name, "bhop_badges");
+        assert_eq!(names(&db, "/v1/maps?q=Co%20Holder").await, ["bhop_badges"]);
+        assert_eq!(names(&db, "/v1/maps?q=Bonus%20Hero").await.len(), 0);
+        assert_eq!(
+            names(&db, "/v1/maps?q=Bonus%20Hero&style=sw").await,
+            ["bhop_badges"]
+        );
+        assert_eq!(names(&db, "/v1/maps?q=%25").await.len(), 0);
+    }
+
     /// `bhop_badges`' stored player count, and the count its personal bests give.
     async fn badges_players(db: &PgPool) -> (i32, i64) {
         sqlx::query_as(
@@ -717,6 +813,79 @@ mod tests {
             .map(|m| (m.name.as_str(), m.players))
             .collect();
         assert_eq!(week, [("bhop_badges", 2), ("bhop_arcane", 1)]);
+    }
+
+    #[sqlx::test]
+    async fn stats_rank_within_a_tier_before_taking_the_top_five(db: PgPool) {
+        let key = setup(&db).await;
+        let policy = crate::policies::Policy::Tiers(crate::policies::TiersPolicy { count: 2 });
+        crate::policies::publish(&mut db.acquire().await.unwrap(), &policy)
+            .await
+            .unwrap();
+        for index in 0..12 {
+            let name = format!("bhop_tier_{index:02}");
+            let players = if index < 5 { 2 } else { 1 };
+            for player in 0..players {
+                let mut body = run(&format!("tier-{index}-{player}"), 30.0);
+                body["map"] = json!(name);
+                body["player"] = json!({
+                    "steamid64": (76_561_197_960_287_930_i64 + player).to_string(),
+                    "name": format!("player-{player}"),
+                });
+                assert_eq!(
+                    test_client::post(&db, "/v1/runs", Some(&key), &body)
+                        .await
+                        .status,
+                    201
+                );
+            }
+            let map = crate::maps::MapName::try_from(name.clone()).unwrap();
+            crate::staff::maps::set_tier(&db, None, &map, 0, if index < 5 { 1 } else { 2 })
+                .await
+                .unwrap();
+            sqlx::query(
+                "UPDATE maps SET listed_at = now() - $1 * interval '1 minute' WHERE name = $2",
+            )
+            .bind(f64::from(index))
+            .bind(name)
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+        sqlx::query("UPDATE runs SET finished_at = now() - interval '1 day'")
+            .execute(&db)
+            .await
+            .unwrap();
+
+        let all: MapList = test_client::get(&db, "/v1/maps").await.json();
+        assert_eq!(all.stats.tier, None);
+        assert!(
+            all.stats
+                .played_this_week
+                .iter()
+                .all(|map| map.tier == Some(1))
+        );
+        assert!(all.stats.newest.iter().all(|map| map.tier == Some(1)));
+
+        let filtered: MapList = test_client::get(&db, "/v1/maps?tier=2").await.json();
+        let expected: Vec<_> = (5..10)
+            .map(|index| format!("bhop_tier_{index:02}"))
+            .collect();
+        assert_eq!(filtered.stats.tier, Some(2));
+        assert_eq!(
+            (filtered.stats.maps, filtered.stats.by_tier),
+            (12, vec![5, 7])
+        );
+        assert_eq!(filtered.stats.played_this_week.len(), 5);
+        assert_eq!(filtered.stats.newest.len(), 5);
+        for (index, map) in filtered.stats.played_this_week.iter().enumerate() {
+            assert_eq!(map.name, expected[index]);
+            assert_eq!((map.tier, map.players), (Some(2), 1));
+        }
+        for (index, map) in filtered.stats.newest.iter().enumerate() {
+            assert_eq!(map.name, expected[index]);
+            assert_eq!(map.tier, Some(2));
+        }
     }
 
     #[sqlx::test]

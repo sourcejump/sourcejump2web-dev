@@ -43,9 +43,7 @@ pub async fn publish_policy(
         // A smaller count would leave maps rated above it; staff move those first.
         let highest = sqlx::query_scalar!(
             r#"
-            SELECT max(tier) FROM (
-                SELECT DISTINCT ON (map_id, track) tier FROM map_tiers ORDER BY map_id, track, assigned_at DESC
-            ) in_force
+            SELECT max(tier) FROM current_map_tiers
             "#
         )
         .fetch_one(&mut *tx)
