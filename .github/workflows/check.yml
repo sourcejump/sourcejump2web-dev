@@ -1,5 +1,8 @@
 # What `just check` runs, on every push and pull request, except the style guide screenshots (`test:ui`):
 # their reference images come from the lead's machine, and a CI runner's fonts render them differently.
+# It also builds the site as a deploy does, with no API to reach, so a page that reads the API while being
+# prerendered fails here instead of in `just deploy`. Not in `just check`: it writes the `.next/` that
+# `next dev` is using.
 name: Check
 on:
   push:
@@ -55,3 +58,4 @@ jobs:
       - run: npm run --silent typecheck
       - run: npm run --silent api:check
       - run: npm run --silent test
+      - run: npm run --silent build
