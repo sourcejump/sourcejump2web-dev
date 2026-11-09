@@ -113,7 +113,7 @@ test("the overview stays centered and the reset matches the tier columns", async
   expect(controls.right).toBeLessThan(1);
   expect(controls.separated).toBeGreaterThanOrEqual(20);
   expect(controls.frameCenter).toBeLessThan(1);
-  expect(controls.frameWidth).toBeLessThan(controls.pageWidth);
+  expect(Math.abs(controls.frameWidth - controls.pageWidth)).toBeLessThan(1);
 });
 
 test("the donut has clean sector boundaries, animates hover and has no click focus box", async ({

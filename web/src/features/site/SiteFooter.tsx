@@ -9,7 +9,7 @@ import { communityLinks } from "./navigation";
 export function SiteFooter() {
   return (
     <footer className="border-border bg-gutter/50 border-t">
-      <div className="flex flex-col items-center justify-center gap-3 px-4 py-5 text-sm sm:flex-row sm:gap-5">
+      <div className="max-w-site mx-auto flex flex-col items-center justify-center gap-3 px-4 py-5 text-sm sm:flex-row sm:gap-5">
         <Link
           href="/ruleset"
           className="text-accent hover:text-accent-hover inline-flex items-center gap-1.5 underline-offset-4 hover:underline"

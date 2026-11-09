@@ -212,7 +212,7 @@ test("cards keep complete names and long times inside at every breakpoint", asyn
           (element) =>
             getComputedStyle(element).gridTemplateColumns.split(" ").length,
         );
-      expect(columns).toBe(width === 1920 ? 5 : 4);
+      expect(columns).toBe(3);
     }
   }
 });

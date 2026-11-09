@@ -1,4 +1,4 @@
-// The top of every page: one bar across the top of the sheet, staying in view while the page scrolls. The
+// The top of every page: one bar across the window, staying in view while the page scrolls. The
 // wordmark and the sections, then the search for players and maps and the account corner. On a phone: the menu,
 // the wordmark, the search button and the account corner.
 import { Suspense } from "react";
@@ -14,7 +14,7 @@ export function SiteHeader() {
       style={{ viewTransitionName: "site-header" }}
       className="bg-gutter border-border sticky top-0 z-10 border-b"
     >
-      <div className="flex h-16 items-center gap-2 px-4 sm:px-6 lg:gap-8">
+      <div className="max-w-site mx-auto flex h-16 w-full items-center gap-2 px-4 sm:px-6 lg:gap-8">
         <Link
           href="/"
           className="text-base font-bold tracking-wide whitespace-nowrap uppercase sm:text-lg sm:tracking-wider"

@@ -1,9 +1,7 @@
 // Root layout: fonts, global styles, the header and footer, the run dialog, and site-wide metadata.
 import type { Metadata } from "next";
-import Image from "next/image";
 import { Exo_2, Geist } from "next/font/google";
 import { Suspense } from "react";
-import art from "@/features/site/header-interloper.webp";
 import { RunDialogHost } from "@/features/runs/RunDialogHost";
 import { SiteFooter } from "@/features/site/SiteFooter";
 import { SiteHeader } from "@/features/site/SiteHeader";
@@ -39,33 +37,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col">
         <NavigationProgress />
-        {/* What shows in the gutters either side of the sheet: the header's map picture, blurred and darkened
-            far back, fixed while the page scrolls. Blurred anyway, so a small copy of it is plenty. */}
-        <div
-          aria-hidden
-          className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-        >
-          <Image
-            src={art}
-            alt=""
-            sizes="640px"
-            quality={75}
-            className="size-full scale-110 object-cover opacity-80 blur-lg"
-          />
-          <div className="from-gutter/10 to-gutter/85 absolute inset-0 bg-linear-to-b" />
-        </div>
-        {/* The sheet, as the old sourcejump.net had it: one column down the middle of the window, edges lit,
-            holding the header, the page and the footer, the gutters either side. */}
-        <div className="bg-bg shadow-sheet max-w-site mx-auto flex w-full flex-1 flex-col">
-          {/* The header and page fill at least the window, so the footer starts right at the fold: the page
-              always scrolls, and the scrollbar doesn't come and go between short and long pages. The space
-              above the footer is padding in here, not a margin on the footer, so it doesn't push it lower. */}
-          <div className="flex min-h-svh flex-col">
-            <SiteHeader />
-            <div className="flex flex-1 flex-col pb-16">{children}</div>
+        {/* Keep the footer below the fold so short pages don't change the scrollbar width. */}
+        <div className="flex min-h-svh flex-col">
+          <SiteHeader />
+          <div className="max-w-site mx-auto flex w-full flex-1 flex-col pb-16">
+            {children}
           </div>
-          <SiteFooter />
         </div>
+        <SiteFooter />
         {/* The run dialog, over whichever page opened it (`?run=` in the address). */}
         <Suspense>
           <RunDialogHost />

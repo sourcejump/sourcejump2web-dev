@@ -8,27 +8,24 @@
 @theme {
   --color-*: initial;
 
-  /*
-   * The old sourcejump.net's colors, brought up to date. `gutter` is the window either side of the page's
-   * sheet; `bg` is the sheet itself, what every page sits on. Then surfaces on it, darkest to lightest.
-   */
-  --color-gutter: #121822;
-  --color-bg: #1d2636;
-  --color-surface: #222c40;
-  --color-surface-raised: #29354b;
-  --color-surface-overlay: #303d57;
-  --color-border: #2e3b54;
-  --color-border-strong: #3d4f70;
+  /* `gutter` is the continuous page background, followed by the inset and raised surfaces. */
+  --color-gutter: #111418;
+  --color-bg: #171c22;
+  --color-surface: #1b2129;
+  --color-surface-raised: #232b35;
+  --color-surface-overlay: #2b3541;
+  --color-border: #2b333e;
+  --color-border-strong: #3b4a5c;
 
-  --color-text: #e1e9f5;
-  --color-text-muted: #9db0cc;
-  --color-text-subtle: #7387a5;
+  --color-text: #e5ebf2;
+  --color-text-muted: #a7b4c4;
+  --color-text-subtle: #919eae;
 
   /* The one accent. `on-accent` is text on an accent fill. */
-  --color-accent: #00c8f0;
-  --color-accent-hover: #4dd9f6;
-  --color-accent-soft: rgb(0 200 240 / 0.12);
-  --color-on-accent: #002a33;
+  --color-accent: #55c3f1;
+  --color-accent-hover: #82d5f5;
+  --color-accent-soft: rgb(85 195 241 / 0.12);
+  --color-on-accent: #071b29;
 
   --color-success: #4cc38a;
   --color-success-soft: rgb(76 195 138 / 0.12);
@@ -55,8 +52,8 @@
   /* Below 360px (the narrowest common phones) the header and home headline need to shed a little width. */
   --breakpoint-xs: 22.5rem;
 
-  /* Halfway from the old 72rem sheet to the viewport, without removing the desktop gutters. */
-  --container-site: calc((100% + 72rem) / 2);
+  /* Header, page content and footer share one centered width. */
+  --container-site: 72rem;
   --container-content: calc((100% + 56rem) / 2);
 
   --font-*: initial;
@@ -100,9 +97,6 @@
   --shadow-popover: 0 8px 24px rgb(3 8 15 / 0.5), 0 2px 6px rgb(3 8 15 / 0.4);
   --shadow-dialog: 0 24px 64px rgb(3 8 15 / 0.6);
   --shadow-glow: 0 0 0 1px var(--color-accent), 0 0 16px rgb(0 200 240 / 0.35);
-  /* The sheet's edges: a hairline and the old site's soft blue halo. */
-  --shadow-sheet:
-    0 0 0 1px rgb(61 79 112 / 0.6), 0 0 24px 1px rgb(54 71 100 / 0.45);
   /* Text laid over a picture (a map's banner), readable without darkening the picture. */
   --text-shadow-over-image:
     0 1px 2px rgb(3 8 15 / 0.9), 0 0 12px rgb(3 8 15 / 0.7);
