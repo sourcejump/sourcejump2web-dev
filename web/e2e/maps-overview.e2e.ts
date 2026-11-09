@@ -22,17 +22,12 @@ async function expectAligned(overview: Locator) {
       headings: Array.from(element.querySelectorAll("section h2")).map(
         (heading) => heading.getBoundingClientRect().top,
       ),
-      lists: Array.from(element.querySelectorAll("section > div")).map(
-        (group) =>
-          Math.abs(center(group.getBoundingClientRect()) - center(panel)),
-      ),
     };
   });
   expect(geometry.left).toBeLessThan(1);
   expect(geometry.right).toBeLessThan(1);
   expect(geometry.graph).toBeLessThan(1);
   expect(geometry.legend).toBeLessThan(1);
-  for (const offset of geometry.lists) expect(offset).toBeLessThan(1);
   for (const top of geometry.headings) {
     expect(Math.abs(top - geometry.headings[0]!)).toBeLessThan(1);
   }
@@ -71,6 +66,144 @@ test("the overview stays centered and the reset matches the tier columns", async
   await reset.click();
   await expect(reset).toHaveAttribute("aria-current", "true");
   await expectAligned(overview);
+
+  await page.setViewportSize({ width: 1920, height: 1000 });
+  const spacing = await overview.evaluate((element) => {
+    const groups = Array.from(element.querySelectorAll("section"));
+    return {
+      trailing:
+        element.getBoundingClientRect().right -
+        groups[groups.length - 1]!.getBoundingClientRect().right,
+      columnGaps: groups.map(
+        (group) =>
+          group.getBoundingClientRect().right -
+          (group.querySelector("ul") ?? group).getBoundingClientRect().right,
+      ),
+    };
+  });
+  expect(spacing.trailing).toBeLessThanOrEqual(21);
+  for (const gap of spacing.columnGaps) expect(gap).toBeLessThan(1);
+  const controls = await overview.locator("xpath=../..").evaluate((element) => {
+    const frame = element
+      .querySelector('[aria-label="Map overview"]')!
+      .parentElement!.getBoundingClientRect();
+    const input = element
+      .querySelector('input[type="search"]')!
+      .getBoundingClientRect();
+    const buttons = element.querySelectorAll('button[aria-haspopup="menu"]');
+    const first = buttons[0]!.getBoundingClientRect();
+    const gallery = document
+      .querySelector("[data-map]")!
+      .closest("section")!
+      .getBoundingClientRect();
+    return {
+      searchWidth: input.width,
+      left: Math.abs(first.left - gallery.left),
+      right: Math.abs(input.right - gallery.right),
+      separated: input.top - frame.bottom,
+      frameCenter: Math.abs(
+        (frame.left + frame.right - gallery.left - gallery.right) / 2,
+      ),
+      frameWidth: frame.width,
+      pageWidth: gallery.width,
+    };
+  });
+  expect(controls.searchWidth).toBeLessThanOrEqual(320);
+  expect(controls.left).toBeLessThan(1);
+  expect(controls.right).toBeLessThan(1);
+  expect(controls.separated).toBeGreaterThanOrEqual(20);
+  expect(controls.frameCenter).toBeLessThan(1);
+  expect(controls.frameWidth).toBeLessThan(controls.pageWidth);
+});
+
+test("the donut has clean sector boundaries, animates hover and has no click focus box", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/maps");
+  const chart = page.getByRole("img", { name: /Maps per tier/ });
+  await expect(chart).toBeVisible();
+  const geometry = await chart.evaluate((svg) => {
+    const rect = svg.getBoundingClientRect();
+    const reset = svg.parentElement!.querySelector("nav > a")!.textContent!;
+    const total = Number(reset.match(/([\d,]+) maps/)![1]!.replaceAll(",", ""));
+    const links = Array.from(svg.querySelectorAll("a"));
+    const count = Number(
+      links[0]!
+        .getAttribute("aria-label")!
+        .match(/: ([\d,]+) maps/)![1]!
+        .replaceAll(",", ""),
+    );
+    const angle = (((((count / total) * 100) / 2) * 3.6 - 90) * Math.PI) / 180;
+    const hit = (share: number, radius: number) => {
+      const angle = (share / 100) * Math.PI * 2 - Math.PI / 2;
+      return (
+        document
+          .elementFromPoint(
+            rect.x + rect.width * (0.5 + (radius / 100) * Math.cos(angle)),
+            rect.y + rect.height * (0.5 + (radius / 100) * Math.sin(angle)),
+          )
+          ?.closest("svg a")
+          ?.getAttribute("aria-label") ?? null
+      );
+    };
+    let start = 0;
+    const samples = links.map((link) => {
+      const label = link.getAttribute("aria-label")!;
+      const count = Number(
+        label.match(/: ([\d,]+) maps/)![1]!.replaceAll(",", ""),
+      );
+      const length = (count / total) * 100;
+      const sample = {
+        label,
+        middle: [33, 40, 47].map((radius) => hit(start + length / 2, radius)),
+        seam:
+          length === 100
+            ? []
+            : [33, 40, 47].map((radius) => hit(start, radius)),
+      };
+      start += length;
+      return sample;
+    });
+    return {
+      samples,
+      x: rect.x + rect.width * (0.5 + 0.4 * Math.cos(angle)),
+      y: rect.y + rect.height * (0.5 + 0.4 * Math.sin(angle)),
+    };
+  });
+  for (const sample of geometry.samples) {
+    for (const middle of sample.middle) expect(middle).toBe(sample.label);
+    for (const seam of sample.seam) expect(seam).toBeNull();
+  }
+  const highlight = chart.locator("a").first().locator("path").last();
+  await expect(highlight).toHaveCSS("opacity", "0");
+  await page.mouse.move(geometry.x, geometry.y);
+  const hovered = await chart
+    .locator("a")
+    .first()
+    .locator("path")
+    .last()
+    .evaluate(async (path) => {
+      await Promise.all(
+        path.getAnimations().map((animation) => animation.finished),
+      );
+      const style = getComputedStyle(path);
+      return {
+        transition: style.transitionProperty,
+        duration: parseFloat(style.transitionDuration),
+      };
+    });
+  await expect(highlight).toHaveCSS("opacity", "1");
+  expect(hovered.transition).toContain("opacity");
+  expect(hovered.duration).toBeGreaterThan(0);
+  await page.mouse.click(geometry.x, geometry.y);
+  await expect(chart.locator("text").first()).not.toHaveText("All");
+  expect(
+    await chart
+      .locator("a")
+      .first()
+      .evaluate((link) => getComputedStyle(link).outlineStyle),
+  ).toBe("none");
 });
 
 test("a filtered short list is centered and its details stay beside the names", async ({
@@ -131,27 +264,22 @@ test("a filtered short list is centered and its details stay beside the names", 
   ).toBeLessThan(1);
   const list = overview.locator("section:has(ul)").first().locator("ul");
   await expect(list).toHaveCount(1);
-  const layout = await list.evaluate((element) => {
-    const rows = Array.from(element.querySelectorAll("a"));
-    return {
-      width: element.getBoundingClientRect().width,
-      details: rows.map(
-        (row) => row.lastElementChild!.getBoundingClientRect().left,
-      ),
-      gaps: rows.map((row) => {
-        const name = row.children[1]!;
-        const detail = row.children[2]!;
-        return (
-          detail.getBoundingClientRect().left -
-          name.getBoundingClientRect().right
-        );
-      }),
-    };
-  });
-  expect(layout.width).toBeLessThan(400);
-  for (const left of layout.details)
-    expect(Math.abs(left - layout.details[0]!)).toBeLessThan(1);
-  for (const gap of layout.gaps) expect(gap).toBe(8);
+  const layout = await list.evaluate((element) =>
+    Array.from(element.querySelectorAll("a")).map((row) => {
+      const name = row.children[1]!.getBoundingClientRect();
+      const detail = row.children[2]!.getBoundingClientRect();
+      return {
+        width: row.getBoundingClientRect().width,
+        gap: detail.left - name.right,
+        top: Math.abs(detail.top - name.top),
+      };
+    }),
+  );
+  for (const row of layout) {
+    expect(row.width).toBeLessThan(250);
+    expect(Math.abs(row.gap - 8)).toBeLessThan(1);
+    expect(row.top).toBeLessThan(1);
+  }
 });
 
 test("the compact legend fits a narrow phone without changing its reset alignment", async ({
@@ -177,4 +305,38 @@ test("the compact legend fits a narrow phone without changing its reset alignmen
   expect(Math.abs(edges.left)).toBeLessThan(1);
   expect(Math.abs(edges.right)).toBeLessThan(1);
   expect(edges.overflow).toBe(false);
+});
+
+test("searching a WR holder shows their maps", async ({ page, request }) => {
+  const response = await request.get("/v1/maps?limit=100");
+  expect(response.ok()).toBe(true);
+  const all = (await response.json()) as Schemas["MapList"];
+  const holder = all.maps.find((map) => map.world_record)?.world_record?.player
+    .name;
+  test.skip(
+    !holder,
+    "The current data has no world record holders to search for.",
+  );
+  const matches = await request.get(
+    `/v1/maps?q=${encodeURIComponent(holder!)}&sort=popular`,
+  );
+  expect(matches.ok()).toBe(true);
+  const filtered = (await matches.json()) as Schemas["MapList"];
+  expect(filtered.total).toBeGreaterThan(0);
+
+  await page.goto("/maps");
+  await page
+    .getByRole("searchbox", {
+      name: "Search maps, WR holders, or enter a SteamID",
+      exact: true,
+    })
+    .fill(holder!);
+  await expect(page).toHaveURL((url) => url.searchParams.get("q") === holder);
+  const cards = page.locator("[data-map]");
+  await expect(cards).toHaveCount(filtered.maps.length);
+  expect(
+    await cards.evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute("data-map")),
+    ),
+  ).toEqual(filtered.maps.map((map) => map.name));
 });

@@ -2,7 +2,7 @@
 The website's endpoints; staff tools: `staff-api.md`. Rules for every client and game servers' endpoints: `api.md`.
 
 ## Sign-in and sessions
-Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirects, cookies) via the site's origin.
+Steam OpenID sign-in uses the configured site origin for cookies and callbacks, canonicalizing aliases first.
 - Steam must confirm its answer (`check_authentication`). Only signed fields are read, the return URL must be our callback, a nonce works once, within 5 minutes (`openid_nonces`). The callback must carry the value `/v1/auth/steam` put in the `sj_sign_in` cookie, tying sign-in to its browser. Refused: `/sign-in/failed`; cancelled: back where they were.
 - `return_to` must be a path on our site; anything else becomes `/`.
 - A session is 32 random bytes in the `sj_session` cookie (`HttpOnly; Secure; SameSite=Lax`); only its SHA-256 is stored. It lasts 30 days from last use (expiry moves at most daily).
@@ -19,7 +19,7 @@ Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirect
 - Staff privileges: a bitmap in `players.privileges` (`players/privileges.rs`); bit positions never change; the API names them, never numbers. `players.restrictions` is unused (bans hold restrictions). The CLI's `privileges grant <steamid> <name>…`, `revoke`, `list` and the staff tools share `staff/privileges.rs`.
 
 ## Maps and leaderboards
-- Maps with runs (`maps.last_run_at`, set on ingest); ranking is open. Sorts: name, players, last/first run (`listed_at`), tier and main-track WR. `tier` keeps one main tier. `player` (any SteamID) with `completed=true|false` filters the style's main-track completions; `completed` counts them. `stats` totals stay global; newest and weekly lists take five within `stats.tier` (null: all). Weekly ranks count distinct players.
+- Maps with runs (`maps.last_run_at`). `q` searches map names and the style's main WR holders. Sorts: name, players, last/first run (`listed_at`), tier and main WR. `tier` keeps one main tier. `player` (any SteamID) with `completed=true|false` filters the style's main completions; `completed` counts them. Global `stats` totals; newest and weekly lists take five within `stats.tier` (null: all). Weekly counts distinct players.
 - Leaderboards rank PBs per map, style and track; equal times share a place, the earlier run listed first. A tie's world record belongs to whoever set it first.
 - `GET /v1/maps/{map}` carries every style and track's top 25, `next_cursor` and WR history, for map pages to switch locally. `…/leaderboard?cursor=` pages on from there; cursors are opaque.
 - WR history: every run faster than all finished before it on that board, by `finished_at`; ties don't count.

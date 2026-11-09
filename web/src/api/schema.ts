@@ -3962,9 +3962,9 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description Part of a map name. Case doesn't matter, and spaces stand for underscores. The map of exactly that
-                 *     name comes first, then maps with a word starting with it, then other matches, each in the chosen
-                 *     sort; near misses for a typo come last, closest first.
+                 * @description Part of a map name or a main-track world record holder's name in the chosen style. Case doesn't
+                 *     matter; spaces in map names stand for underscores. Exact map names come first, then word starts,
+                 *     other map matches and record holders, each in the chosen sort; near misses come last.
                  */
                 q?: string | null;
                 /** @description Default `name`. */
