@@ -2,10 +2,13 @@
 // wordmark and the sections, then the search for players and maps and the account corner. On a phone: the menu,
 // the wordmark, the search button and the account corner.
 import { Suspense } from "react";
+import { Play } from "next/font/google";
 import { Link } from "@/ui/Link";
 import { AccountArea } from "./AccountArea";
 import { HeaderSearch } from "./HeaderSearch";
 import { SiteNav, SiteNavLinks } from "./SiteNav";
+
+const wordmark = Play({ weight: "700", subsets: ["latin"] });
 
 export function SiteHeader() {
   return (
@@ -17,7 +20,7 @@ export function SiteHeader() {
       <div className="max-w-site mx-auto flex h-16 w-full items-center gap-2 px-4 sm:px-6 lg:gap-8">
         <Link
           href="/"
-          className="text-base font-bold tracking-wide whitespace-nowrap uppercase sm:text-lg sm:tracking-wider"
+          className={`${wordmark.className} text-base font-bold tracking-wide whitespace-nowrap uppercase sm:text-lg sm:tracking-wider`}
         >
           Source<span className="text-accent">Jump</span>
         </Link>
