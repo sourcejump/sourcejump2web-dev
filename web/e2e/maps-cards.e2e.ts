@@ -186,6 +186,12 @@ test("cards keep complete names and long times inside at every breakpoint", asyn
   });
   for (const width of [1920, 1440, 1084, 1080, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
     await expectTextInside(card);
     expect(
       await page.evaluate(
