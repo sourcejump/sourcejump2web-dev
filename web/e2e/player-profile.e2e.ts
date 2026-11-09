@@ -48,6 +48,19 @@ test("profile stats, history controls and the table follow the selected style", 
   await graph.focus();
   await page.keyboard.press("Home");
   await expect(history.locator('[aria-live="polite"]')).toContainText("Dec");
+  await history.getByRole("button", { name: /^Show/ }).click();
+  await page
+    .getByRole("menuitemradio", { name: "World records", exact: true })
+    .click();
+  await expect(history.getByRole("heading")).toContainText(
+    "World records, last 12 months · Normal · All tracks",
+  );
+  expect(await table.innerText()).toBe(before);
+  await graph.focus();
+  await page.keyboard.press("End");
+  await expect(history.locator('[aria-live="polite"]')).toContainText(
+    ` · ${normal.world_records} · sample history`,
+  );
   await page.evaluate(() => {
     (window as { profileStayed?: boolean }).profileStayed = true;
   });
@@ -57,7 +70,7 @@ test("profile stats, history controls and the table follow the selected style", 
     .click();
   await expect(page).toHaveURL(/style=scroll/);
   await expect(history.getByRole("heading")).toContainText(
-    "Points, last 12 months · Scroll",
+    "World records, last 12 months · Scroll · All tracks",
   );
   expect(
     await page.evaluate(

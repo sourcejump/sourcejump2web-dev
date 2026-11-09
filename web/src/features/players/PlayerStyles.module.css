@@ -1,0 +1,17 @@
+.stat {
+  background-image: radial-gradient(
+    ellipse at 100% 0%,
+    color-mix(in srgb, var(--stat-color) 12%, transparent),
+    transparent 70%
+  );
+}
+
+.icon {
+  color: var(--stat-color);
+  background-color: color-mix(in srgb, var(--stat-color) 20%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--stat-color) 12%, transparent);
+}
+
+.progress {
+  background-color: var(--stat-color);
+}

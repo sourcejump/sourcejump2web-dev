@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { ProfileHistory } from "./ProfileHistory";
 import type { ProfileHistoryPoint } from "./sampleHistory";
+import styles from "./PlayerStyles.module.css";
 import { api, type Schemas } from "@/api/client";
 import { LegacyBadge } from "@/features/legacy/LegacyBadge";
 import { ReplayLink } from "@/features/replays/ReplayLink";
@@ -147,7 +148,7 @@ export function PlayerStyles({
   const standing =
     tracks === "bonuses" ? ranked?.bonus_standing : ranked?.main_standing;
   const historyStyle = ranked?.style ?? styleKey;
-  const historyName = `${styleNames[historyStyle] ?? historyStyle}${tracks === "bonuses" ? " bonuses" : ""}`;
+  const historyName = styleNames[historyStyle] ?? historyStyle;
   const rows = loaded?.key === choiceKey ? loaded.rows : undefined;
   const completeFirst =
     tracks === "main" && !records && current && !current.next_cursor
@@ -192,7 +193,7 @@ export function PlayerStyles({
         aria-label="Player statistics"
         className="motion-enter grid grid-cols-2 gap-3 sm:grid-cols-3"
       >
-        <StatLink href={pointsHref}>
+        <StatLink href={pointsHref} color="var(--color-profile-rank)">
           <StatText>Global rank</StatText>
           <StatIcon>
             <Globe />
@@ -202,6 +203,7 @@ export function PlayerStyles({
           </StatValue>
         </StatLink>
         <StatLink
+          color="var(--color-gold)"
           pressed={records}
           onClick={
             counts?.world_records || records
@@ -220,11 +222,11 @@ export function PlayerStyles({
           <StatIcon>
             <Trophy />
           </StatIcon>
-          <StatValue color={counts?.world_records ? "text-accent" : undefined}>
+          <StatValue>
             <CountUp value={counts?.world_records ?? 0} />
           </StatValue>
         </StatLink>
-        <StatLink>
+        <StatLink color="var(--color-profile-top10)">
           <StatText>Top 10s</StatText>
           <StatIcon>
             <MedalIcon />
@@ -233,7 +235,7 @@ export function PlayerStyles({
             {top10 === undefined ? "—" : numbers.format(top10)}
           </StatValue>
         </StatLink>
-        <StatLink>
+        <StatLink color="var(--color-accent)">
           <StatText>Points</StatText>
           <StatIcon>
             <Star />
@@ -243,6 +245,7 @@ export function PlayerStyles({
           </StatValue>
         </StatLink>
         <StatLink
+          color="var(--color-profile-maps)"
           href={withQuery("/maps", {
             player: player.steamid64,
             completed: "yes",
@@ -266,7 +269,7 @@ export function PlayerStyles({
               className="bg-surface-overlay absolute inset-x-0 bottom-0 h-1"
             >
               <span
-                className="bg-accent/70 block h-full"
+                className={classNames("block h-full", styles.progress)}
                 style={{
                   width: `${Math.min(100, (maps / player.map_count) * 100)}%`,
                 }}
@@ -274,7 +277,7 @@ export function PlayerStyles({
             </span>
           )}
         </StatLink>
-        <StatLink>
+        <StatLink color="var(--color-success)">
           <StatText>Bonuses completed</StatText>
           <StatIcon>
             <Gem />
@@ -294,7 +297,7 @@ export function PlayerStyles({
               className="bg-surface-overlay absolute inset-x-0 bottom-0 h-1"
             >
               <span
-                className="bg-success/70 block h-full"
+                className={classNames("block h-full", styles.progress)}
                 style={{
                   width: `${Math.min(100, (bonuses / bonusTotal) * 100)}%`,
                 }}
@@ -310,6 +313,7 @@ export function PlayerStyles({
           ]
         }
         styleName={historyName}
+        bonuses={tracks === "bonuses"}
       />
       {details}
 
@@ -416,6 +420,7 @@ function StatLink({
   href,
   onClick,
   pressed,
+  color,
   className,
   children,
 }: {
@@ -423,13 +428,16 @@ function StatLink({
   onClick?: () => void;
   /** For a cell that switches a view: whether that view is showing. */
   pressed?: boolean;
+  color: string;
   className?: string;
   children: ReactNode;
 }) {
   const classes = classNames(
     "group border-border bg-surface relative flex min-h-28 min-w-0 flex-col gap-3 overflow-hidden rounded-md border p-4 text-left sm:p-5",
+    styles.stat,
     className,
   );
+  const style = { "--stat-color": color } as CSSProperties;
   // The panel clips its corners, so the focus ring is drawn inside the cell.
   const clickable = classNames(
     classes,
@@ -439,7 +447,7 @@ function StatLink({
   );
   if (href) {
     return (
-      <Link href={href} className={clickable}>
+      <Link href={href} className={clickable} style={style}>
         {children}
       </Link>
     );
@@ -451,29 +459,23 @@ function StatLink({
         onClick={onClick}
         aria-pressed={pressed}
         className={clickable}
+        style={style}
       >
         {children}
       </button>
     );
   }
-  return <div className={classes}>{children}</div>;
+  return (
+    <div className={classes} style={style}>
+      {children}
+    </div>
+  );
 }
 
-/** A standing cell's number: in its own color (a medal, the record accent), or the accent on hover as at home. */
-function StatValue({
-  color,
-  children,
-}: {
-  color?: string;
-  children: ReactNode;
-}) {
+/** A standing cell's number, accented on hover as at home. */
+function StatValue({ children }: { children: ReactNode }) {
   return (
-    <span
-      className={classNames(
-        "flex min-w-0 flex-wrap items-baseline gap-x-2 text-xl font-bold tabular-nums transition-colors duration-(--duration-fast) sm:text-2xl",
-        color ?? "group-hover:text-accent",
-      )}
-    >
+    <span className="group-hover:text-accent flex min-w-0 flex-wrap items-baseline gap-x-2 text-xl font-bold tabular-nums transition-colors duration-(--duration-fast) sm:text-2xl">
       {children}
     </span>
   );
@@ -492,7 +494,10 @@ function StatIcon({ children }: { children: ReactNode }) {
   return (
     <span
       aria-hidden
-      className="bg-accent-soft text-accent absolute top-4 right-4 inline-flex size-7 items-center justify-center rounded-md sm:top-5 sm:right-5 [&_svg]:size-4"
+      className={classNames(
+        "absolute top-4 right-4 inline-flex size-8 items-center justify-center rounded-md sm:top-5 sm:right-5 [&_svg]:size-4",
+        styles.icon,
+      )}
     >
       {children}
     </span>

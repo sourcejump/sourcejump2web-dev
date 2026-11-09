@@ -4,6 +4,7 @@ export interface ProfileHistoryPoint {
   date: string;
   rank: number;
   points: number;
+  worldRecords: number;
 }
 
 /** Development fixtures only: never manufacture history for real players or production. */
@@ -36,6 +37,7 @@ export function sampleHistory(
           standing.rank + (1 - value) * Math.max(20, standing.rank * 2),
         ),
         points: Math.round(standing.points * (0.35 + value * 0.65)),
+        worldRecords: Math.round(style.world_records * value),
       }));
     }
   }

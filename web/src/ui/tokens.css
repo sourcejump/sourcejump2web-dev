@@ -40,6 +40,11 @@
   --color-bronze: #c7834a;
   --color-on-medal: #1a1408;
 
+  /* Profile statistics. */
+  --color-profile-rank: #efa837;
+  --color-profile-top10: #c183df;
+  --color-profile-maps: #af99f6;
+
   /*
    * Tier ramp stops, easiest to hardest. The tier count is staff-editable data, so TierBadge
    * places a tier along this ramp by its position instead of keeping one color per tier.

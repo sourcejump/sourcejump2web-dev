@@ -21,14 +21,23 @@ const H = 220;
 export function ProfileHistory({
   series,
   styleName,
+  bonuses = false,
 }: {
   series?: ProfileHistoryPoint[];
   styleName: string;
+  bonuses?: boolean;
 }) {
-  const [metric, setMetric] = useState<"rank" | "points">("rank");
+  const [metric, setMetric] = useState<"rank" | "points" | "worldRecords">(
+    "rank",
+  );
   const [active, setActive] = useState<number | null>(null);
   const id = useId();
-  const title = metric === "rank" ? "Rank" : "Points";
+  const title = {
+    rank: "Rank",
+    points: "Points",
+    worldRecords: "World records",
+  }[metric];
+  const context = `${styleName}${metric === "worldRecords" ? " · All tracks" : bonuses ? " bonuses" : ""}`;
   const format = (value: number) =>
     metric === "rank" ? `#${number.format(value)}` : number.format(value);
   const values = series?.map((point) => point[metric]) ?? [];
@@ -94,7 +103,7 @@ export function ProfileHistory({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-bold">
-          {title}, last 12 months · {styleName}
+          {title}, last 12 months · {context}
         </h2>
         <ChoiceMenu
           label="Show"
@@ -102,9 +111,12 @@ export function ProfileHistory({
           options={[
             { value: "rank", label: "Rank" },
             { value: "points", label: "Points" },
+            { value: "worldRecords", label: "World records" },
           ]}
           onChange={(value) =>
-            setMetric(value === "points" ? "points" : "rank")
+            setMetric(
+              value === "points" || value === "worldRecords" ? value : "rank",
+            )
           }
         />
       </div>
@@ -133,7 +145,7 @@ export function ProfileHistory({
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <div
                 role="img"
-                aria-label={`Sample ${title.toLowerCase()} history for ${styleName}. Use the arrow keys to read each month.`}
+                aria-label={`Sample ${title.toLowerCase()} history for ${context}. Use the arrow keys to read each month.`}
                 tabIndex={0}
                 onPointerMove={nearest}
                 onPointerDown={nearest}
@@ -152,7 +164,7 @@ export function ProfileHistory({
                   <defs>
                     <clipPath id={`${id}-clip`}>
                       <rect
-                        key={`${metric}-${styleName}`}
+                        key={`${metric}-${context}`}
                         width={W}
                         height={H}
                         className={styles.reveal}

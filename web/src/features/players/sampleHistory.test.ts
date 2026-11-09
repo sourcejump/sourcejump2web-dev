@@ -28,6 +28,7 @@ it("provides twelve sample months ending at the mock player's current standing",
     date: "2026-11-01T00:00:00.000Z",
     rank: 9,
     points: 43613,
+    worldRecords: 1,
   });
 });
 
