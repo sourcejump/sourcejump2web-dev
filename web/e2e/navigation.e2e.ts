@@ -7,8 +7,8 @@ test("following a link doesn't reload the page", async ({ page }) => {
     (window as { stillHere?: boolean }).stillHere = true;
   });
   await page
-    .getByRole("main")
-    .getByRole("link", { name: "Browse maps" })
+    .getByRole("banner")
+    .getByRole("link", { name: "Maps", exact: true })
     .click();
   await expect(page).toHaveURL(/\/maps$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Maps");
