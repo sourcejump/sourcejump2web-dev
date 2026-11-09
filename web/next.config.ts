@@ -17,7 +17,13 @@ const nextConfig: NextConfig = {
   async rewrites() {
     if (process.env.NODE_ENV !== "development") return [];
     const api = process.env.SJ_API_URL ?? "http://127.0.0.1:8080";
-    return [{ source: "/v1/:path*", destination: `${api}/v1/:path*` }];
+    return [
+      { source: "/v1/:path*", destination: `${api}/v1/:path*` },
+      {
+        source: "/_beta-files/:path*",
+        destination: "https://files.sourcejump.net/:path*",
+      },
+    ];
   },
   experimental: {
     // That proxying buffers request bodies, cut off at 10 MB by default; a packed map can be up to the API's

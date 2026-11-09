@@ -22,6 +22,7 @@ import {
   findComparison,
 } from "./comparison";
 import { REPLAY_ANCHOR } from "./anchor";
+import { replayAssetUrl } from "./assetUrl";
 import { ComparisonLegend } from "./ComparisonLegend";
 import { storedOverlays, storeOverlays } from "./overlays";
 import { type ControlsHandle, ReplayControls } from "./ReplayControls";
@@ -161,9 +162,9 @@ export function ReplayPlayer({
         canvas,
         {
           mapName: run.map,
-          mapUrl: map.viewer_file.url,
-          stockContentUrl: map.viewer_file.stock_content_url,
-          replayUrl,
+          mapUrl: replayAssetUrl(map.viewer_file.url),
+          stockContentUrl: replayAssetUrl(map.viewer_file.stock_content_url),
+          replayUrl: replayAssetUrl(replayUrl),
         },
         {
           onFrame: (state, timer, compared, viewed) => {
@@ -484,6 +485,6 @@ async function loadComparison(
 ): Promise<ComparisonRun | string> {
   const found = await findComparison(run, runId, signal);
   if (typeof found === "string") return found;
-  await session.compareWith(found.replayUrl, signal);
+  await session.compareWith(replayAssetUrl(found.replayUrl), signal);
   return found.comparison;
 }
