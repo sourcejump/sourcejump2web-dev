@@ -213,7 +213,7 @@ pub async fn list_maps(
     let offset = query.offset.unwrap_or(0);
     check_page(limit, offset, MAX_LIMIT).map_err(ApiError::Invalid)?;
     let sort = query.sort.unwrap_or(MapSort::Name).key();
-    let search = query.q.as_deref().and_then(search_name);
+    let search = query.q.as_deref().and_then(name_search::as_map_name);
     let pattern = search.as_deref().map(name_search::contains_pattern);
     // Most map names start with "bhop_", which would make every map a near miss of every search.
     let near = search
@@ -287,24 +287,8 @@ async fn map_stats(
     tier_count: Option<i16>,
     tier: Option<i16>,
 ) -> Result<MapStats, sqlx::Error> {
-    let rows = sqlx::query!(
-        r#"SELECT tier.tier AS "tier?", count(*) AS "maps!" FROM maps m
-           LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0
-           WHERE m.last_run_at IS NOT NULL
-           GROUP BY tier.tier"#
-    )
-    .fetch_all(db)
-    .await?;
-    let mut by_tier = vec![0; usize::try_from(tier_count.unwrap_or(0)).unwrap_or(0)];
-    for row in &rows {
-        let slot = row
-            .tier
-            .and_then(|tier| usize::try_from(tier - 1).ok())
-            .and_then(|index| by_tier.get_mut(index));
-        if let Some(slot) = slot {
-            *slot += row.maps;
-        }
-    }
+    let counts = tiers::listed_maps_per_tier(db).await?;
+    let by_tier = tiers::by_tier(&counts, tier_count);
     let newest = sqlx::query!(
         r#"SELECT m.name, m.listed_at AS "listed_at!", tier.tier AS "tier?"
            FROM maps m
@@ -348,7 +332,7 @@ async fn map_stats(
     })
     .collect();
     Ok(MapStats {
-        maps: rows.iter().map(|row| row.maps).sum(),
+        maps: counts.iter().map(|(_, maps)| maps).sum(),
         by_tier,
         newest,
         played_this_week,
@@ -639,13 +623,6 @@ async fn count_maps(tx: &mut sqlx::PgConnection, filter: &Filter<'_>) -> Result<
     )
     .fetch_one(tx)
     .await
-}
-
-/// A search as map names are written: lower case, with underscores for spaces, since no map name has a space
-/// and players often type one ("candy saarc"). None for an empty search.
-fn search_name(q: &str) -> Option<String> {
-    let words: Vec<&str> = q.split_whitespace().collect();
-    (!words.is_empty()).then(|| words.join("_").to_lowercase())
 }
 
 /// The first style in the current ruleset, which the list shows records in unless asked for another.

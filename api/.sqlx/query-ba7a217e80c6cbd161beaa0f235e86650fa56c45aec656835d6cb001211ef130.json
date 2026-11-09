@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT pb.style AS \"style?\", tier.tier AS \"tier!\", count(DISTINCT pb.map_id) AS \"maps!\"\n        FROM personal_bests pb\n        JOIN current_map_tiers tier ON tier.map_id = pb.map_id AND tier.track = 0\n        WHERE pb.player_steamid64 = $1 AND pb.track = 0\n        GROUP BY GROUPING SETS ((pb.style, tier.tier), (tier.tier))\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "style?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "personal_bests",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "tier!",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "current_map_tiers",
+            "name": "tier"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "maps!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "ba7a217e80c6cbd161beaa0f235e86650fa56c45aec656835d6cb001211ef130"
+}

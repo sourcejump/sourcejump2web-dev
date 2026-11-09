@@ -1,4 +1,5 @@
-// A player's profile, under their header: their details, then per style their stats and personal bests.
+// A player's profile, under their header: their details, then their personal bests by style and tier, their
+// year of runs, and per style their personal bests.
 import { notFound, redirect } from "next/navigation";
 import { signedInPlayer } from "@/features/auth/signedInPlayer";
 import { currentStyles } from "@/features/ruleset/styles";
@@ -40,6 +41,8 @@ export async function PlayerProfile({ steamid }: { steamid: string }) {
       ) : (
         <PlayerStyles
           player={player}
+          // The API counts activity by UTC day; the calendar dates its squares from the same day.
+          today={new Date().toISOString().slice(0, 10)}
           styleOrder={styles.keys}
           styleNames={Object.fromEntries(
             styles.keys.map((k) => [k, styles.name(k)]),

@@ -66,6 +66,15 @@ const colors = [
   ["tier-2", "bg-tier-2"],
   ["tier-3", "bg-tier-3"],
   ["tier-4", "bg-tier-4"],
+  ["series-1", "bg-series-1"],
+  ["series-2", "bg-series-2"],
+  ["series-3", "bg-series-3"],
+  ["series-4", "bg-series-4"],
+  ["series-5", "bg-series-5"],
+  ["series-6", "bg-series-6"],
+  ["series-7", "bg-series-7"],
+  ["series-8", "bg-series-8"],
+  ["series-other", "bg-series-other"],
 ] as const;
 
 const typeScale = [

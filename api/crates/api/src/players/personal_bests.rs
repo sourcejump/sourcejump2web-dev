@@ -16,6 +16,7 @@ use crate::{
     app::AppState,
     error::{ApiError, ErrorBody},
     legacy::{self, View},
+    name_search,
 };
 
 pub const DEFAULT_LIMIT: i64 = 50;
@@ -38,6 +39,8 @@ pub struct PersonalBestsQuery {
     view: Option<View>,
     /// True for only the personal bests that rank first: their world records, ties included. 2.0 runs only.
     records: Option<bool>,
+    /// Only maps whose name contains this, as the map list searches (spaces match underscores). No near misses.
+    q: Option<String>,
 }
 
 /// Which of a map's tracks a list of personal bests covers.
@@ -77,6 +80,9 @@ pub struct PersonalBest {
     pub run_id: i64,
     /// None only for a few legacy runs whose date the old site stored unreadably.
     pub finished_at: Option<DateTime<Utc>>,
+    /// Their valid 2.0 runs on this map, style and track, this one included (`GET /v1/players/{player}/runs`
+    /// lists them); 1 for a legacy run.
+    pub runs: i64,
 }
 
 /// Where a page starts: after this map and track, or, most recent first, after this finish time and run.
@@ -96,6 +102,8 @@ pub(super) struct Selection<'a> {
     pub records_only: bool,
     /// Most recently finished first, rather than by style, map and track.
     pub recent_first: bool,
+    /// Only maps whose name matches this `ILIKE` pattern (`name_search::contains_pattern`).
+    pub map_pattern: Option<&'a str>,
 }
 
 /// The player's personal bests with placements, as `selection` asks; `after` continues after a position, and
@@ -121,7 +129,10 @@ pub(super) async fn personal_bests(
                1 + (SELECT count(*) FROM personal_bests faster
                     WHERE faster.map_id = own.map_id AND faster.style = own.style
                       AND faster.track = own.track AND faster.time < own.time) AS "rank!",
-               own.run_id AS "run_id!", own.finished_at AS "finished_at!"
+               own.run_id AS "run_id!", own.finished_at AS "finished_at!",
+               (SELECT count(*) FROM runs r
+                WHERE r.player_steamid64 = $1 AND r.map_id = own.map_id AND r.style = own.style
+                  AND r.track = own.track AND r.invalidated_at IS NULL) AS "runs!"
         FROM (
             SELECT pb.style, pb.map_id, m.name AS map, pb.track, pb.time, pb.run_id, pb.finished_at
             FROM personal_bests pb
@@ -135,6 +146,7 @@ pub(super) async fn personal_bests(
                   WHERE h.player_steamid64 = $1 AND h.map_id = pb.map_id AND h.style = pb.style
                     AND h.track = pb.track))
               AND ($9::timestamptz IS NULL OR (pb.finished_at, pb.run_id) < ($9, $10::int8))
+              AND ($11::text IS NULL OR m.name ILIKE $11)
             ORDER BY CASE WHEN $8 THEN pb.finished_at END DESC, CASE WHEN $8 THEN pb.run_id END DESC,
                      pb.style, m.name, pb.track
             LIMIT $5
@@ -151,7 +163,8 @@ pub(super) async fn personal_bests(
         selection.records_only,
         selection.recent_first,
         after_time.map(|(finished_at, _)| finished_at),
-        after_time.map(|(_, run_id)| run_id)
+        after_time.map(|(_, run_id)| run_id),
+        selection.map_pattern
     )
     .fetch_all(db)
     .await?;
@@ -167,6 +180,7 @@ pub(super) async fn personal_bests(
             legacy: false,
             run_id: row.run_id,
             finished_at: Some(row.finished_at),
+            runs: row.runs,
         })
         .collect())
 }
@@ -181,6 +195,7 @@ async fn view_personal_bests(
     view: View,
     after: Option<(&str, i16)>,
     limit: i64,
+    map_pattern: Option<&str>,
 ) -> Result<Vec<PersonalBest>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"
@@ -189,7 +204,11 @@ async fn view_personal_bests(
                    SELECT count(*) FROM personal_bests faster
                    WHERE faster.map_id = shown.map_id AND faster.style = $2 AND faster.track = shown.track
                      AND faster.time < shown.time) END AS rank,
-               shown.legacy AS "legacy!", shown.id AS "id!", shown.finished_at
+               shown.legacy AS "legacy!", shown.id AS "id!", shown.finished_at,
+               CASE WHEN shown.legacy THEN 1 ELSE (
+                   SELECT count(*) FROM runs r
+                   WHERE r.player_steamid64 = $1 AND r.map_id = shown.map_id AND r.style = $2
+                     AND r.track = shown.track AND r.invalidated_at IS NULL) END AS "runs!"
         FROM (
             SELECT DISTINCT ON (both_kinds.map, both_kinds.track) both_kinds.*
             FROM (
@@ -204,7 +223,8 @@ async fn view_personal_bests(
                 JOIN legacy_maps lm ON lm.id = l.map_id
                 WHERE l.player_steamid64 = $1 AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = $1)
             ) both_kinds
-            WHERE $5::text IS NULL OR (both_kinds.map, both_kinds.track) > ($5, $6::smallint)
+            WHERE ($5::text IS NULL OR (both_kinds.map, both_kinds.track) > ($5, $6::smallint))
+              AND ($8::text IS NULL OR both_kinds.map ILIKE $8)
             ORDER BY both_kinds.map, both_kinds.track, both_kinds.time, both_kinds.legacy
             LIMIT $7
         ) shown
@@ -216,7 +236,8 @@ async fn view_personal_bests(
         legacy::TRACK,
         after.map(|(map, _)| map),
         after.map(|(_, track)| track),
-        limit
+        limit,
+        map_pattern
     )
     .fetch_all(db)
     .await?;
@@ -232,6 +253,7 @@ async fn view_personal_bests(
             legacy: row.legacy,
             run_id: row.id,
             finished_at: row.finished_at,
+            runs: row.runs,
         })
         .collect())
 }
@@ -321,6 +343,11 @@ pub async fn player_personal_bests(
     }
     let after = query.cursor.as_deref().map(position).transpose()?;
     let recent_first = query.style.is_none();
+    let map_pattern = query
+        .q
+        .as_deref()
+        .and_then(name_search::as_map_name)
+        .map(|name| name_search::contains_pattern(&name));
 
     let exists = sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM players WHERE steamid64 = $1)
@@ -339,6 +366,7 @@ pub async fn player_personal_bests(
             tracks: query.tracks,
             records_only,
             recent_first,
+            map_pattern: map_pattern.as_deref(),
         };
         personal_bests(
             &state.db,
@@ -358,7 +386,15 @@ pub async fn player_personal_bests(
             }
             None => None,
         };
-        view_personal_bests(&state.db, steamid64, view, after, limit + 1).await?
+        view_personal_bests(
+            &state.db,
+            steamid64,
+            view,
+            after,
+            limit + 1,
+            map_pattern.as_deref(),
+        )
+        .await?
     };
     let (personal_bests, next_cursor) = split_page(
         rows,
@@ -383,6 +419,51 @@ mod tests {
         runs::tests::{run, setup},
         test_client,
     };
+
+    #[sqlx::test]
+    async fn searches_map_names_and_counts_each_boards_runs(db: PgPool) {
+        let key = setup(&db).await;
+        for (id, map, time) in [
+            ("a1", "bhop_arcane", 30.0),
+            ("a2", "bhop_arcane", 28.0),
+            ("a3", "bhop_arcane", 29.0),
+            ("b1", "bhop_badges", 40.0),
+        ] {
+            let mut body = run(id, time);
+            body["map"] = json!(map);
+            test_client::post(&db, "/v1/runs", Some(&key), &body).await;
+        }
+        let shown = |page: PersonalBestPage| -> Vec<(String, f64, i64)> {
+            page.personal_bests
+                .into_iter()
+                .map(|pb| (pb.map, pb.time, pb.runs))
+                .collect()
+        };
+
+        let all: PersonalBestPage = test_client::get(
+            &db,
+            "/v1/players/76561197960287930/personal-bests?style=normal",
+        )
+        .await
+        .json();
+        assert_eq!(
+            shown(all),
+            [
+                ("bhop_arcane".to_owned(), 28.0, 3),
+                ("bhop_badges".to_owned(), 40.0, 1)
+            ]
+        );
+        // Spaces match underscores, and wildcards are plain characters.
+        for (q, maps) in [("p%20arc", 1), ("BADGES", 1), ("bhop%25", 0), ("", 2)] {
+            let page: PersonalBestPage = test_client::get(
+                &db,
+                &format!("/v1/players/76561197960287930/personal-bests?style=normal&q={q}"),
+            )
+            .await
+            .json();
+            assert_eq!(page.personal_bests.len(), maps, "{q:?}");
+        }
+    }
 
     #[sqlx::test]
     async fn pages_through_one_style(db: PgPool) {

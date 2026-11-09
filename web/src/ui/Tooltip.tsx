@@ -1,6 +1,7 @@
 "use client";
 // A short hint shown on hover or keyboard focus, e.g. the exact date behind "3 days ago".
 import {
+  type CSSProperties,
   type ReactElement,
   type ReactNode,
   useEffect,
@@ -8,6 +9,7 @@ import {
   useRef,
 } from "react";
 import { anchoredStyle, anchorStyle } from "./anchor";
+import { classNames } from "./classNames";
 
 /**
  * The tip is a popover in the top layer, so tables and other scroll containers can't clip it.
@@ -16,9 +18,14 @@ import { anchoredStyle, anchorStyle } from "./anchor";
 export function Tooltip({
   content,
   children,
+  className,
+  style,
 }: {
   content: ReactNode;
   children: ReactElement;
+  /** Placement of the wrapper around the child, such as its share of a bar. */
+  className?: string;
+  style?: CSSProperties;
 }) {
   const id = useId();
   const tip = useRef<HTMLDivElement>(null);
@@ -38,8 +45,8 @@ export function Tooltip({
     <>
       <span
         ref={anchor}
-        style={anchorStyle(id)}
-        className="inline-flex"
+        style={{ ...style, ...anchorStyle(id) }}
+        className={classNames("inline-flex", className)}
         onPointerEnter={show}
         onPointerLeave={hide}
         onFocus={show}

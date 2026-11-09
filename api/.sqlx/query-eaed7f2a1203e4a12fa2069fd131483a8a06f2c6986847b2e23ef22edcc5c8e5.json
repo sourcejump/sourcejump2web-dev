@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT p.steamid64::text AS \"steamid64!\", p.name AS \"name!\", p.avatar_url, p.country_code\n        FROM players p WHERE p.steamid64 = $1\n        UNION ALL\n        SELECT lp.steamid64::text, lp.name, lp.avatar_url, lp.country_code\n        FROM legacy_players lp\n        WHERE lp.steamid64 = $1 AND NOT EXISTS (SELECT 1 FROM players WHERE steamid64 = $1)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "eaed7f2a1203e4a12fa2069fd131483a8a06f2c6986847b2e23ef22edcc5c8e5"
+}

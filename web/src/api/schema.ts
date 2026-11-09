@@ -364,8 +364,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Players matching a search, most recently active first; or, with no search, players with runs in the last
-         *     30 days.
+         * Players matching a search, closest names first; or, with no search, players with runs in the last 30 days,
+         *     most recently active first.
          */
         get: operations["list_players"];
         put?: never;
@@ -419,6 +419,23 @@ export interface paths {
         };
         /** The player's personal bests in one style or all of them, a page at a time. Takes any `SteamID` form, like the profile. */
         get: operations["player_personal_bests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/players/{player}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The player's valid runs on one map, style and track, fastest first. Takes any `SteamID` form, like the profile. */
+        get: operations["player_runs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1863,6 +1880,47 @@ export interface components {
         };
         /** @enum {string} */
         Kind: "run" | "replay" | "invalidated";
+        LatestRun: {
+            /**
+             * Format: date-time
+             * @description By the game server's clock.
+             */
+            finished_at: string;
+            map: string;
+            map_image?: components["schemas"]["MapImage"] | null;
+            /**
+             * Format: int64
+             * @description Where the run placed on its board when it finished, as on the Activity page. None when it didn't beat
+             *     the player's own best, so it never placed.
+             */
+            placement?: number | null;
+            /**
+             * Format: double
+             * @description The player's best time on the board before this run, in seconds. None when this was their first
+             *     finish there.
+             */
+            previous_best?: number | null;
+            /** Format: int64 */
+            run_id: number;
+            style: string;
+            /**
+             * Format: int32
+             * @description The board's tier. None while tiers aren't in force or staff haven't set this board's.
+             */
+            tier?: number | null;
+            /**
+             * Format: double
+             * @description Seconds.
+             */
+            time: number;
+            /**
+             * Format: int32
+             * @description 0 is the main track, 1 and up are bonuses.
+             */
+            track: number;
+            /** @description Faster than every valid run before it on the board. */
+            world_record: boolean;
+        };
         Leaderboard: {
             /** @description Fastest first. Equal times share a rank; the earlier run is listed first. */
             entries: components["schemas"]["LeaderboardEntry"][];
@@ -2320,6 +2378,12 @@ export interface components {
             rank?: number | null;
             /** Format: int64 */
             run_id: number;
+            /**
+             * Format: int64
+             * @description Their valid 2.0 runs on this map, style and track, this one included (`GET /v1/players/{player}/runs`
+             *     lists them); 1 for a legacy run.
+             */
+            runs: number;
             style: string;
             /**
              * Format: double
@@ -2393,7 +2457,14 @@ export interface components {
             sensitivity?: number | null;
         };
         PlayerList: {
+            /** @description Pass as `cursor` for the players after these. None at the end. */
+            next_cursor?: string | null;
             players: components["schemas"]["PlayerSummary"][];
+            /**
+             * Format: int32
+             * @description Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier.
+             */
+            tier_count?: number | null;
         };
         PlayerPersonalBest: {
             /** Format: date-time */
@@ -2424,6 +2495,8 @@ export interface components {
             privileges: components["schemas"]["Privilege"][];
         };
         PlayerProfile: {
+            /** @description Valid runs they finished on each UTC day of the last 365, oldest first and today last. */
+            activity: number[];
             /**
              * @description The counts across every style: maps and bonus tracks finished in any of them, and every style's world
              *     records added up.
@@ -2455,6 +2528,8 @@ export interface components {
              * @description Maps with at least one run, as on the map list: what completed maps are counted out of.
              */
             map_count: number;
+            /** @description Maps on the map list per main-track tier, tier 1 first: what each tier's completions are counted out of. */
+            maps_by_tier: number[];
             /** @description The name from their latest run, or from Steam if they haven't played yet. */
             name: string;
             /** @description True while points come from the draft formula, as on `GET /v1/leaderboards`; ranks are a draft too. */
@@ -2463,6 +2538,12 @@ export interface components {
             steamid64: string;
             /** @description One entry per style they hold a personal best in, sorted by style key. Counts are 2.0 alone. */
             styles: components["schemas"]["PlayerStyle"][];
+            /**
+             * Format: int32
+             * @description The tier count, as on the map list. None until the community has decided one; the `by_tier` counts
+             *     are then empty.
+             */
+            tier_count?: number | null;
         };
         /**
          * @description A player as leaderboards, records and runs show them: enough to draw their name, avatar and flag, and to
@@ -2477,6 +2558,29 @@ export interface components {
             /** @description SteamID64, as a string. */
             steamid64: string;
         };
+        PlayerRun: {
+            /** Format: date-time */
+            finished_at: string;
+            /** Format: int64 */
+            run_id: number;
+            /** Format: int64 */
+            server_id: number;
+            server_name: string;
+            /**
+             * Format: double
+             * @description Seconds.
+             */
+            time: number;
+        };
+        PlayerRunPage: {
+            /** @description Fastest first; equal times by when they were finished. */
+            runs: components["schemas"]["PlayerRun"][];
+            /**
+             * Format: int64
+             * @description All of their valid runs there, which may be more than `runs` holds.
+             */
+            total: number;
+        };
         /** @description What the player has done in one style. */
         PlayerStyle: {
             bonus_standing?: components["schemas"]["StyleStanding"] | null;
@@ -2485,6 +2589,8 @@ export interface components {
              * @description Bonus tracks they've finished, across all maps.
              */
             completed_bonuses: number;
+            /** @description Those maps per main-track tier, tier 1 first, out of `maps_by_tier`. Untiered maps aren't counted. */
+            completed_by_tier: number[];
             /**
              * Format: int64
              * @description Maps whose main track they've finished.
@@ -2506,13 +2612,11 @@ export interface components {
             world_records: number;
         };
         PlayerSummary: {
+            /** @description Valid runs finished on each of the last 30 UTC days, oldest first; the last is today. */
+            activity: number[];
             avatar_url?: string | null;
             country_code?: string | null;
-            /**
-             * Format: date-time
-             * @description When their latest run finished. None for a player with no runs.
-             */
-            last_run_at?: string | null;
+            latest_run?: components["schemas"]["LatestRun"] | null;
             name: string;
             /** @description SteamID64, as a string. */
             steamid64: string;
@@ -3428,6 +3532,8 @@ export interface components {
         StyleTotals: {
             /** Format: int64 */
             completed_bonuses: number;
+            /** @description Maps whose main track they've finished in any style, per main-track tier, tier 1 first. */
+            completed_by_tier: number[];
             /** Format: int64 */
             completed_maps: number;
             /** Format: int64 */
@@ -4257,6 +4363,8 @@ export interface operations {
                 q?: string | null;
                 /** @description 1 to 100. Default 20. */
                 limit?: number | null;
+                /** @description Continue after this point: a `next_cursor` from an earlier page of the same list. */
+                cursor?: string | null;
             };
             header?: never;
             path?: never;
@@ -4272,7 +4380,7 @@ export interface operations {
                     "application/json": components["schemas"]["PlayerList"];
                 };
             };
-            /** @description Search too short, or limit out of range */
+            /** @description Search too short, or limit or cursor not valid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4411,6 +4519,8 @@ export interface operations {
                 view?: ("current" | "all" | "legacy") | null;
                 /** @description True for only the personal bests that rank first: their world records, ties included. 2.0 runs only. */
                 records?: boolean | null;
+                /** @description Only maps whose name contains this, as the map list searches (spaces match underscores). No near misses. */
+                q?: string | null;
             };
             header?: never;
             path: {
@@ -4439,6 +4549,55 @@ export interface operations {
                 };
             };
             /** @description Not a SteamID, or not a valid limit or cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    player_runs: {
+        parameters: {
+            query: {
+                /** @description Map name. */
+                map: string;
+                /** @description Style key. */
+                style: string;
+                /** @description 0 is the main track, 1 and up are bonuses. Default 0. */
+                track?: number | null;
+                /** @description 1 to 100. Default 50: the fastest that many. */
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description SteamID64, SteamID2 (STEAM_0:1:2) or SteamID3 ([U:1:4]) */
+                player: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerRunPage"];
+                };
+            };
+            /** @description SourceJump has no such player or map */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a SteamID, or not a valid limit */
             422: {
                 headers: {
                     [name: string]: unknown;

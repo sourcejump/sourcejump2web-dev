@@ -97,3 +97,21 @@
   --duration-count: 900ms;
   color-scheme: dark;
 }
+
+@theme static {
+  /*
+   * Series colors for a chart whose parts are named things (styles), in a fixed order: a part keeps its
+   * color by its place in its list, never by its size. Checked as a set on the surface for color-blind
+   * separation and contrast (OKLCH lightness 0.48 to 0.67); past eight, parts share the neutral one.
+   * Static: charts name them at runtime (`ui/series.ts`), where Tailwind can't see them to keep them.
+   */
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+  --color-series-4: #c98500;
+  --color-series-5: #d55181;
+  --color-series-6: #008300;
+  --color-series-7: #9085e9;
+  --color-series-8: #e66767;
+  --color-series-other: #64758d;
+}

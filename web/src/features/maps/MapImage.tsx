@@ -6,6 +6,8 @@ import type { Schemas } from "@/api/client";
 import { classNames } from "@/ui/classNames";
 
 const sizes = {
+  /** Beside a player's latest run in the Players list: as tall as the badge line and the small line under it. */
+  thumb: "h-10.5 w-19 rounded-sm",
   tile: "h-14 w-24 rounded-md sm:h-20 sm:w-36",
   banner: "h-36 w-full rounded-lg sm:h-48",
   /** The top of a map's tile in the Maps grid, at the picture's own 16:9. */
@@ -51,7 +53,7 @@ export function MapImage({
         "text-text-subtle flex items-center justify-center",
       )}
     >
-      <ImageOff className="size-8" />
+      <ImageOff className={size === "thumb" ? "size-4" : "size-8"} />
     </span>
   );
 }

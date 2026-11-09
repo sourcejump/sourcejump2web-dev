@@ -159,8 +159,32 @@ pub fn refresh_if_stale(
     if fetched_at.is_some_and(|fetched| Utc::now() - fetched < FRESH_FOR) {
         return;
     }
+    spawn_refresh(db, steam, steamid64);
+}
+
+/// Fetches the profile in the background if it has never been fetched, for a player who just sent a run.
+/// Without this, a player who only plays would have no avatar until someone opens their profile. Profiles
+/// fetched before (successfully or not) are left to views, so regulars cost Steam nothing. If the line is full
+/// or the API restarts first, the player is still unfetched and their next run asks again. True when queued.
+pub async fn refresh_if_never_fetched(
+    db: &PgPool,
+    steam: &Steam,
+    steamid64: SteamId64,
+) -> Result<bool, sqlx::Error> {
+    let never_fetched = sqlx::query_scalar!(
+        "SELECT steam_profile_fetched_at IS NULL AS \"never!\" FROM players WHERE steamid64 = $1",
+        steamid64.get()
+    )
+    .fetch_optional(db)
+    .await?
+    .unwrap_or(false);
+    Ok(never_fetched && spawn_refresh(db.clone(), steam.clone(), steamid64))
+}
+
+/// Queues the refresh and runs it once its turn comes. False when it couldn't be queued (see `queue`).
+fn spawn_refresh(db: PgPool, steam: Steam, steamid64: SteamId64) -> bool {
     if !queue(&steam, steamid64) {
-        return;
+        return false;
     }
     tokio::spawn(async move {
         if let Err(error) = refresh(&db, &steam, steamid64).await {
@@ -168,6 +192,7 @@ pub fn refresh_if_stale(
         }
         lock_queue(&steam).remove(&steamid64);
     });
+    true
 }
 
 /// Takes a place in line for the player's refresh. False when one is already queued for them, or the line is
@@ -218,6 +243,36 @@ mod tests {
         );
         lock_queue(&steam).remove(&first);
         assert!(queue(&steam, first), "a finished refresh frees its place");
+    }
+
+    #[sqlx::test]
+    async fn a_run_fetches_only_profiles_never_fetched(db: PgPool) {
+        let steam = Steam::with_base(&url::Url::parse("http://127.0.0.1:9/").unwrap());
+        let (new, known, missing) = (
+            SteamId64::parse_any("[U:1:1]").unwrap(),
+            SteamId64::parse_any("[U:1:2]").unwrap(),
+            SteamId64::parse_any("[U:1:3]").unwrap(),
+        );
+        sqlx::query(
+            "INSERT INTO players (steamid64, name, name_seen_at, steam_profile_fetched_at)
+             VALUES ($1, 'new', '-infinity', NULL), ($2, 'known', '-infinity', '2020-01-01Z')",
+        )
+        .bind(new.get())
+        .bind(known.get())
+        .execute(&db)
+        .await
+        .unwrap();
+
+        assert!(refresh_if_never_fetched(&db, &steam, new).await.unwrap());
+        assert!(
+            !refresh_if_never_fetched(&db, &steam, known).await.unwrap(),
+            "fetched before, even long ago: left to profile views"
+        );
+        assert!(
+            !refresh_if_never_fetched(&db, &steam, missing)
+                .await
+                .unwrap()
+        );
     }
 
     #[sqlx::test]

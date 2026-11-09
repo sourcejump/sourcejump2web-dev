@@ -130,6 +130,17 @@ async fn submit_run(
     let stored = store(&mut tx, key, &run).await?;
     tx.commit().await?;
 
+    if stored.created {
+        let steamid64 = run.player.steamid64;
+        // The run is stored, so a failure here is only logged: the player's next run asks again.
+        if let Err(error) =
+            players::steam_profile::refresh_if_never_fetched(&state.db, &state.steam, steamid64)
+                .await
+        {
+            tracing::error!(%steamid64, %error, "couldn't check whether a Steam profile was fetched");
+        }
+    }
+
     let status = if stored.created {
         StatusCode::CREATED
     } else {
@@ -494,6 +505,29 @@ pub(crate) mod tests {
             .expect("a new personal best's replay is wanted");
         assert!(replay.upload_url.contains("replays/"));
         assert!(replay.upload_url.contains("X-Amz-Signature="));
+    }
+
+    #[sqlx::test]
+    async fn a_new_players_run_fetches_their_steam_profile(db: PgPool) {
+        let key = setup(&db).await;
+
+        assert_eq!(submit(&db, &key, &run("a", 30.0)).await.status, 201);
+
+        // The test Steam refuses connections, so the fetch fails and only dates the profile. That date is the
+        // sign the fetch ran; it runs in the background, so wait for it.
+        for _ in 0..100 {
+            let fetched: bool = sqlx::query_scalar(
+                "SELECT steam_profile_fetched_at IS NOT NULL FROM players WHERE steamid64 = 76561197960287930",
+            )
+            .fetch_one(&db)
+            .await
+            .unwrap();
+            if fetched {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        panic!("the player's Steam profile was never fetched");
     }
 
     #[sqlx::test]

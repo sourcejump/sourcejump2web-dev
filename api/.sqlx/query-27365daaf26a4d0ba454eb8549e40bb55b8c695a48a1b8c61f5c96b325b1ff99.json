@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT p.id AS \"steamid64!\", activity.days AS \"days!\"\n        FROM unnest($1::bigint[]) p(id)\n        CROSS JOIN LATERAL (\n            SELECT array_agg(coalesce(counted.runs, 0) ORDER BY day) AS days\n            FROM generate_series($2::date - ($3::int - 1), $2::date, interval '1 day') day\n            LEFT JOIN (\n                SELECT (r.finished_at AT TIME ZONE 'UTC')::date AS finished_on, count(*)::int AS runs\n                FROM runs r\n                WHERE r.player_steamid64 = p.id AND r.invalidated_at IS NULL\n                  AND r.finished_at >= ($2::date - ($3::int - 1))::timestamp AT TIME ZONE 'UTC'\n                GROUP BY 1\n            ) counted ON counted.finished_on = day::date\n        ) activity\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "steamid64!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "days!",
+        "type_info": "Int4Array",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array",
+        "Date",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "27365daaf26a4d0ba454eb8549e40bb55b8c695a48a1b8c61f5c96b325b1ff99"
+}

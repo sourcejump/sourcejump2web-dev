@@ -1,6 +1,9 @@
 //! A player's profile, `GET /v1/players/{player}`: who they are, and per style their rank by points,
-//! completions, world records and the first page of their personal bests. A player SourceJump knows only from legacy records
+//! completions (also per tier), world records and the first page of their personal bests, with their runs
+//! per day over the last year. A player SourceJump knows only from legacy records
 //! has the same profile, with no 2.0 styles and their legacy runs to switch to.
+
+use std::collections::HashMap;
 
 use axum::{
     Json,
@@ -11,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use super::{
-    SteamId64,
+    SteamId64, activity,
     details::{self, PlayerDetails},
     personal_bests::{self, DEFAULT_LIMIT, PersonalBest, Selection, Tracks},
     steam_profile,
@@ -20,7 +23,11 @@ use crate::{
     app::AppState,
     error::{ApiError, ErrorBody},
     leaderboards::standings,
+    maps::tiers,
 };
+
+/// Days in `activity`, today included: a year, so the profile can draw it as a calendar.
+const ACTIVITY_DAYS: i32 = 365;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PlayerProfile {
@@ -42,6 +49,13 @@ pub struct PlayerProfile {
     pub last_run_at: Option<DateTime<Utc>>,
     /// Maps with at least one run, as on the map list: what completed maps are counted out of.
     pub map_count: i64,
+    /// The tier count, as on the map list. None until the community has decided one; the `by_tier` counts
+    /// are then empty.
+    pub tier_count: Option<i16>,
+    /// Maps on the map list per main-track tier, tier 1 first: what each tier's completions are counted out of.
+    pub maps_by_tier: Vec<i64>,
+    /// Valid runs they finished on each UTC day of the last 365, oldest first and today last.
+    pub activity: Vec<i32>,
     /// One entry per style they hold a personal best in, sorted by style key. Counts are 2.0 alone.
     pub styles: Vec<PlayerStyle>,
     /// The counts across every style: maps and bonus tracks finished in any of them, and every style's world
@@ -59,6 +73,8 @@ pub struct StyleTotals {
     pub completed_maps: i64,
     pub completed_bonuses: i64,
     pub world_records: i64,
+    /// Maps whose main track they've finished in any style, per main-track tier, tier 1 first.
+    pub completed_by_tier: Vec<i64>,
 }
 
 /// What the player has done in one style.
@@ -67,6 +83,8 @@ pub struct PlayerStyle {
     pub style: String,
     /// Maps whose main track they've finished.
     pub completed_maps: i64,
+    /// Those maps per main-track tier, tier 1 first, out of `maps_by_tier`. Untiered maps aren't counted.
+    pub completed_by_tier: Vec<i64>,
     /// Bonus tracks they've finished, across all maps.
     pub completed_bonuses: i64,
     /// Personal bests that rank first, bonuses included. A tie for first counts for everyone in it.
@@ -131,6 +149,8 @@ pub async fn player_profile(
     .fetch_optional(&state.db)
     .await?;
     let map_count = crate::maps::played_count(&state.db).await?;
+    let tier_count = tiers::tier_count(&state.db).await?;
+    let maps_by_tier = tiers::by_tier(&tiers::listed_maps_per_tier(&state.db).await?, tier_count);
     let legacy_maps = legacy.as_ref().map_or(0, |legacy| legacy.maps);
     let shown = details::shown(&mut *state.db.acquire().await?, steamid64).await?;
 
@@ -148,8 +168,14 @@ pub async fn player_profile(
             first_run_at: None,
             last_run_at: None,
             map_count,
+            tier_count,
+            maps_by_tier,
+            activity: vec![0; ACTIVITY_DAYS as usize],
             styles: Vec::new(),
-            all_styles: StyleTotals::default(),
+            all_styles: StyleTotals {
+                completed_by_tier: tiers::by_tier(&[], tier_count),
+                ..StyleTotals::default()
+            },
             points_draft: standings::formula(&mut *state.db.acquire().await?)
                 .await?
                 .draft,
@@ -164,21 +190,21 @@ pub async fn player_profile(
         player.steam_profile_fetched_at,
     );
 
-    let all_styles = totals(&state.db, steamid64).await?;
+    let mut all_styles = totals(&state.db, steamid64).await?;
     let mut styles = styles_of(&state.db, steamid64).await?;
-    for standing in standings_of(&state.db, steamid64).await? {
-        if let Some(style) = styles.iter_mut().find(|s| s.style == standing.style) {
-            let place = Some(StyleStanding {
-                rank: standing.rank,
-                points: standing.points,
-            });
-            if standing.bonus {
-                style.bonus_standing = place;
-            } else {
-                style.main_standing = place;
-            }
-        }
-    }
+    add_completed_by_tier(
+        &state.db,
+        steamid64,
+        tier_count,
+        &mut all_styles,
+        &mut styles,
+    )
+    .await?;
+    let activity = activity::runs_per_day(&state.db, &[steamid64.get()], ACTIVITY_DAYS)
+        .await?
+        .remove(&steamid64.get())
+        .unwrap_or_else(|| vec![0; ACTIVITY_DAYS as usize]);
+    add_standings(&state.db, steamid64, &mut styles).await?;
     let points_draft = standings::formula(&mut *state.db.acquire().await?)
         .await?
         .draft;
@@ -194,6 +220,9 @@ pub async fn player_profile(
         first_run_at: player.first_run_at,
         last_run_at: player.last_run_at,
         map_count,
+        tier_count,
+        maps_by_tier,
+        activity,
         styles,
         all_styles,
         points_draft,
@@ -206,6 +235,28 @@ struct Standing {
     bonus: bool,
     points: i64,
     rank: i64,
+}
+
+/// Fills in each style's places on its main and bonus points leaderboards.
+async fn add_standings(
+    db: &sqlx::PgPool,
+    steamid64: SteamId64,
+    styles: &mut [PlayerStyle],
+) -> Result<(), sqlx::Error> {
+    for standing in standings_of(db, steamid64).await? {
+        if let Some(style) = styles.iter_mut().find(|s| s.style == standing.style) {
+            let place = Some(StyleStanding {
+                rank: standing.rank,
+                points: standing.points,
+            });
+            if standing.bonus {
+                style.bonus_standing = place;
+            } else {
+                style.main_standing = place;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The player's places on the points leaderboards they're on: only with points, as the leaderboards list them.
@@ -231,9 +282,9 @@ async fn standings_of(
 }
 
 /// Counts across every style. A track finished in two styles counts once; a world record in each counts twice.
+/// The per-tier counts are added by the caller.
 async fn totals(db: &sqlx::PgPool, steamid64: SteamId64) -> Result<StyleTotals, sqlx::Error> {
-    sqlx::query_as!(
-        StyleTotals,
+    let row = sqlx::query!(
         r#"
         SELECT count(DISTINCT map_id) FILTER (WHERE track = 0) AS "completed_maps!",
                count(DISTINCT (map_id, track)) FILTER (WHERE track > 0) AS "completed_bonuses!",
@@ -243,7 +294,61 @@ async fn totals(db: &sqlx::PgPool, steamid64: SteamId64) -> Result<StyleTotals, 
         steamid64.get()
     )
     .fetch_one(db)
-    .await
+    .await?;
+    Ok(StyleTotals {
+        completed_maps: row.completed_maps,
+        completed_bonuses: row.completed_bonuses,
+        world_records: row.world_records,
+        completed_by_tier: Vec::new(),
+    })
+}
+
+/// Fills in each style's and the all-style totals' completed maps per tier.
+async fn add_completed_by_tier(
+    db: &sqlx::PgPool,
+    steamid64: SteamId64,
+    tier_count: Option<i16>,
+    all_styles: &mut StyleTotals,
+    styles: &mut [PlayerStyle],
+) -> Result<(), sqlx::Error> {
+    let mut by_tier = completed_by_tier(db, steamid64).await?;
+    all_styles.completed_by_tier =
+        tiers::by_tier(&by_tier.remove(&None).unwrap_or_default(), tier_count);
+    for style in styles {
+        let counts = by_tier
+            .remove(&Some(style.style.clone()))
+            .unwrap_or_default();
+        style.completed_by_tier = tiers::by_tier(&counts, tier_count);
+    }
+    Ok(())
+}
+
+/// Maps whose main track they've finished, per main-track tier: keyed by style, and by `None` for any style,
+/// where a map finished in two styles counts once.
+async fn completed_by_tier(
+    db: &sqlx::PgPool,
+    steamid64: SteamId64,
+) -> Result<HashMap<Option<String>, Vec<(Option<i16>, i64)>>, sqlx::Error> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT pb.style AS "style?", tier.tier AS "tier!", count(DISTINCT pb.map_id) AS "maps!"
+        FROM personal_bests pb
+        JOIN current_map_tiers tier ON tier.map_id = pb.map_id AND tier.track = 0
+        WHERE pb.player_steamid64 = $1 AND pb.track = 0
+        GROUP BY GROUPING SETS ((pb.style, tier.tier), (tier.tier))
+        "#,
+        steamid64.get()
+    )
+    .fetch_all(db)
+    .await?;
+    let mut counts: HashMap<Option<String>, Vec<(Option<i16>, i64)>> = HashMap::new();
+    for row in rows {
+        counts
+            .entry(row.style)
+            .or_default()
+            .push((Some(row.tier), row.maps));
+    }
+    Ok(counts)
 }
 
 /// Each style's counts, read from the stored rows, and its first page of main-track personal bests: the only
@@ -284,6 +389,7 @@ async fn styles_of(
             style: count.style,
             completed_maps: count.completed_maps,
             completed_bonuses: count.completed_bonuses,
+            completed_by_tier: Vec::new(),
             world_records: count.world_records,
             main_standing: None,
             bonus_standing: None,
@@ -438,6 +544,75 @@ mod tests {
             assert!(profile.styles[0].bonus_standing.is_none());
             assert!(profile.points_draft);
         }
+    }
+
+    #[sqlx::test]
+    async fn counts_completions_per_tier_and_runs_per_day(db: PgPool) {
+        let key = setup(&db).await;
+        sqlx::query(
+            r#"INSERT INTO rulesets (version, document)
+               SELECT 2, jsonb_set(document, '{styles}', document->'styles' || '[{"key": "sw", "name": "Sideways", "settings": {}}]')
+               FROM rulesets WHERE version = 1"#,
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        crate::runs::tests::backdate(&db).await;
+        let mut sideways = run("sw", 40.0);
+        sideways["style"] = json!("sw");
+        sideways["ruleset_version"] = json!(2);
+        let mut other_map = run("other", 50.0);
+        other_map["map"] = json!("bhop_arcane");
+        for mut body in [run("a", 30.0), run("b", 31.0), sideways, other_map] {
+            body["finished_at"] = json!(chrono::Utc::now().timestamp());
+            assert_eq!(
+                test_client::post(&db, "/v1/runs", Some(&key), &body)
+                    .await
+                    .status,
+                201
+            );
+        }
+        let get = || async {
+            test_client::get(&db, "/v1/players/76561197960287930")
+                .await
+                .json::<PlayerProfile>()
+        };
+
+        let untiered = get().await;
+        assert_eq!(untiered.tier_count, None);
+        assert!(
+            untiered.maps_by_tier.is_empty() && untiered.all_styles.completed_by_tier.is_empty()
+        );
+        // Every run counts on the day it was finished, today here.
+        assert_eq!(untiered.activity.len(), 365);
+        assert_eq!(untiered.activity.last(), Some(&4));
+
+        staff::policies::publish_policy(
+            &db,
+            None,
+            None,
+            &Policy::Tiers(TiersPolicy { count: 3 }),
+            None,
+        )
+        .await
+        .unwrap();
+        let badges = MapName::try_from("bhop_badges".to_owned()).unwrap();
+        staff::maps::set_tier(&db, None, &badges, 0, 2)
+            .await
+            .unwrap();
+
+        let tiered = get().await;
+        assert_eq!(tiered.tier_count, Some(3));
+        // bhop_arcane has no tier, so it's on no tier's count.
+        assert_eq!(tiered.maps_by_tier, [0, 1, 0]);
+        // bhop_badges is finished in two styles and counts once across them.
+        assert_eq!(tiered.all_styles.completed_by_tier, [0, 1, 0]);
+        let by_style: Vec<_> = tiered
+            .styles
+            .iter()
+            .map(|s| (s.style.as_str(), s.completed_by_tier.clone()))
+            .collect();
+        assert_eq!(by_style, [("normal", vec![0, 1, 0]), ("sw", vec![0, 1, 0])]);
     }
 
     #[sqlx::test]

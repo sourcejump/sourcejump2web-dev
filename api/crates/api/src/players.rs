@@ -1,5 +1,6 @@
 //! Players, identified by SteamID64.
 
+mod activity;
 pub mod countries;
 mod details;
 mod list;
@@ -7,6 +8,7 @@ mod personal_bests;
 pub mod privileges;
 mod profile;
 pub mod restrictions;
+mod runs;
 pub mod steam_profile;
 
 use std::fmt;
@@ -24,6 +26,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(list::list_players))
         .routes(routes!(profile::player_profile))
         .routes(routes!(personal_bests::player_personal_bests))
+        .routes(routes!(runs::player_runs))
         .routes(routes!(details::update_player_details))
         .routes(routes!(countries::list_countries))
 }

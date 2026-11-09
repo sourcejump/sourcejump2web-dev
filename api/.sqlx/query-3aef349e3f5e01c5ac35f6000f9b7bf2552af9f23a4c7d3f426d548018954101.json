@@ -1,0 +1,170 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT p.id AS \"steamid64!\", latest.id AS \"run_id?\", m.name AS \"map?\", latest.style AS \"style?\",\n               latest.track AS \"track?\", tier.tier AS \"tier?\", latest.time AS \"time?\",\n               latest.finished_at AS \"finished_at?\", latest.was_record AS \"world_record?\",\n               mine.best AS \"previous_best?\", place.placement AS \"placement?\",\n               ci.id AS \"image_id?\", ci.key AS \"image_key?\", ci.focus AS \"image_focus?\"\n        FROM unnest($1::bigint[]) p(id)\n        LEFT JOIN LATERAL (\n            SELECT r.id, r.map_id, r.style, r.track, r.time, r.finished_at, r.was_record FROM runs r\n            WHERE r.player_steamid64 = p.id AND r.invalidated_at IS NULL\n            ORDER BY r.finished_at DESC, r.id DESC\n            LIMIT 1\n        ) latest ON true\n        LEFT JOIN maps m ON m.id = latest.map_id\n        LEFT JOIN map_images ci ON ci.map_id = latest.map_id AND ci.position = 0\n        LEFT JOIN current_map_tiers tier ON $2 AND tier.map_id = latest.map_id AND tier.track = latest.track\n        LEFT JOIN LATERAL (\n            SELECT min(e.time) AS best FROM runs e\n            WHERE e.map_id = latest.map_id AND e.style = latest.style AND e.track = latest.track\n              AND e.player_steamid64 = p.id AND e.invalidated_at IS NULL\n              AND (e.finished_at, e.id) < (latest.finished_at, latest.id)\n        ) mine ON true\n        -- A place only for a run that beat the player's own best, counting the other players faster before it.\n        LEFT JOIN LATERAL (\n            SELECT 1 + count(*) AS placement FROM (\n                SELECT 1 FROM runs e\n                WHERE e.map_id = latest.map_id AND e.style = latest.style AND e.track = latest.track\n                  AND e.invalidated_at IS NULL AND (e.finished_at, e.id) < (latest.finished_at, latest.id)\n                  AND e.player_steamid64 <> p.id\n                GROUP BY e.player_steamid64\n                HAVING min(e.time) < latest.time\n            ) faster\n        ) place ON latest.id IS NOT NULL AND (mine.best IS NULL OR mine.best > latest.time)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "steamid64!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "run_id?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "map?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "style?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "track?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "track"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "tier?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "current_map_tiers",
+            "name": "tier"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "time?",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "finished_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "finished_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "world_record?",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "was_record"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "previous_best?",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "placement?",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 11,
+        "name": "image_id?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "image_key?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "image_focus?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "focus"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      null,
+      null,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "3aef349e3f5e01c5ac35f6000f9b7bf2552af9f23a4c7d3f426d548018954101"
+}

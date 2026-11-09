@@ -1,8 +1,9 @@
 // How many maps hold each tier: a donut split by tier, each slice in its tier's color, beside each tier's count and
 // share. Every slice and row links to the maps of that tier; the chosen tier stays bright and the others dim.
-// Maps without a tier fill the donut's end in a neutral color.
+// Maps without a tier fill the donut's end in a neutral color. The ring is `Donut`.
 import type { CSSProperties } from "react";
 import { classNames } from "./classNames";
+import { Donut } from "./Donut";
 import { Link } from "./Link";
 import { TierBadge, tierColor } from "./TierBadge";
 
@@ -12,12 +13,6 @@ const percent = new Intl.NumberFormat("en", {
   maximumFractionDigits: 0,
 });
 const number = new Intl.NumberFormat("en");
-
-/** The ring's radius and width, in the SVG's 100-unit box. */
-const RADIUS = 40;
-const WIDTH = 16;
-/** Space between slices, in hundredths of the ring. */
-const GAP = 0.6;
 
 const rowClasses =
   "col-span-3 grid grid-cols-subgrid items-center rounded-md px-2 py-0.5 transition-opacity duration-(--duration-base)";
@@ -41,16 +36,7 @@ export function TierSpread({
   const tierCount = byTier.length;
   const dimmed = (tier: number) => selected != null && selected !== tier;
 
-  // Each slice is a dashed stroke around the ring: as long as its share, starting where the last one ended.
-  // Strokes rather than wedge paths, so a slice is one circle and grows its width on hover.
-  const slices = byTier.map((count, index) => ({
-    tier: index + 1,
-    count,
-    start:
-      (byTier.slice(0, index).reduce((sum, c) => sum + c, 0) / total) * 100,
-    length: (count / total) * 100,
-  }));
-  const tieredShare = (byTier.reduce((sum, c) => sum + c, 0) / total) * 100;
+  const slices = byTier.map((count, index) => ({ tier: index + 1, count }));
   const chosen = selected != null ? byTier[selected - 1] : undefined;
   const half = Math.ceil(tierCount / 2);
   const tierRow = ({ tier, count }: (typeof slices)[number]) => (
@@ -77,79 +63,20 @@ export function TierSpread({
 
   return (
     <div className="flex min-w-0 flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
-      <svg
-        viewBox="0 0 100 100"
-        className="size-36 shrink-0 -rotate-90"
-        role="img"
-        aria-label={`Maps per tier, ${tierCount} tiers`}
-      >
-        {untiered > 0 && (
-          <circle
-            cx="50"
-            cy="50"
-            r={RADIUS}
-            fill="none"
-            pathLength={100}
-            strokeWidth={WIDTH}
-            className="stroke-surface-raised"
-            strokeDasharray={`${Math.max((untiered / total) * 100 - GAP, 0)} 100`}
-            strokeDashoffset={-tieredShare}
-          />
-        )}
-        {slices.map(
-          ({ tier, count, start, length }) =>
-            count > 0 && (
-              <Link
-                key={tier}
-                href={tierHref(selected === tier ? null : tier)}
-                scroll={false}
-                aria-label={`Tier ${tier}: ${number.format(count)} maps`}
-              >
-                <title>{`Tier ${tier}: ${number.format(count)} maps`}</title>
-                <circle
-                  cx="50"
-                  cy="50"
-                  r={RADIUS}
-                  fill="none"
-                  pathLength={100}
-                  strokeWidth={WIDTH}
-                  // Very small tiers still show as a sliver rather than vanishing into the gap.
-                  strokeDasharray={`${Math.max(length - GAP, 0.3)} 100`}
-                  strokeDashoffset={-start}
-                  style={
-                    { "--tier": tierColor(tier, tierCount) } as CSSProperties
-                  }
-                  className={classNames(
-                    "stroke-(--tier) transition-[opacity,stroke-width] duration-(--duration-base) hover:stroke-[19]",
-                    dimmed(tier) && "opacity-25",
-                    selected === tier && "stroke-[19]",
-                  )}
-                />
-              </Link>
-            ),
-        )}
-        {/* Counter-rotated, so the middle reads upright inside the turned ring. */}
-        <g className="[transform-origin:50px_50px] rotate-90">
-          <text
-            x="50"
-            y={chosen != null ? 48 : 54}
-            textAnchor="middle"
-            className="fill-text text-[13px] font-bold tabular-nums"
-          >
-            {selected != null ? `T${selected}` : "All"}
-          </text>
-          {chosen != null && (
-            <text
-              x="50"
-              y="61"
-              textAnchor="middle"
-              className="fill-text-muted text-[8px] tabular-nums"
-            >
-              {number.format(chosen)} maps
-            </text>
-          )}
-        </g>
-      </svg>
+      <Donut
+        label={`Maps per tier, ${tierCount} tiers`}
+        rest={untiered}
+        selected={selected != null ? String(selected) : undefined}
+        slices={slices.map(({ tier, count }) => ({
+          key: String(tier),
+          value: count,
+          color: tierColor(tier, tierCount),
+          label: `Tier ${tier}: ${number.format(count)} maps`,
+          href: tierHref(selected === tier ? null : tier),
+        }))}
+        value={selected != null ? `T${selected}` : "All"}
+        caption={chosen != null ? `${number.format(chosen)} maps` : undefined}
+      />
 
       {/* "All", always there to go back to, heads the first column and "No tier" the second; the tiers split
           evenly below them, low tiers first. One column on phones, with "No tier" last. */}

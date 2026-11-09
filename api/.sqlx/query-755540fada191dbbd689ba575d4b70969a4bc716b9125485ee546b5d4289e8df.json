@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (SELECT 1 FROM players WHERE steamid64 = $1) AS \"player!\",\n                  (SELECT id FROM maps WHERE name = $2) AS map_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "player!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "map_id",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "755540fada191dbbd689ba575d4b70969a4bc716b9125485ee546b5d4289e8df"
+}

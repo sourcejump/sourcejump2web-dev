@@ -2,27 +2,16 @@
 // who hold manage_bans also get a Banned tab, and staff who act on players can open a SteamID nobody has seen.
 import { Search } from "lucide-react";
 import Form from "next/form";
-import type { CSSProperties } from "react";
 import { api } from "@/api/client";
 import { signedInPlayer } from "@/features/auth/signedInPlayer";
-import { formatDate } from "@/features/runs/time";
-import { Avatar } from "@/ui/Avatar";
+import { currentStyles } from "@/features/ruleset/styles";
 import { BannedPlayers } from "@/features/staff/players/BannedPlayers";
 import { Button, ButtonLink } from "@/ui/Button";
 import { Card } from "@/ui/Card";
-import { Flag } from "@/ui/Flag";
 import { Input } from "@/ui/Input";
-import { Link } from "@/ui/Link";
 import { LinkTabs } from "@/ui/LinkTabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-} from "@/ui/Table";
 import { managesPlayers } from "./PlayerHeader";
+import { PlayerList } from "./PlayerList";
 import { STEAMID } from "./steamId";
 
 export async function PlayerSearch({
@@ -34,11 +23,12 @@ export async function PlayerSearch({
   banned: boolean;
 }) {
   const search = q.trim();
-  const [result, me] = await Promise.all([
+  const [result, me, styles] = await Promise.all([
     api
       .GET("/v1/players", { params: { query: search ? { q: search } : {} } })
       .catch(() => undefined),
     signedInPlayer(),
+    currentStyles(),
   ]);
   const seesBans = me?.privileges.includes("manage_bans") ?? false;
   const showBans = banned && seesBans && !search;
@@ -112,54 +102,15 @@ export async function PlayerSearch({
           )}
         </Card>
       ) : (
-        // Keyed by the search, so every row fades in on a new search, as on the Maps page.
-        <Table key={search}>
-          <TableHead>
-            <tr>
-              <TableHeaderCell>Player</TableHeaderCell>
-              <TableHeaderCell numeric>Latest run</TableHeaderCell>
-            </tr>
-          </TableHead>
-          <TableBody>
-            {result.data.players.map((player, index) => (
-              // The name link stretches over the whole row, so the row is one click target and still a
-              // plain link (middle-click, keyboard) rather than a row with a click handler.
-              <TableRow
-                key={player.steamid64}
-                className="motion-enter group relative"
-                style={
-                  {
-                    "--motion-delay": `${Math.min(index, 12) * 20}ms`,
-                  } as CSSProperties
-                }
-              >
-                <TableCell>
-                  <Link
-                    href={`/players/${player.steamid64}`}
-                    className="group-hover:text-accent flex items-center gap-3 after:absolute after:inset-0"
-                  >
-                    <Avatar
-                      name={player.name}
-                      src={player.avatar_url ?? undefined}
-                      size="sm"
-                    />
-                    {player.name}
-                    <Flag code={player.country_code} />
-                  </Link>
-                </TableCell>
-                <TableCell numeric className="text-text-muted">
-                  {player.last_run_at ? (
-                    <time dateTime={player.last_run_at}>
-                      {formatDate(player.last_run_at)}
-                    </time>
-                  ) : (
-                    "None yet"
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        // Keyed by the search, so every row fades in on a new search and paging starts again, as on the Maps page.
+        <PlayerList
+          key={search}
+          first={result.data}
+          q={search}
+          styleNames={Object.fromEntries(
+            styles.keys.map((key) => [key, styles.name(key)]),
+          )}
+        />
       )}
     </div>
   );

@@ -1198,7 +1198,7 @@
         "tags": [
           "players"
         ],
-        "summary": "Players matching a search, most recently active first; or, with no search, players with runs in the last\n30 days.",
+        "summary": "Players matching a search, closest names first; or, with no search, players with runs in the last 30 days,\nmost recently active first.",
         "operationId": "list_players",
         "parameters": [
           {
@@ -1225,6 +1225,18 @@
               ],
               "format": "int64"
             }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Continue after this point: a `next_cursor` from an earlier page of the same list.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -1238,7 +1250,7 @@
             }
           },
           "422": {
-            "description": "Search too short, or limit out of range",
+            "description": "Search too short, or limit or cursor not valid",
             "content": {
               "application/json": {
                 "schema": {
@@ -1494,6 +1506,18 @@
                 "null"
               ]
             }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Only maps whose name contains this, as the map list searches (spaces match underscores). No near misses.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -1518,6 +1542,101 @@
           },
           "422": {
             "description": "Not a SteamID, or not a valid limit or cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/players/{player}/runs": {
+      "get": {
+        "tags": [
+          "players"
+        ],
+        "summary": "The player's valid runs on one map, style and track, fastest first. Takes any `SteamID` form, like the profile.",
+        "operationId": "player_runs",
+        "parameters": [
+          {
+            "name": "player",
+            "in": "path",
+            "description": "SteamID64, SteamID2 (STEAM_0:1:2) or SteamID3 ([U:1:4])",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "map",
+            "in": "query",
+            "description": "Map name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "style",
+            "in": "query",
+            "description": "Style key.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track",
+            "in": "query",
+            "description": "0 is the main track, 1 and up are bonuses. Default 0.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100. Default 50: the fastest that many.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerRunPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SourceJump has no such player or map",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a SteamID, or not a valid limit",
             "content": {
               "application/json": {
                 "schema": {
@@ -7040,6 +7159,84 @@
           "invalidated"
         ]
       },
+      "LatestRun": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "map",
+          "style",
+          "track",
+          "time",
+          "finished_at",
+          "world_record"
+        ],
+        "properties": {
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "By the game server's clock."
+          },
+          "map": {
+            "type": "string"
+          },
+          "map_image": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MapImage",
+                "description": "The map's cover picture, if it has one."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "placement": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Where the run placed on its board when it finished, as on the Activity page. None when it didn't beat\nthe player's own best, so it never placed."
+          },
+          "previous_best": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The player's best time on the board before this run, in seconds. None when this was their first\nfinish there."
+          },
+          "run_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "style": {
+            "type": "string"
+          },
+          "tier": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The board's tier. None while tiers aren't in force or staff haven't set this board's."
+          },
+          "time": {
+            "type": "number",
+            "format": "double",
+            "description": "Seconds."
+          },
+          "track": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 is the main track, 1 and up are bonuses."
+          },
+          "world_record": {
+            "type": "boolean",
+            "description": "Faster than every valid run before it on the board."
+          }
+        }
+      },
       "Leaderboard": {
         "type": "object",
         "required": [
@@ -8052,7 +8249,8 @@
           "track",
           "time",
           "legacy",
-          "run_id"
+          "run_id",
+          "runs"
         ],
         "properties": {
           "finished_at": {
@@ -8081,6 +8279,11 @@
           "run_id": {
             "type": "integer",
             "format": "int64"
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Their valid 2.0 runs on this map, style and track, this one included (`GET /v1/players/{player}/runs`\nlists them); 1 for a legacy run."
           },
           "style": {
             "type": "string"
@@ -8254,11 +8457,26 @@
           "players"
         ],
         "properties": {
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `cursor` for the players after these. None at the end."
+          },
           "players": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PlayerSummary"
             }
+          },
+          "tier_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier."
           }
         }
       },
@@ -8329,12 +8547,22 @@
           "country_chosen",
           "details_from_old_site",
           "map_count",
+          "maps_by_tier",
+          "activity",
           "styles",
           "all_styles",
           "points_draft",
           "legacy_maps"
         ],
         "properties": {
+          "activity": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Valid runs they finished on each UTC day of the last 365, oldest first and today last."
+          },
           "all_styles": {
             "$ref": "#/components/schemas/StyleTotals",
             "description": "The counts across every style: maps and bonus tracks finished in any of them, and every style's world\nrecords added up."
@@ -8396,6 +8624,14 @@
             "format": "int64",
             "description": "Maps with at least one run, as on the map list: what completed maps are counted out of."
           },
+          "maps_by_tier": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Maps on the map list per main-track tier, tier 1 first: what each tier's completions are counted out of."
+          },
           "name": {
             "type": "string",
             "description": "The name from their latest run, or from Steam if they haven't played yet."
@@ -8414,6 +8650,14 @@
               "$ref": "#/components/schemas/PlayerStyle"
             },
             "description": "One entry per style they hold a personal best in, sorted by style key. Counts are 2.0 alone."
+          },
+          "tier_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The tier count, as on the map list. None until the community has decided one; the `by_tier` counts\nare then empty."
           }
         }
       },
@@ -8448,12 +8692,66 @@
           }
         }
       },
+      "PlayerRun": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "time",
+          "finished_at",
+          "server_id",
+          "server_name"
+        ],
+        "properties": {
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "run_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "time": {
+            "type": "number",
+            "format": "double",
+            "description": "Seconds."
+          }
+        }
+      },
+      "PlayerRunPage": {
+        "type": "object",
+        "required": [
+          "runs",
+          "total"
+        ],
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerRun"
+            },
+            "description": "Fastest first; equal times by when they were finished."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "All of their valid runs there, which may be more than `runs` holds."
+          }
+        }
+      },
       "PlayerStyle": {
         "type": "object",
         "description": "What the player has done in one style.",
         "required": [
           "style",
           "completed_maps",
+          "completed_by_tier",
           "completed_bonuses",
           "world_records",
           "personal_bests"
@@ -8474,6 +8772,14 @@
             "type": "integer",
             "format": "int64",
             "description": "Bonus tracks they've finished, across all maps."
+          },
+          "completed_by_tier": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Those maps per main-track tier, tier 1 first, out of `maps_by_tier`. Untiered maps aren't counted."
           },
           "completed_maps": {
             "type": "integer",
@@ -8519,9 +8825,18 @@
         "type": "object",
         "required": [
           "steamid64",
-          "name"
+          "name",
+          "activity"
         ],
         "properties": {
+          "activity": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Valid runs finished on each of the last 30 UTC days, oldest first; the last is today."
+          },
           "avatar_url": {
             "type": [
               "string",
@@ -8534,13 +8849,16 @@
               "null"
             ]
           },
-          "last_run_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "description": "When their latest run finished. None for a player with no runs."
+          "latest_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LatestRun",
+                "description": "Their latest valid run. None for a player with no 2.0 runs."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "name": {
             "type": "string"
@@ -10861,12 +11179,21 @@
         "required": [
           "completed_maps",
           "completed_bonuses",
-          "world_records"
+          "world_records",
+          "completed_by_tier"
         ],
         "properties": {
           "completed_bonuses": {
             "type": "integer",
             "format": "int64"
+          },
+          "completed_by_tier": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Maps whose main track they've finished in any style, per main-track tier, tier 1 first."
           },
           "completed_maps": {
             "type": "integer",

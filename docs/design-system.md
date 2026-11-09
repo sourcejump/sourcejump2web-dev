@@ -15,8 +15,9 @@ One visual language that every page is built from, so pages can't drift apart. S
 - Text: `text`, `text-muted`, `text-subtle`. Accent: `accent`, `accent-hover`, `accent-soft`, `on-accent`.
 - Status: `success`, `warning`, `danger`, each with a `-soft` tint. Medals: `gold`, `silver`, `bronze`, `on-medal`.
 - Tiers: four ramp stops, `tier-1` (easiest) to `tier-4` (hardest). The tier count is staff data (`domain.md`), so `TierBadge` colors a tier by its position on the ramp, over a faint tint.
+- Series: `series-1`–`8`, then `series-other`: a chart's named parts (styles) by fixed place, never size (`seriesColor`); checked for color-blind separation.
 
-**Rule:** outside `web/src/ui/`, no raw colors and no arbitrary Tailwind values (`w-[13px]`, `bg-[#fff]`, `[color:red]`). ESLint enforces it (`web/eslint.config.mjs`, tested in `eslint.config.test.ts`). If a page needs something the tokens can't express, add or extend a primitive in `src/ui/`.
+**Rule:** outside `web/src/ui/`, no raw colors and no arbitrary Tailwind values (`w-[13px]`, `bg-[#fff]`, `[color:red]`). ESLint enforces it (`web/eslint.config.mjs`, tested). If a page needs something the tokens can't express, add or extend a primitive in `src/ui/`.
 
 ## Primitives (`web/src/ui/`)
 | Component | Use |
@@ -35,13 +36,14 @@ One visual language that every page is built from, so pages can't drift apart. S
 | `Tabs` | Panels on one page; `underline` or `segmented` |
 | `LinkTabs` | Looks like `Tabs`, but each tab is a link: a view the server renders, such as the Maps page's sort |
 | `Segmented` | Looks like segmented `Tabs`, for a choice that changes the view in place (a server's activity range, a post's kind). The chosen option is in the accent |
-| `ChoiceMenu` | "Label  Value ▾": one choice from a list, in a `Menu` of radio items, changing the view in place, or following each option's `href` on a server page. Boards, profiles and the Maps page use a row of them (Style, Track, Runs; Sort, Records in; lead, 2026-10-26); quiet options are dimmed but choosable, disabled ones dimmed and kept in place. On a phone each takes a full row, label left and value right |
+| `ChoiceMenu` | "Label  Value ▾": one choice from a list, in a `Menu` of radio items, changing the view in place, or following each option's `href` on a server page. Boards, profiles and the Maps page use a row of them (lead, 2026-10-26); quiet options are dimmed but choosable, disabled ones dimmed and kept in place. On a phone each takes a full row |
 | `ChoiceBar` | The row those menus sit in, with any tabs beside them. Every page uses it, so the spacing between choices stays the same everywhere |
 | `Pager` | Previous and next under a paged list |
 | `DividedList`, `DividedSection` | Rows with lines between them, and a part set off by a line above, inside a `Card` or `Dialog`. The lines run to the surface's edges |
 | `StepChart` | A value that changes in steps over time (WR history). Hover snaps a crosshair to the nearest point; points take focus and open their link |
-| `LineChart` | One count over time from zero (players online). Drawn in a fixed box stretched by CSS, so it fills its container before scripts load. Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
+| `LineChart` | One count over time from zero (players online). A fixed box stretched by CSS fills its container before scripts load. Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
 | `TierSpread` | How many maps hold each tier: a donut in tier colors beside each tier's count and share; each slice and row links to that tier's maps, the others dim, and "All" closes the list (Maps page) |
+| `Donut` | Ring of linked slices, the chosen one thick and the rest dimmed, a figure inside (`TierSpread`, profile styles) |
 | `Tooltip` | Hint on hover and focus; the child must be focusable |
 | `Menu`, `MenuItem`, `MenuLink`, `MenuSeparator` | Menu button (account, mobile sections) |
 | `Dialog` | Controlled modal (`open`, `onClose`). A field marked `data-autofocus` takes focus on each opening (React's `autoFocus` fires only on mount). Closes itself, without calling `onClose`, when its page is hidden for Back |
@@ -63,7 +65,7 @@ Named utilities, so pages never write their own transitions:
 - `motion-draw`: an SVG line drawing itself in (a run's route); the shape needs `pathLength="1"`.
 - `motion-reveal`: a section rising in as it scrolls into view (scroll-driven; browsers without it show it at once).
 - `motion-settle`: a large picture easing out of a slight zoom as the page opens (the home header).
-- `HeaderDepth` (`features/home/`): the home header's picture leans with the mouse, by a depth map of it (`scripts/header-depth.py`; rerun it when the picture changes). Dust drifts in the light shaft, and a click sends cyan traces crawling over the surfaces (`headerTraces.ts`). WebGL, running only while the header is on screen; off on touch screens and with reduced motion.
+- `HeaderDepth` (`features/home/`): the home header's picture leans with the mouse, by its depth map (`scripts/header-depth.py`; rerun when the picture changes). Dust drifts in the light shaft; a click sends cyan traces over the surfaces (`headerTraces.ts`). WebGL, only while on screen; off on touch screens and with reduced motion.
 - `motion-ripple`: a ring spreading and fading from where something landed; re-key it to replay.
 - `motion-pop`: a popover menu fading in with a slight drop and grow, and fading out as it closes (`Menu`).
 - `CountUp`: counts up when scrolled into view, and from the old value when it changes. A number already in view when the page loads stays as it is.
@@ -72,12 +74,12 @@ Named utilities, so pages never write their own transitions:
 All of them respect `prefers-reduced-motion` and show their end state at once.
 
 ## Navigation
-Pages swap in place with no full page load. The old page fades out quickly and the new one fades in, using React's `<ViewTransition>` in `Page` and the `page-fade` rules in `motion.css`. The header has its own view-transition name, so it stays still during the fade. Browsers without view transitions swap pages without the fade. A page with views, such as a map and its Manage view, keeps its header in a route layout and wraps each view in `PageView`: switching views fades the old one out and lifts the new one in (`view-flip`), and the header stays.
+Pages swap in place with no full page load. The old page fades out quickly and the new one fades in, using React's `<ViewTransition>` in `Page` and the `page-fade` rules in `motion.css`. The header has its own view-transition name, so it stays still during the fade. A page with views, such as a map and its Manage view, keeps its header in a route layout and wraps each view in `PageView`: switching views fades the old one out and lifts the new one in (`view-flip`), and the header stays.
 
 Links never prefetch, whether in view or hovered (lead's choice, 2026-10-19). A page loads only once it's opened, and the fade covers the wait. `e2e/navigation.e2e.ts` checks that following a link doesn't reload the page.
 
 ## Layout shell (`web/src/features/site/`)
-Header (wordmark, sections, account corner) and footer, applied in the root layout. On narrow screens the sections collapse into a menu. The account corner (sign-in button, or the player's menu) and the current-section highlight depend on the request, so each sits in `<Suspense>` and every page's shell stays static. Search lives on the Players page. Section pages arrive with their roadmap slices.
+Header (wordmark, sections, account corner) and footer, applied in the root layout. On narrow screens the sections collapse into a menu. The account corner and the current-section highlight depend on the request, so each sits in `<Suspense>` and every page's shell stays static. Search lives on the Players page.
 
 ## Screenshot tests
 `npm run test:ui` (part of `just check`) screenshots `/dev/ui` wide, on a phone, with the menu open and with the dialog open, and fails on any pixel change. After an intended visual change:

@@ -35,6 +35,13 @@ pub fn contains_pattern(search: &str) -> String {
     format!("%{escaped}%")
 }
 
+/// A search as map names are written: lower case, with underscores for spaces, since no map name has a space
+/// and players often type one ("candy saarc"). None for an empty search.
+pub fn as_map_name(q: &str) -> Option<String> {
+    let words: Vec<&str> = q.split_whitespace().collect();
+    (!words.is_empty()).then(|| words.join("_").to_lowercase())
+}
+
 /// The part of a search to compare near misses against, or None when it's too short to compare.
 pub fn near_miss_term(search: &str) -> Option<&str> {
     (search.chars().count() >= NEAR_MISS_MIN_CHARS).then_some(search)
