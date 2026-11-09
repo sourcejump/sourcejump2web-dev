@@ -1,6 +1,7 @@
 // Leaderboards page: the top players by points and by completions, per style and track, and pre-2.0.
 import type { Metadata } from "next";
 import { Leaderboards } from "@/features/leaderboards/Leaderboards";
+import { SectionTitle } from "@/features/site/SectionTitle";
 import { Page } from "@/ui/Page";
 
 export const metadata: Metadata = {
@@ -13,7 +14,7 @@ export default function LeaderboardsPage({
 }: PageProps<"/leaderboards">) {
   return (
     <Page className="gap-6">
-      <h1 className="text-3xl font-bold">Leaderboards</h1>
+      <SectionTitle>Leaderboards</SectionTitle>
       {searchParams.then(({ style, track, view }) => (
         <Leaderboards
           params={{

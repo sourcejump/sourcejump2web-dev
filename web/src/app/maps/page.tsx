@@ -1,6 +1,7 @@
 // Maps page: every map with a finished run, searchable, with its world record in a chosen style.
 import type { Metadata } from "next";
 import { MapList } from "@/features/maps/MapList";
+import { SectionTitle } from "@/features/site/SectionTitle";
 import { Page } from "@/ui/Page";
 
 export const metadata: Metadata = {
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 export default function MapsPage({ searchParams }: PageProps<"/maps">) {
   return (
     <Page className="gap-6">
-      <h1 className="text-3xl font-bold">Maps</h1>
+      <SectionTitle>Maps</SectionTitle>
       {searchParams.then((params) => (
         <MapList params={firstValues(params)} />
       ))}

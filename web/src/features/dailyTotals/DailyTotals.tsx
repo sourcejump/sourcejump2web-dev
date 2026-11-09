@@ -1,5 +1,6 @@
 // Loads every range of one of the site's daily totals for its chart: players for the Players page, runs and
 // world records for the Activity page. Nothing shows if they can't be loaded; the page works without it.
+import { connection } from "next/server";
 import { api } from "@/api/client";
 import {
   DailyTotalsChart,
@@ -10,6 +11,8 @@ import {
 const ranges = ["month", "year", "all"] as const satisfies TotalsRange[];
 
 export async function DailyTotals({ kind }: { kind: DailyTotalsData["kind"] }) {
+  // At request time, as `LiveNow`: the API isn't reachable while the site is built.
+  await connection();
   // Both endpoints take the same range and return their own totals type, so one fetch serves either kind.
   const data: DailyTotalsData = {
     kind,

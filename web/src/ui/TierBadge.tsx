@@ -28,12 +28,17 @@ export function TierBadge({
   tier: number;
   tierCount: number;
 }) {
-  const style = { "--tier": tierColor(tier, tierCount) } as CSSProperties;
+  const color = tierColor(tier, tierCount);
+  // A faint fill of the tier's own color behind the border, so the badge reads as a colored chip at a glance.
+  const style = {
+    "--tier": color,
+    "--tier-tint": `color-mix(in oklch, ${color} 15%, transparent)`,
+  } as CSSProperties;
   return (
     <span
       style={style}
       title={`Tier ${tier} of ${tierCount}`}
-      className="inline-flex h-5 items-center rounded-sm border border-(color:--tier) px-1.5 text-xs font-bold text-(color:--tier)"
+      className="inline-flex h-5 items-center rounded-sm border border-(color:--tier) bg-(color:--tier-tint) px-1.5 text-xs font-bold text-(color:--tier)"
     >
       T{tier}
     </span>

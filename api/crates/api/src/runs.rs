@@ -247,7 +247,7 @@ async fn store(
     };
     // Last: the recount holds the standings lock, which every other recount waits on, until this commits.
     if new_personal_best {
-        crate::leaderboards::standings::refresh_runs(conn, &[id]).await?;
+        crate::leaderboards::standings::refresh_stored_run(conn, id).await?;
     }
 
     Ok(Stored {

@@ -37,6 +37,12 @@ use crate::{
 
 /// The advisory lock every recount holds: "standings" in ASCII.
 const LOCK: i64 = 0x7374_616e_6469_6e67;
+/// How long the ingest waits for another recount to finish. A recount after a personal best takes milliseconds;
+/// only a full one (a policy published, or a new formula after a deploy) takes seconds. Waiting behind that
+/// would hold the map's row and one of the request pool's connections throughout, and every run arriving
+/// meanwhile would do the same until the pool ran out and the whole site stalled. Past this the run gets a
+/// 500, and its server sends it again later (`docs/api.md`).
+const INGEST_LOCK_WAIT: &str = "2s";
 /// How often `watch_ended_bans` looks. Looking costs a few index reads per records ban ever given.
 const ENDED_BANS_INTERVAL: Duration = Duration::from_mins(5);
 
@@ -91,6 +97,20 @@ pub async fn refresh_runs(conn: &mut PgConnection, run_ids: &[i64]) -> Result<()
     .fetch_all(&mut *conn)
     .await?;
     refresh(conn, &boards, run_ids).await
+}
+
+/// `refresh_runs` for a run the ingest just stored, giving up on the lock after `INGEST_LOCK_WAIT`.
+///
+/// The limit lasts to the end of the ingest's transaction, which this ends: the recount waits for nothing
+/// else, as only recounts write its tables and they take turns.
+pub async fn refresh_stored_run(conn: &mut PgConnection, run_id: i64) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "SELECT set_config('lock_timeout', $1, true)",
+        INGEST_LOCK_WAIT
+    )
+    .fetch_one(&mut *conn)
+    .await?;
+    refresh_runs(conn, &[run_id]).await
 }
 
 /// After a track's tier changed: recounts its board in every style.
@@ -511,6 +531,39 @@ pub(crate) mod tests {
         super::refresh_runs(&mut ingest, &[run_id]).await.unwrap();
         ingest.commit().await.unwrap();
         full.await.unwrap().unwrap();
+        assert_totals_current(&db).await;
+    }
+
+    /// Behind a long recount, a new personal best gives up waiting instead of holding its connection: the
+    /// server gets a 500, nothing of the run is kept, and sending it again later stores and counts it once.
+    #[sqlx::test]
+    async fn the_ingest_gives_up_waiting_behind_a_long_recount(db: PgPool) {
+        let key = setup(&db).await;
+        test_client::post(&db, "/v1/runs", Some(&key), &run("a", 30.0)).await;
+
+        let mut holder = db.begin().await.unwrap();
+        super::lock(&mut holder).await.unwrap();
+        let started = std::time::Instant::now();
+        let refused = test_client::post(&db, "/v1/runs", Some(&key), &run("b", 29.0)).await;
+        assert_eq!(refused.status, 500, "a 5xx, which servers send again later");
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "gave up after the wait"
+        );
+        let kept: i64 = sqlx::query_scalar("SELECT count(*) FROM runs WHERE server_run_id = 'b'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(kept, 0, "the run's transaction was rolled back");
+
+        holder.commit().await.unwrap();
+        let stored = test_client::post(&db, "/v1/runs", Some(&key), &run("b", 29.0)).await;
+        assert_eq!(stored.status, 201);
+        let best: f64 = sqlx::query_scalar("SELECT time FROM personal_bests")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(best, 29.0);
         assert_totals_current(&db).await;
     }
 

@@ -1,5 +1,6 @@
 // The home page's live part: the newest world records beside the busiest servers online right now.
 import { ArrowRight } from "lucide-react";
+import { connection } from "next/server";
 import type { CSSProperties } from "react";
 import { api, type Schemas } from "@/api/client";
 import { currentStyles } from "@/features/ruleset/styles";
@@ -16,6 +17,9 @@ const RECORDS = 6;
 const SERVERS = 4;
 
 export async function LiveNow() {
+  // Read at request time, never while the site is built: the API isn't reachable then, and a build-time read
+  // would be kept in the static shell.
+  await connection();
   const [records, servers, styles] = await Promise.all([
     api
       .GET("/v1/runs", { params: { query: { records: true, limit: RECORDS } } })

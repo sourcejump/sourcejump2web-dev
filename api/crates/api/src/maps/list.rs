@@ -41,6 +41,12 @@ pub struct MapsQuery {
     completed: Option<bool>,
     /// Only maps whose main track has this tier.
     tier: Option<i16>,
+    /// True adds each map's `top` three times in the list's style, and its `viewer_time` with `viewer`. Off by
+    /// default, so clients that show only the record don't pay for the lookups; the website's map tiles ask.
+    times: Option<bool>,
+    /// With `times`: a player, by any form of `SteamID`, whose own time and placement each map carries. The
+    /// website sends the signed-in player.
+    viewer: Option<String>,
     /// 1 to 100. Default 50.
     limit: Option<i64>,
     /// Maps to skip, for paging. Default 0.
@@ -114,7 +120,8 @@ pub struct MapList {
     pub stats: MapStats,
 }
 
-/// The whole list at a glance, whatever the search or filter.
+/// The whole list at a glance, whatever the search or filter, except that `newest` and `played_this_week` keep
+/// to the `tier` filter: someone looking at one tier wants that tier's new and busy maps.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MapStats {
     /// Maps with at least one run.
@@ -168,6 +175,23 @@ pub struct MapSummary {
     pub last_run_at: DateTime<Utc>,
     /// The main track's record in the list's style. None if nobody has finished it in that style.
     pub world_record: Option<WorldRecord>,
+    /// With `times`: the main track's three fastest times in the list's style, fastest first. Equal times
+    /// share a place.
+    pub top: Option<Vec<PlacedTime>>,
+    /// With `times` and `viewer`: the viewer's own best on the main track in the list's style. None if they
+    /// haven't finished it.
+    pub viewer_time: Option<PlacedTime>,
+}
+
+/// A personal best on a map's main track and where it places: one more than the number of faster times, as on
+/// the map's board.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PlacedTime {
+    pub place: i64,
+    pub player: PlayerRef,
+    /// Seconds.
+    pub time: f64,
+    pub run_id: i64,
 }
 
 /// Maps with at least one run, matching a search, sorted and paged.
@@ -197,6 +221,14 @@ pub async fn list_maps(
         .map(|s| s.strip_prefix("bhop_").unwrap_or(s))
         .and_then(name_search::near_miss_term);
     let player = filter_player(&query)?;
+    let viewer = query
+        .viewer
+        .as_deref()
+        .map(|text| {
+            SteamId64::parse_any(text)
+                .ok_or_else(|| ApiError::Invalid(format!("viewer {text:?} is not a SteamID")))
+        })
+        .transpose()?;
     let style = match query.style {
         Some(style) => Some(style),
         None => default_style(&state.db).await?,
@@ -218,7 +250,7 @@ pub async fn list_maps(
     tx.commit().await?;
 
     let tier_count = tiers::tier_count(&state.db).await?;
-    let list_stats = map_stats(&state.db, tier_count).await?;
+    let list_stats = map_stats(&state.db, tier_count, query.tier).await?;
     let (player, completed) = match player {
         Some(player) => (
             known_player(&state.db, player).await?,
@@ -226,10 +258,15 @@ pub async fn list_maps(
         ),
         None => (None, None),
     };
-    let maps = rows
+    let mut maps: Vec<MapSummary> = rows
         .into_iter()
         .map(|row| row.into_summary(storage, tier_count))
         .collect();
+    if query.times == Some(true)
+        && let Some(style) = style.as_deref()
+    {
+        add_board_times(&state.db, &mut maps, style, viewer).await?;
+    }
 
     Ok(Json(MapList {
         maps,
@@ -243,8 +280,13 @@ pub async fn list_maps(
 }
 
 /// Maps with a run, how many hold each main-track tier once tiers are in force, the newest of them and the
-/// week's most played.
-async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStats, sqlx::Error> {
+/// week's most played. The two short lists keep to `tier` when given; the counts never do, so the tier chart
+/// still shows every tier to switch to.
+async fn map_stats(
+    db: &sqlx::PgPool,
+    tier_count: Option<i16>,
+    tier: Option<i16>,
+) -> Result<MapStats, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT tier.tier AS "tier?", count(*) AS "maps!" FROM maps m
            LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0
@@ -264,11 +306,14 @@ async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStat
         }
     }
     let newest = sqlx::query!(
-        r#"SELECT m.name, m.listed_at AS "listed_at!",
-                  (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0) AS tier
-           FROM maps m WHERE m.last_run_at IS NOT NULL AND m.listed_at IS NOT NULL
+        r#"SELECT m.name, m.listed_at AS "listed_at!", tier.tier AS "tier?"
+           FROM maps m
+           LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0
+           WHERE m.last_run_at IS NOT NULL AND m.listed_at IS NOT NULL
+             AND ($2::smallint IS NULL OR tier.tier = $2)
            ORDER BY m.listed_at DESC, m.name LIMIT $1"#,
-        NEWEST
+        NEWEST,
+        tier
     )
     .fetch_all(db)
     .await?
@@ -282,14 +327,16 @@ async fn map_stats(db: &sqlx::PgPool, tier_count: Option<i16>) -> Result<MapStat
     // Players rather than runs, so one player grinding a map doesn't top the list. Counted by the game
     // server's finish time, which the `runs_recent` index covers.
     let played_this_week = sqlx::query!(
-        r#"SELECT m.name, week.players AS "players!",
-                  (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0) AS tier
+        r#"SELECT m.name, week.players AS "players!", tier.tier AS "tier?"
            FROM (SELECT map_id, count(DISTINCT player_steamid64) AS players FROM runs
                  WHERE invalidated_at IS NULL AND finished_at > now() - interval '7 days'
                  GROUP BY map_id) week
            JOIN maps m ON m.id = week.map_id
+           LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0
+           WHERE $2::smallint IS NULL OR tier.tier = $2
            ORDER BY week.players DESC, m.name LIMIT $1"#,
-        PLAYED_THIS_WEEK
+        PLAYED_THIS_WEEK,
+        tier
     )
     .fetch_all(db)
     .await?
@@ -487,8 +534,78 @@ impl ListedMap {
             players: self.players,
             last_run_at: self.last_run_at,
             world_record,
+            top: None,
+            viewer_time: None,
         }
     }
+}
+
+/// Fills in each map's top three and the viewer's own time, for the page's maps only. A query of its own rather
+/// than part of the page's, so a list asked without `times` skips it. Every lookup reads the board index
+/// (`personal_bests_board`); the viewer's placement counts the faster times on that board. On a load-test database
+/// (2.75M personal bests, 2026-11-09), a page of the 50 busiest maps took about 20ms, and about 100ms for a viewer
+/// last on all 50 boards. Cache placements if that worst case turns up in practice.
+async fn add_board_times(
+    db: &sqlx::PgPool,
+    maps: &mut [MapSummary],
+    style: &str,
+    viewer: Option<SteamId64>,
+) -> Result<(), sqlx::Error> {
+    let names: Vec<String> = maps.iter().map(|map| map.name.clone()).collect();
+    let rows = sqlx::query!(
+        r#"SELECT m.name AS "map!", t.viewer AS "viewer!", t.place AS "place!", t.time AS "time!",
+                  t.run_id AS "run_id!", t.player_steamid64::text AS "steamid64!", p.name AS "name?",
+                  p.avatar_url, p.country_code
+           FROM maps m
+           CROSS JOIN LATERAL (
+               (SELECT false AS viewer, rank() OVER (ORDER BY pb.time) AS place, pb.time, pb.run_id,
+                       pb.player_steamid64
+                FROM personal_bests pb
+                WHERE pb.map_id = m.id AND pb.style = $2 AND pb.track = 0
+                ORDER BY pb.time, pb.finished_at, pb.run_id
+                LIMIT 3)
+               UNION ALL
+               SELECT true, 1 + (SELECT count(*) FROM personal_bests faster
+                                 WHERE faster.map_id = m.id AND faster.style = $2 AND faster.track = 0
+                                   AND faster.time < own.time),
+                      own.time, own.run_id, own.player_steamid64
+               FROM personal_bests own
+               WHERE own.player_steamid64 = $3 AND own.map_id = m.id AND own.style = $2 AND own.track = 0
+           ) t
+           LEFT JOIN players p ON p.steamid64 = t.player_steamid64
+           WHERE m.name = ANY($1)
+           ORDER BY m.name, t.viewer, t.place, t.time"#,
+        &names,
+        style,
+        viewer.map(SteamId64::get)
+    )
+    .fetch_all(db)
+    .await?;
+    for map in maps.iter_mut() {
+        map.top = Some(Vec::new());
+    }
+    for row in rows {
+        let Some(map) = maps.iter_mut().find(|map| map.name == row.map) else {
+            continue;
+        };
+        let placed = PlacedTime {
+            place: row.place,
+            player: PlayerRef {
+                steamid64: row.steamid64,
+                name: row.name.unwrap_or_default(),
+                avatar_url: row.avatar_url,
+                country_code: row.country_code,
+            },
+            time: row.time,
+            run_id: row.run_id,
+        };
+        if row.viewer {
+            map.viewer_time = Some(placed);
+        } else if let Some(top) = map.top.as_mut() {
+            top.push(placed);
+        }
+    }
+    Ok(())
 }
 
 /// Which maps the list holds, shared by the page and the count.
@@ -715,6 +832,65 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn carries_the_top_three_and_the_viewers_time_when_asked(db: PgPool) {
+        let key = setup(&db).await;
+        // gabe 30.0; three others at 25.0, 25.0 and 28.0, so the top three share first place and gabe is fifth.
+        let mut bodies = vec![run("a", 30.0)];
+        for (id, steamid, time) in [
+            ("b", "76561197960287931", 25.0),
+            ("c", "76561197960287932", 25.0),
+            ("d", "76561197960287933", 28.0),
+            ("e", "76561197960287934", 29.0),
+        ] {
+            let mut body = run(id, time);
+            body["player"] = json!({ "steamid64": steamid, "name": id });
+            bodies.push(body);
+        }
+        for body in &bodies {
+            assert_eq!(
+                test_client::post(&db, "/v1/runs", Some(&key), body)
+                    .await
+                    .status,
+                201
+            );
+        }
+
+        let plain: MapList = test_client::get(&db, "/v1/maps").await.json();
+        assert!(plain.maps[0].top.is_none());
+
+        let list: MapList = test_client::get(&db, "/v1/maps?times=true&viewer=76561197960287930")
+            .await
+            .json();
+        let map = &list.maps[0];
+        let top: Vec<_> = map
+            .top
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|t| (t.place, t.player.name.as_str(), t.time))
+            .collect();
+        assert_eq!(top, [(1, "b", 25.0), (1, "c", 25.0), (3, "d", 28.0)]);
+        let mine = map.viewer_time.as_ref().unwrap();
+        assert_eq!(
+            (mine.place, mine.time, mine.player.name.as_str()),
+            (5, 30.0, "gabe")
+        );
+
+        // A viewer who hasn't finished the map has no time; a bad SteamID is refused.
+        let stranger: MapList =
+            test_client::get(&db, "/v1/maps?times=true&viewer=76561197960287999")
+                .await
+                .json();
+        assert!(stranger.maps[0].viewer_time.is_none());
+        assert_eq!(
+            test_client::get(&db, "/v1/maps?times=true&viewer=nope")
+                .await
+                .status,
+            422
+        );
+    }
+
+    #[sqlx::test]
     async fn sorts_by_record_and_filters_by_completion(db: PgPool) {
         let key = setup(&db).await;
         let second = json!({ "steamid64": "76561197960287931", "name": "second" });
@@ -856,6 +1032,13 @@ mod tests {
         assert_eq!(list.tier_count, Some(3));
         assert_eq!(list.maps[0].tier, Some(3));
         assert_eq!((list.stats.maps, list.stats.by_tier), (1, vec![0, 0, 1]));
+        // A tier filter narrows the new and busy maps, but not the counts.
+        let other_tier: MapList = test_client::get(&db, "/v1/maps?tier=1").await.json();
+        assert!(other_tier.stats.newest.is_empty());
+        assert!(other_tier.stats.played_this_week.is_empty());
+        assert_eq!(other_tier.stats.by_tier, vec![0, 0, 1]);
+        let same_tier: MapList = test_client::get(&db, "/v1/maps?tier=3").await.json();
+        assert_eq!(same_tier.stats.newest[0].name, "bhop_badges");
 
         // Tier sorts go either way and keep maps without a tier last.
         for (name, finished_at) in [

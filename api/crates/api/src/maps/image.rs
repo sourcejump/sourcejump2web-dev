@@ -21,7 +21,7 @@ pub mod folder;
 pub const MAX_UPLOAD_BYTES: usize = 15 * 1024 * 1024;
 /// The map page's banner at its widest, sharp on high-density screens.
 pub const LARGE: (u32, u32) = (1920, 1080);
-/// Map list thumbnails and phones, at twice their displayed size.
+/// Map tiles, run tiles and phones; sharp at the sizes the site shows them.
 pub const SMALL: (u32, u32) = (480, 270);
 /// WebP quality, 0–100. Around 80 keeps game screenshots clean at a fraction of the size.
 const QUALITY: f32 = 80.0;

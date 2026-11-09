@@ -17,9 +17,9 @@ Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirect
 - Staff privileges are a bitmap in `players.privileges` (`players/privileges.rs`). Bit positions never change; the API names privileges and never sends numbers. `players.restrictions` is unused (bans hold restrictions). The CLI's `privileges grant <steamid> <name>…`, `revoke`, `list` and the staff tools share `staff/privileges.rs`.
 
 ## Maps and leaderboards
-- The map list holds every map with a run (`maps.last_run_at`, set by the ingest); whether one is ranked is open. Sorts: name, players, last/first run (`listed_at`), tier, main-track record; `tier` keeps one tier. `player` (any SteamID form) with `completed=true|false` keeps maps whose main track they have or haven't finished in the list's style; `completed` counts them. `stats`: tiers, 5 newest, 5 most players this week.
-- On leaderboards the earlier of equal times is listed first and holds the world record.
-- `GET /v1/maps/{map}` carries every style and track's top 25, `next_cursor` and WR history, so a map page switches between them without another request. `…/leaderboard?cursor=` pages on from there; cursors are opaque.
+- The map list holds every map with a run (`maps.last_run_at`, set on ingest); ranking is open. Sorts: name, players, last/first run (`listed_at`), tier, main-track record; `tier` keeps one tier (`stats`' lists too). `player` (any SteamID) with `completed=true|false` keeps maps whose main track they have or haven't finished; `completed` counts them. `times=true` adds each map's top 3 and `viewer`'s place. `stats`: tiers, 5 newest, week's 5 most played.
+- Of equal times on a leaderboard, the earlier is listed first and holds the WR.
+- `GET /v1/maps/{map}` carries every style and track's top 25, `next_cursor` and WR history, so switching needs no request. `…/leaderboard?cursor=` pages on from there; cursors are opaque.
 - WR history: every run faster than all that finished before it on that leaderboard (`finished_at`); ties don't count.
 - Tiers: the `tiers` policy holds the tier count, `map_tiers` the tier per map and track (append-only, newest in force). The API serves no tier until a count is published.
 - A run opens by ID with stats, server and place (while a personal best); compliance and keys stay private.

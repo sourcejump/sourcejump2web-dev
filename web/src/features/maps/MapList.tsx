@@ -1,21 +1,18 @@
 // The Maps page's totals (maps, tiered maps, maps per tier), its search, sort, style and completion choices,
-// and one row per map with its picture, tier and world record. Staff who manage maps also get a "No runs yet" tab
+// and a tile per map with its picture, tier, top three times and the signed-in player's own. Staff who manage maps also get a "No runs yet" tab
 // and a "Map files" tab for uploading viewer files in bulk, and can set up a map by name before its first run.
-import { Search, X } from "lucide-react";
-import Form from "next/form";
+import { X } from "lucide-react";
 import type { CSSProperties } from "react";
 import { api, type Schemas } from "@/api/client";
 import { signedInPlayer } from "@/features/auth/signedInPlayer";
 import { currentStyles } from "@/features/ruleset/styles";
 import { STEAMID } from "@/features/players/steamId";
-import { formatSince, formatTime } from "@/features/runs/time";
+import { formatSince } from "@/features/runs/time";
 import { BulkUpload } from "@/features/staff/maps/BulkUpload";
 import { UnplayedMaps } from "@/features/staff/maps/UnplayedMaps";
 import { Avatar } from "@/ui/Avatar";
-import { Button, ButtonLink } from "@/ui/Button";
+import { ButtonLink } from "@/ui/Button";
 import { Card } from "@/ui/Card";
-import { Flag } from "@/ui/Flag";
-import { Input } from "@/ui/Input";
 import { Link } from "@/ui/Link";
 import { ChoiceBar } from "@/ui/ChoiceBar";
 import { ChoiceMenu } from "@/ui/ChoiceMenu";
@@ -24,11 +21,13 @@ import { Pager } from "@/ui/Pager";
 import { TierBadge } from "@/ui/TierBadge";
 import { TierSpread } from "@/ui/TierSpread";
 import { managesMaps } from "./MapHeader";
-import { MapImage } from "./MapImage";
+import { MapSearch } from "./MapSearch";
+import { MapTile } from "./MapTile";
 import { MAP_NAME } from "./mapName";
 import { tierParam } from "./tierParam";
 
-const PAGE_SIZE = 50;
+/** Divides into the grid's 2, 3 and 4 columns, so no row is left part-filled. */
+const PAGE_SIZE = 48;
 /** In groups (players, name, tier, record), each starting below a line in the menu. */
 const sorts = [
   { key: "popular", label: "Most players" },
@@ -142,6 +141,9 @@ export async function MapList({ params }: { params: MapListParams }) {
               completed:
                 completion === "all" ? undefined : completion === "yes",
               tier,
+              // Each tile shows the top three and the signed-in player's own time.
+              times: true,
+              viewer: me?.steamid64,
               limit: PAGE_SIZE,
               offset: (page - 1) * PAGE_SIZE,
             },
@@ -189,6 +191,16 @@ export async function MapList({ params }: { params: MapListParams }) {
     return text ? `/maps?${text}` : "/maps";
   };
 
+  const searchKeeps: Record<string, string> = {};
+  if (unplayed) searchKeeps.view = "unplayed";
+  if (completion !== "all" && filterPlayer) {
+    searchKeeps.player = filterPlayer;
+    searchKeeps.completed = completion;
+  }
+  if (sort !== DEFAULT_SORT) searchKeeps.sort = sort;
+  if (requestedStyle) searchKeeps.style = requestedStyle;
+  if (tier != null) searchKeeps.tier = String(tier);
+
   const completedShare = (count: number) =>
     list?.stats.maps
       ? `${share.format(count / list.stats.maps)} · ${number.format(count)}`
@@ -204,42 +216,17 @@ export async function MapList({ params }: { params: MapListParams }) {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Staff only, out of the way of the menus everyone uses. */}
+      {staff && <div className="flex justify-end">{staffTabs}</div>}
       {list && (
         <MapStats
           stats={list.stats}
           tierCount={list.tier_count}
           selected={tier}
           tierHref={(choice) => href({ tier: choice })}
-          newestHref={href({ sort: "newest", tier: null, page: 1 })}
+          newestHref={href({ sort: "newest", page: 1 })}
         />
       )}
-      <Form action="/maps" prefetch={false} className="flex max-w-xl gap-2">
-        {/* Searching keeps the chosen tab, sort, style and completion filter. */}
-        {unplayed && <input type="hidden" name="view" value="unplayed" />}
-        {completion !== "all" && filterPlayer && (
-          <>
-            <input type="hidden" name="player" value={filterPlayer} />
-            <input type="hidden" name="completed" value={completion} />
-          </>
-        )}
-        {sort !== DEFAULT_SORT && (
-          <input type="hidden" name="sort" value={sort} />
-        )}
-        {requestedStyle && (
-          <input type="hidden" name="style" value={requestedStyle} />
-        )}
-        {tier != null && <input type="hidden" name="tier" value={tier} />}
-        <Input
-          icon={Search}
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Map name, or a SteamID for their maps"
-          aria-label="Search maps, or enter a SteamID"
-          className="flex-1"
-        />
-        <Button type="submit">Search</Button>
-      </Form>
 
       <ChoiceBar>
         {!unplayed && (
@@ -285,8 +272,12 @@ export async function MapList({ params }: { params: MapListParams }) {
             )}
           </>
         )}
-        {/* Staff only, out of the way of the menus everyone uses. */}
-        {staff && <div className="ml-auto">{staffTabs}</div>}
+        {/* Searching keeps the chosen tab, sort, style, tier and completion filter. */}
+        <MapSearch
+          q={typed}
+          keep={searchKeeps}
+          className="min-w-56 flex-1 sm:ml-auto sm:max-w-sm"
+        />
       </ChoiceBar>
 
       {/* With no results, the empty card below offers this instead. */}
@@ -327,9 +318,12 @@ export async function MapList({ params }: { params: MapListParams }) {
         </Card>
       ) : (
         <>
-          {/* Keyed by what's shown, so a new sort or style remounts every row and they all enter together;
-              keyed by map alone, rows that stay on the page would swap in place without moving. */}
-          <ul key={href({ page })} className="flex flex-col gap-2">
+          {/* Keyed by what's shown, so a new sort or style remounts every tile and they all enter together;
+              keyed by map alone, tiles that stay on the page would swap in place without moving. */}
+          <ul
+            key={href({ page })}
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          >
             {list.maps.map((map, index) => (
               <li
                 key={map.name}
@@ -340,7 +334,15 @@ export async function MapList({ params }: { params: MapListParams }) {
                   } as CSSProperties
                 }
               >
-                <MapRow map={map} tierCount={list.tier_count} />
+                <MapTile
+                  map={map}
+                  tierCount={list.tier_count}
+                  signInHref={
+                    me
+                      ? undefined
+                      : `/v1/auth/steam?return_to=${encodeURIComponent(href({ page }))}`
+                  }
+                />
               </li>
             ))}
           </ul>
@@ -361,7 +363,8 @@ const share = new Intl.NumberFormat("en", {
   maximumFractionDigits: 1,
 });
 
-/** The whole list at a glance: how the tiers spread, each tier a filter, the maps that joined last and the week's most played. */
+/** The whole list at a glance: how the tiers spread, each tier a filter, the maps that joined last and the week's most
+ * played (of the chosen tier, if any). */
 function MapStats({
   stats,
   tierCount,
@@ -377,12 +380,10 @@ function MapStats({
 }) {
   const tiered = stats.by_tier.reduce((sum, count) => sum + count, 0);
   const hasTiers = stats.by_tier.length > 0;
-  if (
-    !hasTiers &&
-    stats.newest.length === 0 &&
-    stats.played_this_week.length === 0
-  )
-    return null;
+  // With a tier chosen, both lists stay in place even when empty, so picking a tier doesn't reflow the card.
+  const showNewest = stats.newest.length > 0 || selected != null;
+  const showPlayed = stats.played_this_week.length > 0 || selected != null;
+  if (!hasTiers && !showNewest && !showPlayed) return null;
   // The chart keeps the width it needs; the lists share what is left equally, each with a full-height divider.
   return (
     <Card className="flex flex-col gap-6 py-4 lg:flex-row lg:gap-10">
@@ -394,10 +395,11 @@ function MapStats({
           tierHref={tierHref}
         />
       )}
-      {stats.newest.length > 0 && (
+      {showNewest && (
         <MapStatsList
           title="New"
           href={newestHref}
+          empty={`No new tier ${selected} maps.`}
           maps={stats.newest.map((map) => ({
             name: map.name,
             tier: map.tier,
@@ -406,9 +408,10 @@ function MapStats({
           tierCount={tierCount}
         />
       )}
-      {stats.played_this_week.length > 0 && (
+      {showPlayed && (
         <MapStatsList
           title="Played this week"
+          empty={`No tier ${selected} map was played this week.`}
           maps={stats.played_this_week.map((map) => ({
             name: map.name,
             tier: map.tier,
@@ -421,15 +424,19 @@ function MapStats({
   );
 }
 
-/** One of the map stats' lists: a heading, linked to the matching sort if there is one, then a few maps with a detail each. */
+/** One of the map stats' lists: a heading, linked to the matching sort if there is one, then a few maps with a detail
+ * each, or a line saying there are none. */
 function MapStatsList({
   title,
   href,
+  empty,
   maps,
   tierCount,
 }: {
   title: string;
   href?: string;
+  /** Shown when `maps` is empty, which happens only with a tier chosen. */
+  empty: string;
   maps: { name: string; tier?: number | null; detail: string }[];
   tierCount: number | null | undefined;
 }) {
@@ -444,6 +451,7 @@ function MapStatsList({
           title
         )}
       </h2>
+      {maps.length === 0 && <p className="text-text-subtle text-sm">{empty}</p>}
       <ul className="flex flex-col gap-0.5 text-sm">
         {maps.map((map) => (
           <li key={map.name}>
@@ -502,51 +510,5 @@ function FilterPlayer({
         <X aria-hidden className="size-4" />
       </Link>
     </span>
-  );
-}
-
-function MapRow({
-  map,
-  tierCount,
-}: {
-  map: Schemas["MapSummary"];
-  tierCount: number | null | undefined;
-}) {
-  const wr = map.world_record;
-  return (
-    <Link
-      href={`/maps/${map.name}`}
-      className="border-border bg-surface motion-lift flex items-center gap-4 rounded-lg border p-2 pr-4"
-    >
-      <MapImage image={map.image} size="thumbnail" />
-      <span className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-        <span className="flex items-center gap-2">
-          {map.tier != null && tierCount != null && (
-            <TierBadge tier={map.tier} tierCount={tierCount} />
-          )}
-          <span className="truncate font-bold">{map.name}</span>
-        </span>
-        <span className="text-text-subtle text-sm">
-          {map.players === 1 ? "1 player" : `${map.players} players`}
-          {map.bonuses > 0 &&
-            ` · ${map.bonuses === 1 ? "1 bonus" : `${map.bonuses} bonuses`}`}
-        </span>
-      </span>
-      {wr ? (
-        <span className="flex flex-col items-end gap-0.5 text-right">
-          <span className="text-accent font-bold tabular-nums">
-            {formatTime(wr.time)}
-          </span>
-          <span className="text-text-muted flex items-center gap-1.5 text-sm">
-            {wr.player.name}
-            <Flag code={wr.player.country_code} />
-          </span>
-        </span>
-      ) : (
-        <span className="text-text-subtle text-sm">
-          No record in this style
-        </span>
-      )}
-    </Link>
   );
 }

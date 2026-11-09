@@ -1,14 +1,15 @@
-// A map's picture, or a placeholder until staff add one: a small thumbnail on map rows, a tile beside a run's
-// title, a banner on the map's page.
+// A map's picture, or a placeholder until staff add one: a tile beside a run's title, the top of a map's card in
+// the Maps grid, a banner on the map's page.
 // The stored image is 16:9; the banner shows the strip of it staff chose (`focus`, 0 the top to 100 the bottom).
 import { ImageOff } from "lucide-react";
 import type { Schemas } from "@/api/client";
 import { classNames } from "@/ui/classNames";
 
 const sizes = {
-  thumbnail: "h-10 w-14 rounded-md sm:h-12 sm:w-20",
   tile: "h-14 w-24 rounded-md sm:h-20 sm:w-36",
   banner: "h-36 w-full rounded-lg sm:h-48",
+  /** The top of a map's tile in the Maps grid, at the picture's own 16:9. */
+  card: "aspect-video w-full",
 };
 
 export function MapImage({
@@ -50,7 +51,7 @@ export function MapImage({
         "text-text-subtle flex items-center justify-center",
       )}
     >
-      <ImageOff className={size === "thumbnail" ? "size-4" : "size-8"} />
+      <ImageOff className="size-8" />
     </span>
   );
 }

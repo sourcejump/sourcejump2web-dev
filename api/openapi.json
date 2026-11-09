@@ -667,6 +667,30 @@
             }
           },
           {
+            "name": "times",
+            "in": "query",
+            "description": "True adds each map's `top` three times in the list's style, and its `viewer_time` with `viewer`. Off by\ndefault, so clients that show only the record don't pay for the lookups; the website's map tiles ask.",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "viewer",
+            "in": "query",
+            "description": "With `times`: a player, by any form of `SteamID`, whose own time and placement each map carries. The\nwebsite sends the signed-in player.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "description": "1 to 100. Default 50.",
@@ -7762,7 +7786,7 @@
       },
       "MapStats": {
         "type": "object",
-        "description": "The whole list at a glance, whatever the search or filter.",
+        "description": "The whole list at a glance, whatever the search or filter, except that `newest` and `played_this_week` keep\nto the `tier` filter: someone looking at one tier wants that tier's new and busy maps.",
         "required": [
           "maps",
           "by_tier",
@@ -7893,6 +7917,27 @@
             ],
             "format": "int32",
             "description": "The main track's tier."
+          },
+          "top": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PlacedTime"
+            },
+            "description": "With `times`: the main track's three fastest times in the list's style, fastest first. Equal times\nshare a place."
+          },
+          "viewer_time": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PlacedTime",
+                "description": "With `times` and `viewer`: the viewer's own best on the main track in the list's style. None if they\nhaven't finished it."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "world_record": {
             "oneOf": [
@@ -8091,6 +8136,34 @@
             ],
             "format": "int64",
             "description": "A top-level comment on the run, or None to unpin."
+          }
+        }
+      },
+      "PlacedTime": {
+        "type": "object",
+        "description": "A personal best on a map's main track and where it places: one more than the number of faster times, as on\nthe map's board.",
+        "required": [
+          "place",
+          "player",
+          "time",
+          "run_id"
+        ],
+        "properties": {
+          "place": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "player": {
+            "$ref": "#/components/schemas/PlayerRef"
+          },
+          "run_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "time": {
+            "type": "number",
+            "format": "double",
+            "description": "Seconds."
           }
         }
       },

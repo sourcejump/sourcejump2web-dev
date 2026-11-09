@@ -3,6 +3,7 @@
 import type { Metadata } from "next";
 import { DailyTotals } from "@/features/dailyTotals/DailyTotals";
 import { PlayerSearch } from "@/features/players/PlayerSearch";
+import { SectionTitle } from "@/features/site/SectionTitle";
 import { Page } from "@/ui/Page";
 
 export const metadata: Metadata = {
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 export default function PlayersPage({ searchParams }: PageProps<"/players">) {
   return (
     <Page className="gap-6">
-      <h1 className="text-3xl font-bold">Players</h1>
+      <SectionTitle>Players</SectionTitle>
       <DailyTotals kind="players" />
       {searchParams.then(({ q, view }) => (
         <PlayerSearch

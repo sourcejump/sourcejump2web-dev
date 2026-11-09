@@ -3,6 +3,7 @@
 import type { Metadata } from "next";
 import { RecentRuns } from "@/features/activity/RecentRuns";
 import { DailyTotals } from "@/features/dailyTotals/DailyTotals";
+import { SectionTitle } from "@/features/site/SectionTitle";
 import { Page } from "@/ui/Page";
 
 export const metadata: Metadata = {
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 export default function ActivityPage({ searchParams }: PageProps<"/activity">) {
   return (
     <Page className="gap-6">
-      <h1 className="text-3xl font-bold">Activity</h1>
+      <SectionTitle>Activity</SectionTitle>
       <DailyTotals kind="runs" />
       {searchParams.then(({ style, track, tier, show }) => (
         <RecentRuns

@@ -2193,7 +2193,10 @@ export interface components {
             /** @description Sorted by style, track and rank. One flat list keeps it simple to read in SourcePawn. */
             records: components["schemas"]["Record"][];
         };
-        /** @description The whole list at a glance, whatever the search or filter. */
+        /**
+         * @description The whole list at a glance, whatever the search or filter, except that `newest` and `played_this_week` keep
+         *     to the `tier` filter: someone looking at one tier wants that tier's new and busy maps.
+         */
         MapStats: {
             /**
              * @description Of those, the maps whose main track has each tier, tier 1 first. Empty until a tier count is
@@ -2253,6 +2256,12 @@ export interface components {
              * @description The main track's tier.
              */
             tier?: number | null;
+            /**
+             * @description With `times`: the main track's three fastest times in the list's style, fastest first. Equal times
+             *     share a place.
+             */
+            top?: components["schemas"]["PlacedTime"][] | null;
+            viewer_time?: components["schemas"]["PlacedTime"] | null;
             world_record?: components["schemas"]["WorldRecord"] | null;
         };
         MapTrack: {
@@ -2337,6 +2346,22 @@ export interface components {
              * @description A top-level comment on the run, or None to unpin.
              */
             comment?: number | null;
+        };
+        /**
+         * @description A personal best on a map's main track and where it places: one more than the number of faster times, as on
+         *     the map's board.
+         */
+        PlacedTime: {
+            /** Format: int64 */
+            place: number;
+            player: components["schemas"]["PlayerRef"];
+            /** Format: int64 */
+            run_id: number;
+            /**
+             * Format: double
+             * @description Seconds.
+             */
+            time: number;
         };
         /** @description A map many players ran lately. */
         PlayedMap: {
@@ -3905,6 +3930,16 @@ export interface operations {
                 completed?: boolean | null;
                 /** @description Only maps whose main track has this tier. */
                 tier?: number | null;
+                /**
+                 * @description True adds each map's `top` three times in the list's style, and its `viewer_time` with `viewer`. Off by
+                 *     default, so clients that show only the record don't pay for the lookups; the website's map tiles ask.
+                 */
+                times?: boolean | null;
+                /**
+                 * @description With `times`: a player, by any form of `SteamID`, whose own time and placement each map carries. The
+                 *     website sends the signed-in player.
+                 */
+                viewer?: string | null;
                 /** @description 1 to 100. Default 50. */
                 limit?: number | null;
                 /** @description Maps to skip, for paging. Default 0. */

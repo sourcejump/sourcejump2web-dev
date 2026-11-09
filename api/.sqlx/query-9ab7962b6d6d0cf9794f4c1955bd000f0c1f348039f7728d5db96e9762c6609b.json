@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.name AS \"map!\", t.viewer AS \"viewer!\", t.place AS \"place!\", t.time AS \"time!\",\n                  t.run_id AS \"run_id!\", t.player_steamid64::text AS \"steamid64!\", p.name AS \"name?\",\n                  p.avatar_url, p.country_code\n           FROM maps m\n           CROSS JOIN LATERAL (\n               (SELECT false AS viewer, rank() OVER (ORDER BY pb.time) AS place, pb.time, pb.run_id,\n                       pb.player_steamid64\n                FROM personal_bests pb\n                WHERE pb.map_id = m.id AND pb.style = $2 AND pb.track = 0\n                ORDER BY pb.time, pb.finished_at, pb.run_id\n                LIMIT 3)\n               UNION ALL\n               SELECT true, 1 + (SELECT count(*) FROM personal_bests faster\n                                 WHERE faster.map_id = m.id AND faster.style = $2 AND faster.track = 0\n                                   AND faster.time < own.time),\n                      own.time, own.run_id, own.player_steamid64\n               FROM personal_bests own\n               WHERE own.player_steamid64 = $3 AND own.map_id = m.id AND own.style = $2 AND own.track = 0\n           ) t\n           LEFT JOIN players p ON p.steamid64 = t.player_steamid64\n           WHERE m.name = ANY($1)\n           ORDER BY m.name, t.viewer, t.place, t.time",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "map!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "viewer!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "place!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "time!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "run_id!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "players",
+            "name": "country_code"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "9ab7962b6d6d0cf9794f4c1955bd000f0c1f348039f7728d5db96e9762c6609b"
+}

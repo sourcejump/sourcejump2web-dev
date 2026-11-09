@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT m.name, m.listed_at AS \"listed_at!\",\n                  (SELECT tier FROM current_map_tiers WHERE map_id = m.id AND track = 0) AS tier\n           FROM maps m WHERE m.last_run_at IS NOT NULL AND m.listed_at IS NOT NULL\n           ORDER BY m.listed_at DESC, m.name LIMIT $1",
+  "query": "SELECT m.name, m.listed_at AS \"listed_at!\", tier.tier AS \"tier?\"\n           FROM maps m\n           LEFT JOIN current_map_tiers tier ON tier.map_id = m.id AND tier.track = 0\n           WHERE m.last_run_at IS NOT NULL AND m.listed_at IS NOT NULL\n             AND ($2::smallint IS NULL OR tier.tier = $2)\n           ORDER BY m.listed_at DESC, m.name LIMIT $1",
   "describe": {
     "columns": [
       {
@@ -27,21 +27,27 @@
       },
       {
         "ordinal": 2,
-        "name": "tier",
+        "name": "tier?",
         "type_info": "Int2",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "current_map_tiers",
+            "name": "tier"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Int2"
       ]
     },
     "nullable": [
       false,
       true,
-      null
+      true
     ]
   },
-  "hash": "01f7dd297b27ffd70d058c7c02094146e2c7bc8d6c35edad46bb4a32514d6caf"
+  "hash": "ca26519f635613068ba5fe1c5fd21f7be2951ea1514038633f52b2ceed6c2c8d"
 }

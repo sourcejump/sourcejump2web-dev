@@ -6,6 +6,7 @@ One visual language that every page is built from, so pages can't drift apart. S
 - Dark blue slate, never pitch black. One cyan accent; at most one primary button per view.
 - Gamified but professional: medals, tier colors, WR badges, count-ups and small motions. No mascots, confetti, slogans or sales copy.
 - Play for everything. Its digits are all the same width, so times line up in columns without a second font.
+- Header-named pages don't repeat their name: `SectionTitle` keeps a hidden `<h1>` (lead, 2026-11-09).
 - Corners: `rounded-sm` (4px) for badges, `rounded-md` (8px) for controls and rows, `rounded-lg` (12px) only for padded cards and dialogs.
 
 ## Tokens
@@ -13,7 +14,7 @@ One visual language that every page is built from, so pages can't drift apart. S
 - Surfaces, darkest to lightest: `bg`, `surface`, `surface-raised`, `surface-overlay`. Borders: `border`, `border-strong`.
 - Text: `text`, `text-muted`, `text-subtle`. Accent: `accent`, `accent-hover`, `accent-soft`, `on-accent`.
 - Status: `success`, `warning`, `danger`, each with a `-soft` tint. Medals: `gold`, `silver`, `bronze`, `on-medal`.
-- Tiers: four ramp stops, `tier-1` (easiest) to `tier-4` (hardest). The tier count is staff data (`domain.md`), so `TierBadge` colors a tier by its position on the ramp, which works for any count.
+- Tiers: four ramp stops, `tier-1` (easiest) to `tier-4` (hardest). The tier count is staff data (`domain.md`), so `TierBadge` colors a tier by its position on the ramp, over a faint tint.
 
 **Rule:** outside `web/src/ui/`, no raw colors and no arbitrary Tailwind values (`w-[13px]`, `bg-[#fff]`, `[color:red]`). ESLint enforces it (`web/eslint.config.mjs`, tested in `eslint.config.test.ts`). If a page needs something the tokens can't express, add or extend a primitive in `src/ui/`.
 
