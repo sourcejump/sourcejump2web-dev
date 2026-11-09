@@ -19,7 +19,7 @@ Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirect
 - Staff privileges: a bitmap in `players.privileges` (`players/privileges.rs`); bit positions never change; the API names them, never numbers. `players.restrictions` is unused (bans hold restrictions). The CLI's `privileges grant <steamid> <name>…`, `revoke`, `list` and the staff tools share `staff/privileges.rs`.
 
 ## Maps and leaderboards
-- The map list holds every map with a run (`maps.last_run_at`, set by the ingest); whether one is ranked is open. Sorts: name, players, last/first run (`listed_at`), tier, main-track record; `tier` keeps one tier. `player` (any SteamID form) with `completed=true|false` keeps maps whose main track they have or haven't finished in the list's style; `completed` counts them. `stats`: tiers, 5 newest, 5 most players this week.
+- Maps with runs (`maps.last_run_at`, set on ingest); ranking is open. Sorts: name, players, last/first run (`listed_at`), tier and main-track WR. `tier` keeps one main tier. `player` (any SteamID) with `completed=true|false` filters the style's main-track completions; `completed` counts them. `stats` totals stay global; newest and weekly lists take five within `stats.tier` (null: all). Weekly ranks count distinct players.
 - Leaderboards rank PBs per map, style and track; equal times share a place, the earlier run listed first. A tie's world record belongs to whoever set it first.
 - `GET /v1/maps/{map}` carries every style and track's top 25, `next_cursor` and WR history, for map pages to switch locally. `…/leaderboard?cursor=` pages on from there; cursors are opaque.
 - WR history: every run faster than all finished before it on that board, by `finished_at`; ties don't count.

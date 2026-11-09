@@ -51,7 +51,7 @@ export function Masthead({
       <div
         className={classNames(
           // Positioned, so a caption can sit in the picture's corner, lined up with the content.
-          "relative mx-auto w-full max-w-6xl px-4 sm:px-8",
+          "relative mx-auto w-full max-w-full px-4 sm:px-8",
           image && "sm:text-shadow-over-image",
           className,
         )}

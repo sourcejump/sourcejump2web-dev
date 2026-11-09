@@ -7862,7 +7862,7 @@
       },
       "MapStats": {
         "type": "object",
-        "description": "The whole list at a glance, whatever the search or filter.",
+        "description": "Global totals and tier-scoped newest and weekly lists.",
         "required": [
           "maps",
           "by_tier",
@@ -7896,6 +7896,14 @@
               "$ref": "#/components/schemas/PlayedMap"
             },
             "description": "The maps the most players finished a run on in the last 7 days, most first."
+          },
+          "tier": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The tier the newest and weekly lists describe; None describes all tiers. Totals remain global."
           }
         }
       },

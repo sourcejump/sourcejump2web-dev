@@ -1,5 +1,5 @@
 // The Maps page's totals (maps, tiered maps, maps per tier), its search, sort, style and completion choices,
-// and one row per map with its picture, tier and world record. Staff who manage maps also get a "No runs yet" tab
+// and one card per map with its picture, tier and top three. Staff who manage maps also get a "No runs yet" tab
 // and a "Map files" tab for uploading viewer files in bulk, and can set up a map by name before its first run.
 import { X } from "lucide-react";
 import type { CSSProperties } from "react";
@@ -7,13 +7,13 @@ import { api, type Schemas } from "@/api/client";
 import { signedInPlayer } from "@/features/auth/signedInPlayer";
 import { currentStyles } from "@/features/ruleset/styles";
 import { STEAMID } from "@/features/players/steamId";
-import { formatSince, formatTime } from "@/features/runs/time";
+import { formatSince } from "@/features/runs/time";
 import { BulkUpload } from "@/features/staff/maps/BulkUpload";
 import { UnplayedMaps } from "@/features/staff/maps/UnplayedMaps";
 import { Avatar } from "@/ui/Avatar";
 import { ButtonLink } from "@/ui/Button";
 import { Card } from "@/ui/Card";
-import { Flag } from "@/ui/Flag";
+import { classNames } from "@/ui/classNames";
 import { SearchField } from "@/ui/SearchField";
 import { Link } from "@/ui/Link";
 import { ChoiceBar } from "@/ui/ChoiceBar";
@@ -23,7 +23,9 @@ import { Pager } from "@/ui/Pager";
 import { TierBadge } from "@/ui/TierBadge";
 import { TierSpread } from "@/ui/TierSpread";
 import { managesMaps } from "./MapHeader";
-import { MapImage } from "./MapImage";
+import { MapCard } from "./MapCard";
+import { mapPodiums } from "./mapPodiums";
+import cardStyles from "./MapCard.module.css";
 import { MAP_NAME } from "./mapName";
 import { tierParam } from "./tierParam";
 import { avatarSrc } from "@/features/players/avatarSrc";
@@ -151,6 +153,7 @@ export async function MapList({ params }: { params: MapListParams }) {
         .catch(() => undefined);
   const list = result?.data;
   const style = list?.style ?? requestedStyle;
+  const podiums = await mapPodiums(list?.maps ?? [], style);
   const typedName = q.toLowerCase();
   const offerSetUp =
     staff &&
@@ -205,7 +208,7 @@ export async function MapList({ params }: { params: MapListParams }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-3xl font-bold">Maps</h1>
+      <h1 className="sr-only">Maps</h1>
       {list && (
         <MapStats
           stats={list.stats}
@@ -312,7 +315,7 @@ export async function MapList({ params }: { params: MapListParams }) {
           )}
         </Card>
       ) : (
-        <section>
+        <section className="@container">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 pb-3">
             <h2 className="text-xl font-bold">
               {q
@@ -327,7 +330,7 @@ export async function MapList({ params }: { params: MapListParams }) {
           </div>
           <ul
             key={href({ page })}
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5"
+            className={classNames("grid gap-4", cardStyles.cards)}
           >
             {list.maps.map((map, index) => (
               <li
@@ -339,7 +342,15 @@ export async function MapList({ params }: { params: MapListParams }) {
                   } as CSSProperties
                 }
               >
-                <MapRow map={map} tierCount={list.tier_count} />
+                <MapCard
+                  map={map}
+                  tierCount={list.tier_count}
+                  leaders={podiums.get(map.name) ?? null}
+                  styleName={style ? styles.name(style) : "this style"}
+                  styleKey={
+                    style && style !== styles.keys[0] ? style : undefined
+                  }
+                />
               </li>
             ))}
           </ul>
@@ -381,7 +392,7 @@ function MapStats({
   newestHref: string;
 }) {
   const tiered = stats.by_tier.reduce((sum, count) => sum + count, 0);
-  const hasTiers = stats.by_tier.length > 0;
+  const hasTiers = stats.by_tier.length > 0 && stats.maps > 0;
   const newest = stats.newest.filter(
     (map) => selected == null || map.tier === selected,
   );
@@ -390,10 +401,24 @@ function MapStats({
   );
   if (!hasTiers && newest.length === 0 && playedThisWeek.length === 0)
     return null;
+  const weeklyScoped =
+    selected == null ||
+    stats.tier === selected ||
+    stats.played_this_week.length < 5 ||
+    playedThisWeek.length === 5;
+  const hasWeekly = stats.maps > 0;
+  const singleSummary = Number(newest.length > 0) + Number(hasWeekly) === 1;
   return (
-    <Card className="grid gap-5 p-4 sm:grid-cols-2 sm:gap-6 xl:flex">
+    <Card
+      role="region"
+      aria-label="Map overview"
+      className={classNames(
+        "grid gap-4 p-4 sm:grid-cols-2 sm:gap-6 sm:p-5 lg:flex",
+        singleSummary && "md:flex",
+      )}
+    >
       {hasTiers && (
-        <div className="min-w-0 sm:col-span-2 xl:shrink-0">
+        <div className="flex min-w-0 items-center justify-center sm:col-span-2 lg:shrink-0">
           <TierSpread
             byTier={stats.by_tier}
             untiered={stats.maps - tiered}
@@ -405,6 +430,7 @@ function MapStats({
       {newest.length > 0 && (
         <MapStatsList
           title="New"
+          singleSummary={singleSummary}
           href={newestHref}
           maps={newest.map((map) => ({
             name: map.name,
@@ -414,10 +440,16 @@ function MapStats({
           tierCount={tierCount}
         />
       )}
-      {playedThisWeek.length > 0 && (
+      {hasWeekly && (
         <MapStatsList
           title="Played this week"
-          maps={playedThisWeek.map((map) => ({
+          empty={
+            weeklyScoped
+              ? "No maps played in the last seven days."
+              : "Weekly activity for this tier could not be loaded."
+          }
+          singleSummary={singleSummary}
+          maps={(weeklyScoped ? playedThisWeek : []).map((map) => ({
             name: map.name,
             tier: map.tier,
             detail: `${number.format(map.players)} ${map.players === 1 ? "player" : "players"}`,
@@ -432,47 +464,70 @@ function MapStats({
 /** One of the map stats' lists: a heading, linked to the matching sort if there is one, then a few maps with a detail each. */
 function MapStatsList({
   title,
+  empty,
+  singleSummary,
   href,
   maps,
   tierCount,
 }: {
   title: string;
+  empty?: string;
+  singleSummary: boolean;
   href?: string;
   maps: { name: string; tier?: number | null; detail: string }[];
   tierCount: number | null | undefined;
 }) {
   return (
-    <section className="border-border flex min-w-0 flex-1 flex-col gap-3 border-t pt-4 sm:border-t-0 sm:pt-0 xl:border-l xl:pl-6">
-      <h2 className="text-sm font-bold">
-        {href ? (
-          <Link href={href} className="hover:text-accent">
-            {title}
-          </Link>
-        ) : (
-          title
-        )}
-      </h2>
-      <ul className="flex w-fit max-w-full flex-col gap-1 text-sm">
-        {maps.map((map) => (
-          <li key={map.name}>
-            <Link
-              href={`/maps/${map.name}`}
-              className="group flex items-center gap-2 rounded-sm py-0.5"
-            >
-              {map.tier != null && tierCount != null && (
-                <TierBadge tier={map.tier} tierCount={tierCount} />
-              )}
-              <span
-                className="group-hover:text-accent min-w-0 flex-1 truncate transition-colors duration-(--duration-fast)"
-                title={map.name}
-              >
-                {map.name}
-              </span>
-              <span className="text-text-subtle shrink-0">{map.detail}</span>
+    <section
+      aria-label={title}
+      className={classNames(
+        "border-border flex min-w-0 flex-1 flex-col justify-center border-t pt-4 first:border-0 first:pt-0 first:pl-0 sm:border-t-0 sm:pt-0 lg:border-l lg:pl-6",
+        singleSummary && "sm:col-span-2 md:border-l md:pl-6",
+      )}
+    >
+      <div className="flex w-fit max-w-full flex-col gap-2 sm:h-full sm:min-h-44">
+        <h2 className="flex h-5 items-center text-sm font-bold sm:h-8">
+          {href ? (
+            <Link href={href} className="hover:text-accent">
+              {title}
             </Link>
-          </li>
-        ))}
-      </ul>
+          ) : (
+            title
+          )}
+        </h2>
+        {maps.length === 0 ? (
+          <p className="text-text-muted max-w-64 text-sm">{empty}</p>
+        ) : (
+          <ul
+            className="grid w-fit max-w-full gap-x-2 gap-y-1 text-sm"
+            style={{ gridTemplateColumns: "auto minmax(0, 1fr) auto" }}
+          >
+            {maps.map((map) => (
+              <li key={map.name} className="col-span-3 grid grid-cols-subgrid">
+                <Link
+                  href={`/maps/${map.name}`}
+                  className="group col-span-3 grid min-h-6 grid-cols-subgrid items-center rounded-sm"
+                >
+                  {map.tier != null && tierCount != null ? (
+                    <TierBadge tier={map.tier} tierCount={tierCount} />
+                  ) : (
+                    <span />
+                  )}
+                  <span
+                    className="group-hover:text-accent min-w-0 wrap-anywhere transition-colors duration-(--duration-fast)"
+                    title={map.name}
+                  >
+                    {map.name}
+                  </span>
+                  <span className="text-text-muted text-right tabular-nums">
+                    {map.detail}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }
@@ -509,66 +564,5 @@ function FilterPlayer({
         <X aria-hidden className="size-4" />
       </Link>
     </span>
-  );
-}
-
-function MapRow({
-  map,
-  tierCount,
-}: {
-  map: Schemas["MapSummary"];
-  tierCount: number | null | undefined;
-}) {
-  const wr = map.world_record;
-  return (
-    <Link
-      href={`/maps/${map.name}`}
-      className="border-border bg-surface group hover:border-border-strong flex h-full min-w-0 flex-col overflow-hidden rounded-md border transition-colors duration-(--duration-fast) focus-visible:-outline-offset-2"
-    >
-      <span className="relative block">
-        <MapImage image={map.image} size="card" />
-        {map.tier != null && tierCount != null && (
-          <TierBadge
-            tier={map.tier}
-            tierCount={tierCount}
-            className="absolute top-3 left-3"
-          />
-        )}
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-3 p-3">
-        <span className="flex min-h-10 min-w-0 flex-col gap-1">
-          <span className="group-hover:text-accent text-base font-bold wrap-anywhere transition-colors duration-(--duration-fast)">
-            {map.name}
-          </span>
-          <span className="text-text-muted text-sm">
-            {map.players === 1 ? "1 player" : `${map.players} players`}
-            {map.bonuses > 0 &&
-              ` · ${map.bonuses === 1 ? "1 bonus" : `${map.bonuses} bonuses`}`}
-          </span>
-        </span>
-        <span className="border-border flex flex-col gap-1 border-t pt-2">
-          <span className="text-text-subtle text-xs font-medium">
-            World record
-          </span>
-          {wr ? (
-            <span className="grid min-h-7 grid-cols-2 items-start gap-2">
-              <span className="text-accent min-w-0 text-lg font-bold tabular-nums">
-                {formatTime(wr.time)}
-              </span>
-              <span className="text-text-muted flex min-w-0 flex-wrap items-center justify-end gap-1.5 text-right text-xs">
-                <span className="wrap-anywhere">{wr.player.name}</span>
-                {wr.player.country_code && (
-                  <Flag code={wr.player.country_code} />
-                )}
-              </span>
-            </span>
-          ) : (
-            <span className="text-text-subtle text-sm">
-              No record in this style
-            </span>
-          )}
-        </span>
-      </span>
-    </Link>
   );
 }

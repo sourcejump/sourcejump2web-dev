@@ -32,6 +32,7 @@ export function TierBadge({
   /** E.g. a fill of its own, where it sits on a picture. */
   className?: string;
 }) {
+  // The light foreground mix keeps small labels readable even at the darker end of the ramp.
   const style = { "--tier": tierColor(tier, tierCount) } as CSSProperties;
   return (
     <span
@@ -40,7 +41,7 @@ export function TierBadge({
       // The width fits T1 to T9 alike and grows only for two digits; it never stretches to a grid column, where
       // one T10 would widen every badge beside it. Centered both ways, so the label sits in the middle of the box.
       className={classNames(
-        "inline-flex h-5 min-w-7 shrink-0 items-center justify-center self-center justify-self-start rounded-sm bg-(--tier)/15 px-1 text-xs leading-none font-bold text-(color:--tier) tabular-nums",
+        "inline-flex h-5 min-w-7 shrink-0 items-center justify-center self-center justify-self-start rounded-sm bg-(--tier)/15 px-1 text-xs leading-none font-bold text-[color:color-mix(in_oklch,var(--tier)_70%,var(--color-text))] tabular-nums",
         className,
       )}
     >

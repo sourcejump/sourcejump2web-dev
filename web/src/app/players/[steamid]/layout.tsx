@@ -12,7 +12,7 @@ export default function PlayerLayout({
       {params.then(({ steamid }) => (
         <PlayerHeader steamid={decodeURIComponent(steamid)} />
       ))}
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pt-6 pb-10 sm:px-8">
+      <div className="mx-auto flex w-full max-w-full flex-col gap-8 px-4 pt-6 pb-10 sm:px-8">
         {children}
       </div>
     </Page>
