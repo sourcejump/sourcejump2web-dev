@@ -94,6 +94,104 @@ test("profile stats, history controls and the table follow the selected style", 
   ).toBeVisible();
 });
 
+test("stat cards open the player's matching progress without changing style", async ({
+  page,
+  request,
+}) => {
+  const steamid = "76561199900000002";
+  const profile = (await (
+    await request.get(`/v1/players/${steamid}`)
+  ).json()) as Schemas["PlayerProfile"];
+  const normal = profile.styles.find((style) => style.style === "normal")!;
+  const bonuses = (await (
+    await request.get(
+      `/v1/players/${steamid}/personal-bests?style=normal&tracks=bonuses&limit=100`,
+    )
+  ).json()) as Schemas["PersonalBestPage"];
+  expect(bonuses.next_cursor).not.toBeTruthy();
+  await page.goto(`/players/${steamid}`);
+  const stats = page.getByRole("region", { name: "Player statistics" });
+  const times = page.getByRole("region", { name: "Player times" });
+  const card = (name: string) =>
+    stats.getByRole("button", { name: new RegExp(`^${name}`) });
+  const top10 = normal.personal_bests.filter(
+    (pb) => pb.rank != null && pb.rank <= 10,
+  );
+  const all = [...normal.personal_bests, ...bonuses.personal_bests];
+
+  async function expectRuns(pbs: Schemas["PersonalBest"][]) {
+    await expect(times.locator("tbody tr")).toHaveCount(pbs.length);
+    expect(
+      await times
+        .locator('tbody a[href^="/maps/"]')
+        .evaluateAll((links) =>
+          links.map((a) => a.getAttribute("href")).sort(),
+        ),
+    ).toEqual(
+      pbs
+        .map(
+          (pb) =>
+            `/maps/${pb.map}?style=${pb.style}${pb.track > 0 ? `&track=${pb.track}` : ""}`,
+        )
+        .sort(),
+    );
+  }
+
+  await expect(stats.getByRole("link")).toHaveCount(2);
+  await expect(stats.getByRole("button")).toHaveCount(4);
+  await page.evaluate(() => {
+    (window as { progressStayed?: boolean }).progressStayed = true;
+  });
+  await card("Bonuses completed").click();
+  await expect(page).toHaveURL(/style=normal.*tracks=bonuses/);
+  await expect(times).toBeFocused();
+  await expect(card("Bonuses completed")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expectRuns(bonuses.personal_bests);
+  await expect(stats.getByRole("link", { name: /^Points/ })).toHaveAttribute(
+    "href",
+    "/leaderboards/points?track=bonuses",
+  );
+  await card("Maps completed").click();
+  await expect(card("Maps completed")).toHaveAttribute("aria-pressed", "true");
+  await expectRuns(normal.personal_bests);
+  await card("Top 10s").click();
+  await expect(page).toHaveURL(/show=top10/);
+  await expect(card("Top 10s")).toHaveAttribute("aria-pressed", "true");
+  await expectRuns(top10);
+  await expect(times).toContainText(`All ${top10.length} top 10 finishes`);
+  await expect(card("Top 10s")).toContainText(String(top10.length));
+  await times.getByRole("button", { name: /^Show/ }).click();
+  await page
+    .getByRole("menuitemradio", { name: "All runs", exact: true })
+    .click();
+  await expectRuns(normal.personal_bests);
+  await card("World records").click();
+  await expect(page).toHaveURL(/tracks=any.*show=records/);
+  await expect(card("World records")).toHaveAttribute("aria-pressed", "true");
+  await expectRuns(all.filter((pb) => pb.rank === 1));
+  await card("Top 10s").click();
+  await expectRuns(all.filter((pb) => pb.rank != null && pb.rank <= 10));
+  await expect(page.getByRole("button", { name: /^Style / })).toContainText(
+    "Normal",
+  );
+  expect(
+    await page.evaluate(
+      () => (window as { progressStayed?: boolean }).progressStayed,
+    ),
+  ).toBe(true);
+  await page.getByRole("button", { name: /^Style / }).click();
+  await page
+    .getByRole("menuitemradio", { name: "Autosync", exact: true })
+    .click();
+  await card("Bonuses completed").click();
+  await expect(times).toContainText(
+    "No Autosync personal bests on bonuses yet.",
+  );
+});
+
 test("profile containers fit desktop and narrow phones", async ({ page }) => {
   await page.goto("/players/76561199900000002");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
