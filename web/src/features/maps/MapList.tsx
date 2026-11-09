@@ -211,7 +211,7 @@ export async function MapList({ params }: { params: MapListParams }) {
     <div className="flex flex-col gap-5">
       <h1 className="sr-only">Maps</h1>
       {list && (
-        <Card className="w-full min-w-0 xl:w-fit xl:self-center">
+        <Card className="w-full min-w-0">
           <MapStats
             stats={list.stats}
             tierCount={list.tier_count}
