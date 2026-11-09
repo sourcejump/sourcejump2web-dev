@@ -4,8 +4,7 @@
 }
 
 .cover {
-  aspect-ratio: 5 / 2;
-  min-block-size: calc(var(--spacing) * 32);
+  min-block-size: calc(var(--spacing) * 20);
 }
 
 .preview {
@@ -97,8 +96,14 @@
   }
 }
 
-@container (min-width: 88rem) {
+@container (min-width: 76rem) {
   .cards {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 92rem) {
+  .cards {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
