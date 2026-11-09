@@ -227,9 +227,8 @@ async fn store(
     if let Some(id) = existing(conn, key.server_id, &run.server_run_id).await? {
         return answer_for_existing(conn, id).await;
     }
-    check_ruleset(conn, run).await?;
-
     let finished_at = DateTime::from_timestamp(run.finished_at, 0).expect("checked before storing");
+    check_ruleset(conn, run, key.server_id, finished_at).await?;
     players::record_name(conn, run.player.steamid64, &run.player.name, finished_at).await?;
     // An unknown code costs the player a flag, never their run.
     if let Some(code) = run
@@ -282,7 +281,7 @@ async fn store(
     };
     // Last: the recount holds the standings lock, which every other recount waits on, until this commits.
     if new_personal_best {
-        crate::leaderboards::standings::refresh_runs(conn, &[id]).await?;
+        crate::leaderboards::standings::refresh_stored_run(conn, id).await?;
     }
 
     Ok(Stored {
@@ -293,14 +292,23 @@ async fn store(
     })
 }
 
-/// Whether the run's ruleset version exists, ranks its style and, if it names one, allows its tickrate.
-async fn check_ruleset(conn: &mut PgConnection, run: &RunSubmission) -> Result<(), ApiError> {
+/// Whether the run's ruleset version exists, ranks its style and, if it names one, allows its tickrate, and
+/// whether the run finished after that version and its server existed. Nothing ranked can be older than both, so
+/// an earlier time is a broken clock (0 is 1970); taken as is, it would win ties and rewrite WR history.
+async fn check_ruleset(
+    conn: &mut PgConnection,
+    run: &RunSubmission,
+    server_id: i64,
+    finished_at: DateTime<Utc>,
+) -> Result<(), ApiError> {
     let ruleset = sqlx::query!(
         r#"SELECT document->'styles' @> jsonb_build_array(jsonb_build_object('key', $2::text)) AS "ranked!",
-                  (document->>'tickrate')::real AS tickrate
+                  (document->>'tickrate')::real AS tickrate,
+                  GREATEST(published_at, (SELECT created_at FROM servers WHERE id = $3)) AS "earliest!"
            FROM rulesets WHERE version = $1"#,
         run.ruleset_version,
-        run.style
+        run.style,
+        server_id
     )
     .fetch_optional(conn)
     .await?
@@ -310,6 +318,12 @@ async fn check_ruleset(conn: &mut PgConnection, run: &RunSubmission) -> Result<(
             run.ruleset_version
         ))
     })?;
+    if finished_at < ruleset.earliest - servers::CLOCK_SLACK {
+        return Err(ApiError::Invalid(format!(
+            "finished_at is before ruleset version {} or this server existed; check the server's clock",
+            run.ruleset_version
+        )));
+    }
     if !ruleset.ranked {
         return Err(ApiError::Invalid(format!(
             "style {:?} is not ranked in ruleset version {}",
@@ -439,7 +453,7 @@ pub(crate) mod tests {
     use super::RunAccepted;
     use crate::{error::ErrorBody, servers::keys, test_client};
 
-    /// Publishes a ruleset ranking `normal` and returns a fresh server key.
+    /// Publishes a ruleset ranking `normal` and returns a fresh server key, both backdated.
     pub(crate) async fn setup(db: &PgPool) -> String {
         sqlx::query(
             r#"INSERT INTO rulesets (version, document) VALUES (1, '{
@@ -451,7 +465,23 @@ pub(crate) mod tests {
         .execute(db)
         .await
         .unwrap();
-        keys::issue(db, "Test server").await.unwrap().key
+        let key = keys::issue(db, "Test server").await.unwrap().key;
+        backdate(db).await;
+        key
+    }
+
+    /// Dates every ruleset and server early in 2026, so the fixed times tests submit come after them. Rulesets
+    /// refuse changes, so this lifts that guard for the moment; each test has a database of its own.
+    pub(crate) async fn backdate(db: &PgPool) {
+        sqlx::raw_sql(
+            "ALTER TABLE rulesets DISABLE TRIGGER rulesets_immutable;
+             UPDATE rulesets SET published_at = '2026-01-01Z';
+             ALTER TABLE rulesets ENABLE TRIGGER rulesets_immutable;
+             UPDATE servers SET created_at = '2026-01-01Z';",
+        )
+        .execute(db)
+        .await
+        .unwrap();
     }
 
     /// A valid run on `bhop_badges`, normal style, main track.
@@ -555,6 +585,7 @@ pub(crate) mod tests {
     async fn the_same_run_id_from_another_server_is_a_different_run(db: PgPool) {
         let key = setup(&db).await;
         let other = keys::issue(&db, "Other server").await.unwrap().key;
+        backdate(&db).await;
 
         let first: RunAccepted = submit(&db, &key, &run("a", 30.0)).await.json();
         let second = submit(&db, &other, &run("a", 31.0)).await;
@@ -600,6 +631,44 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
+    async fn a_run_cant_finish_before_its_ruleset_or_server_existed(db: PgPool) {
+        let old_key = setup(&db).await;
+        sqlx::query("INSERT INTO rulesets (version, document) SELECT 2, document FROM rulesets WHERE version = 1")
+            .execute(&db)
+            .await
+            .unwrap();
+        let new_key = keys::issue(&db, "New server").await.unwrap().key;
+        let now = chrono::Utc::now().timestamp();
+        let at = |id: &str, finished_at: i64, ruleset: i64| {
+            let mut body = run(id, 30.0);
+            body["finished_at"] = json!(finished_at);
+            body["ruleset_version"] = json!(ruleset);
+            body
+        };
+
+        for (key, body) in [
+            (&old_key, at("a", 0, 1)),
+            (&old_key, at("b", now - 3600, 2)),
+            (&new_key, at("c", now - 3600, 1)),
+        ] {
+            let response = submit(&db, key, &body).await;
+            assert_eq!(response.status, 422, "{body}");
+            assert!(
+                response
+                    .json::<ErrorBody>()
+                    .error
+                    .contains("check the server's clock")
+            );
+        }
+        // A clock a minute behind ours is within the slack.
+        assert_eq!(
+            submit(&db, &new_key, &at("d", now - 60, 2)).await.status,
+            201
+        );
+        assert_eq!(count(&db, "runs").await, 1);
+    }
+
+    #[sqlx::test]
     async fn a_ruleset_with_a_tickrate_ranks_runs_at_that_tickrate_only(db: PgPool) {
         let key = setup(&db).await;
         sqlx::query(
@@ -609,6 +678,7 @@ pub(crate) mod tests {
         .execute(&db)
         .await
         .unwrap();
+        backdate(&db).await;
         let at = |id: &str, tickrate: f64| {
             let mut body = run(id, 30.0);
             body["ruleset_version"] = json!(2);

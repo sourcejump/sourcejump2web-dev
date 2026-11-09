@@ -1,6 +1,7 @@
 // The home page's live part, under its header: the numbers that say how busy SourceJump is (players on now, the
 // latest day's runs, the week's world records), the newest world records beside the top of the points board, then
 // the servers people are playing on now.
+import { connection } from "next/server";
 import type { CSSProperties, ReactNode } from "react";
 import { api, type Schemas } from "@/api/client";
 import { currentStyles } from "@/features/ruleset/styles";
@@ -35,6 +36,7 @@ const SERVERS = 4;
 const numbers = new Intl.NumberFormat("en");
 
 export async function LiveNow() {
+  await connection();
   // Each part shows what it has; one that can't be loaded says so, or (a fact) leaves its number out.
   const [records, servers, leaders, runs, styles] = await Promise.all([
     api

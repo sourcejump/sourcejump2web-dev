@@ -67,7 +67,9 @@ usage: sourcejump-api [command]
   privileges revoke <steamid> <privilege>...  take them away again (logged)
   privileges list            name every privilege
   legacy import <dump folder>   replace the pre-2.0 records with the old site's dump, carrying its bans over (logged)
-  world-records rebuild      recount the stored world records from the runs and say how many rows were wrong";
+  world-records rebuild      recount the stored world records from the runs and say how many rows were wrong
+  site-card <picture> <file>   draw the site's link card from a picture (web/src/features/home/header.png) into
+                             a JPEG file (web/public/link-card.jpg)";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -163,12 +165,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         ["legacy", "import", folder] => import_legacy(folder).await,
         ["world-records", "rebuild"] => rebuild_world_records().await,
+        ["site-card", picture, file] => draw_site_card(picture, file),
         ["help" | "--help"] => {
             println!("{USAGE}");
             Ok(())
         }
         _ => Err(USAGE.into()),
     }
+}
+
+fn draw_site_card(picture: &str, file: &str) -> Result<(), Box<dyn Error>> {
+    let picture = std::fs::read(picture).map_err(|error| format!("{picture}: {error}"))?;
+    std::fs::write(file, maps::card::draw::site_card(&picture)?)?;
+    println!("Drew the site's link card into {file}.");
+    Ok(())
 }
 
 async fn make_viewer_file(map: &str, file: &str) -> Result<(), Box<dyn Error>> {
@@ -405,6 +415,7 @@ async fn serve() -> Result<(), Box<dyn Error>> {
         staging.clone(),
     ));
     tokio::spawn(daily_totals::run(db.clone()));
+    tokio::spawn(maps::card::run(db.clone(), storage.clone()));
     tokio::spawn(leaderboards::standings::watch_ended_bans(db.clone()));
     tokio::spawn(record_events::run(db.clone()));
     tokio::spawn(servers::heartbeat::run(db.clone()));

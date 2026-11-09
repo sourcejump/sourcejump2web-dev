@@ -18,7 +18,7 @@ command -v musl-gcc >/dev/null || { echo "musl-gcc is missing: sudo apt install 
 (cd api && SQLX_OFFLINE=true CC_x86_64_unknown_linux_musl=musl-gcc \
   cargo build --release --locked --target x86_64-unknown-linux-musl -p sourcejump-api)
 # Standalone server, plus the static assets Next expects next to it.
-(cd web && npm run build)
+(cd web && SJ_SITE_URL="https://$SITE_ADDRESS" npm run build)
 rm -rf web/.next/standalone/.next/static
 cp -r web/.next/static web/.next/standalone/.next/static
 if [ -d web/public ]; then cp -r web/public web/.next/standalone/; fi

@@ -1,6 +1,7 @@
 //! Maps, identified by their lowercase name, and the map pages' endpoints: the map list, a map's details,
 //! its leaderboards and its WR history, each map's file for the web viewer, and the stock content it draws on.
 
+pub mod card;
 mod detail;
 pub mod image;
 mod leaderboard;

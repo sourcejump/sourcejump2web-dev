@@ -2,11 +2,13 @@
 // first. Staff with manage_servers also see unlisted servers there, and list or unlist them in place. From sm
 // up this is one board; combining the chart and the list into one board read badly on a phone, so it keeps
 // them as two boards there.
+import { connection } from "next/server";
 import { api } from "@/api/client";
 import { ServerActivity } from "./ServerActivity";
 import { ServerRows } from "./ServerRows";
 
 export async function ServerList() {
+  await connection();
   const [result, day, week, month, year] = await Promise.all([
     api.GET("/v1/servers").catch(() => undefined),
     ...(["day", "week", "month", "year"] as const).map((range) =>

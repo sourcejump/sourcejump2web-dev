@@ -661,9 +661,9 @@ mod tests {
     async fn searches_current_main_track_record_holders_in_the_selected_style(db: PgPool) {
         let key = setup(&db).await;
         sqlx::query(
-            r#"INSERT INTO rulesets (version, document)
+            r#"INSERT INTO rulesets (version, document, published_at)
                SELECT 2, jsonb_set(document, '{styles}',
-                   (document->'styles') || '[{"key":"sw","name":"Sideways","settings":{}}]'::jsonb)
+                   (document->'styles') || '[{"key":"sw","name":"Sideways","settings":{}}]'::jsonb), published_at
                FROM rulesets WHERE version = 1"#,
         )
         .execute(&db)

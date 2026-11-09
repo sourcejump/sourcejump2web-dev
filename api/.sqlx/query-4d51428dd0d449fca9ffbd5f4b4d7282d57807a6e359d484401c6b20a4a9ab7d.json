@@ -1,0 +1,86 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT m.id AS \"id!\", m.name AS \"name!\", i.key AS \"cover?\", t.tier AS \"tier?\", c.key AS \"card?\", c.made_from AS \"made_from?\"\n        FROM maps m\n        LEFT JOIN map_images i ON i.map_id = m.id AND i.position = 0\n        LEFT JOIN current_map_tiers t ON t.map_id = m.id AND t.track = 0\n        LEFT JOIN map_cards c ON c.map_id = m.id\n        WHERE i.key IS NOT NULL OR c.map_id IS NOT NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "cover?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "tier?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "current_map_tiers",
+            "name": "tier"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "card?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_cards",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "made_from?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_cards",
+            "name": "made_from"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "4d51428dd0d449fca9ffbd5f4b4d7282d57807a6e359d484401c6b20a4a9ab7d"
+}
