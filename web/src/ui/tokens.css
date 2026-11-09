@@ -8,27 +8,24 @@
 @theme {
   --color-*: initial;
 
-  /*
-   * The old sourcejump.net's colors, brought up to date. `gutter` is the continuous page background;
-   * `bg` is an inset surface, followed by the raised surfaces, darkest to lightest.
-   */
-  --color-gutter: #121822;
-  --color-bg: #1d2636;
-  --color-surface: #222c40;
-  --color-surface-raised: #29354b;
-  --color-surface-overlay: #303d57;
-  --color-border: #2e3b54;
-  --color-border-strong: #3d4f70;
+  /* `gutter` is the continuous page background, followed by the inset and raised surfaces. */
+  --color-gutter: #111418;
+  --color-bg: #171c22;
+  --color-surface: #1b2129;
+  --color-surface-raised: #232b35;
+  --color-surface-overlay: #2b3541;
+  --color-border: #2b333e;
+  --color-border-strong: #3b4a5c;
 
-  --color-text: #e1e9f5;
-  --color-text-muted: #9db0cc;
-  --color-text-subtle: #7387a5;
+  --color-text: #e5ebf2;
+  --color-text-muted: #a7b4c4;
+  --color-text-subtle: #919eae;
 
   /* The one accent. `on-accent` is text on an accent fill. */
-  --color-accent: #00c8f0;
-  --color-accent-hover: #4dd9f6;
-  --color-accent-soft: rgb(0 200 240 / 0.12);
-  --color-on-accent: #002a33;
+  --color-accent: #55c3f1;
+  --color-accent-hover: #82d5f5;
+  --color-accent-soft: rgb(85 195 241 / 0.12);
+  --color-on-accent: #071b29;
 
   --color-success: #4cc38a;
   --color-success-soft: rgb(76 195 138 / 0.12);
