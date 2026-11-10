@@ -6088,7 +6088,7 @@
         "tags": [
           "staff"
         ],
-        "summary": "Every map's stored viewer file, for staff uploading many at once.",
+        "summary": "Every map's stored viewer file, and the maps with runs that still need one, for staff uploading many at\nonce.",
         "operationId": "list_viewer_files",
         "responses": {
           "200": {
@@ -8212,6 +8212,30 @@
           "steamid64": {
             "type": "string",
             "description": "SteamID64, as a string."
+          }
+        }
+      },
+      "MissingViewerFile": {
+        "type": "object",
+        "description": "A map with runs but no viewer file, so none of its replays can be watched yet.",
+        "required": [
+          "map",
+          "runs",
+          "replays"
+        ],
+        "properties": {
+          "map": {
+            "type": "string"
+          },
+          "replays": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Its stored replays: the ones waiting on the file."
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Its valid runs."
           }
         }
       },
@@ -11136,7 +11160,8 @@
       "StoredViewerFiles": {
         "type": "object",
         "required": [
-          "files"
+          "files",
+          "missing"
         ],
         "properties": {
           "files": {
@@ -11145,6 +11170,13 @@
               "$ref": "#/components/schemas/StoredViewerFile"
             },
             "description": "Every map that has a viewer file, by name."
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingViewerFile"
+            },
+            "description": "Every map with a valid run and no viewer file, most stored replays first, then most runs."
           }
         }
       },

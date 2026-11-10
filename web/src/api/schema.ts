@@ -1477,7 +1477,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every map's stored viewer file, for staff uploading many at once. */
+        /**
+         * Every map's stored viewer file, and the maps with runs that still need one, for staff uploading many at
+         *     once.
+         */
         get: operations["list_viewer_files"];
         put?: never;
         post?: never;
@@ -2343,6 +2346,20 @@ export interface components {
             privileges: components["schemas"]["Privilege"][];
             /** @description SteamID64, as a string. */
             steamid64: string;
+        };
+        /** @description A map with runs but no viewer file, so none of its replays can be watched yet. */
+        MissingViewerFile: {
+            map: string;
+            /**
+             * Format: int64
+             * @description Its stored replays: the ones waiting on the file.
+             */
+            replays: number;
+            /**
+             * Format: int64
+             * @description Its valid runs.
+             */
+            runs: number;
         };
         /** @description A map that joined the list recently. */
         NewestMap: {
@@ -3516,6 +3533,8 @@ export interface components {
         StoredViewerFiles: {
             /** @description Every map that has a viewer file, by name. */
             files: components["schemas"]["StoredViewerFile"][];
+            /** @description Every map with a valid run and no viewer file, most stored replays first, then most runs. */
+            missing: components["schemas"]["MissingViewerFile"][];
         };
         /** @enum {string} */
         StyleFlag: "nolandfix" | "autosync";

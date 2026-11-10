@@ -2,10 +2,11 @@
 // The Maps page's "Map files" tab, for staff: viewer files for many maps at once. Staff drop the folder
 // `sj-pack` packed (or its `packed` folder), or a folder of maps that the page packs itself, one per worker.
 // Maps that already have a file are left alone unless staff choose to replace them; a map packed here whose
-// stripped copy matches the stored one is skipped either way.
+// stripped copy matches the stored one is skipped either way. Below, the maps with runs that still need a file.
 import { FolderUp, Play, Square } from "lucide-react";
 import { type DragEvent, useEffect, useRef, useState } from "react";
 import { api, failureMessage } from "@/api/client";
+import type { components } from "@/api/schema";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
@@ -24,6 +25,7 @@ import {
   type Refused,
   sortFiles,
 } from "./bulkUpload";
+import { MissingViewerFiles } from "./MissingViewerFiles";
 import { uploadViewerFile } from "./uploadViewerFile";
 import { packMap } from "./viewerPack";
 
@@ -57,6 +59,9 @@ const LANES = Math.min(
 
 export function BulkUpload() {
   const [stored, setStored] = useState<Map<string, Stored> | null>(null);
+  const [missing, setMissing] = useState<
+    components["schemas"]["MissingViewerFile"][] | null
+  >(null);
   const [loadFailure, setLoadFailure] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [refused, setRefused] = useState<Refused[]>([]);
@@ -77,6 +82,7 @@ export function BulkUpload() {
           );
           return;
         }
+        setMissing(data.missing);
         setStored(
           new Map(
             data.files.map((file) => [
@@ -336,6 +342,12 @@ export function BulkUpload() {
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {missing && stored && (
+        <MissingViewerFiles
+          maps={missing.filter((map) => !stored.has(map.map))}
+        />
       )}
     </div>
   );

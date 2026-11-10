@@ -1,4 +1,4 @@
-// The footer on every page: the ruleset, and SourceJump's community elsewhere.
+// The footer on every page: help, the ruleset, and SourceJump's community elsewhere.
 import { Link } from "@/ui/Link";
 
 /** SourceJump's own pages on other sites. The Discord invite is the one the plugin spec links to. */
@@ -19,6 +19,11 @@ export function SiteFooter() {
         <p>SourceJump: global records for Counter-Strike: Source bunnyhop.</p>
         <nav aria-label="Footer">
           <ul className="flex flex-wrap gap-6">
+            <li>
+              <Link href="/help" className="hover:text-text">
+                Help
+              </Link>
+            </li>
             <li>
               <Link href="/ruleset" className="hover:text-text">
                 Ruleset

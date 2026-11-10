@@ -177,13 +177,26 @@ pub struct StoredViewerFile {
     pub bytes: i64,
 }
 
+/// A map with runs but no viewer file, so none of its replays can be watched yet.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct MissingViewerFile {
+    pub map: String,
+    /// Its valid runs.
+    pub runs: i64,
+    /// Its stored replays: the ones waiting on the file.
+    pub replays: i64,
+}
+
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct StoredViewerFiles {
     /// Every map that has a viewer file, by name.
     pub files: Vec<StoredViewerFile>,
+    /// Every map with a valid run and no viewer file, most stored replays first, then most runs.
+    pub missing: Vec<MissingViewerFile>,
 }
 
-/// Every map's stored viewer file, for staff uploading many at once.
+/// Every map's stored viewer file, and the maps with runs that still need one, for staff uploading many at
+/// once.
 #[utoipa::path(
     get,
     path = "/v1/staff/viewer-files",
@@ -217,7 +230,25 @@ pub async fn list_viewer_files(
             bytes: row.stored_bytes,
         })
         .collect();
-    Ok(Json(StoredViewerFiles { files }))
+    // Invalidated runs don't count: their replays aren't shown, so a map with only those needs no file yet.
+    let missing = sqlx::query_as!(
+        MissingViewerFile,
+        r#"
+        SELECT m.name AS map, count(*) AS "runs!", count(rp.stored_key) AS "replays!"
+        FROM runs r
+        JOIN maps m ON m.id = r.map_id
+        LEFT JOIN replays rp ON rp.run_id = r.id
+        WHERE r.invalidated_at IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM map_viewer_files f WHERE f.map_id = m.id AND f.object_key IS NOT NULL
+          )
+        GROUP BY m.name
+        ORDER BY 3 DESC, 2 DESC, m.name
+        "#
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(StoredViewerFiles { files, missing }))
 }
 
 /// The hash in a key `upload_viewer_file` made: `maps/viewer/{map}-{hash}.bsp`.
@@ -322,6 +353,7 @@ mod tests {
         auth::sessions,
         maps::{MapName, viewer_file::of_map},
         players::privileges::Privilege,
+        runs::tests::{run, setup},
         staff::{ChangeError, maps::tests::session},
         storage::{Staging, Storage},
         test_client::{self, TestResponse},
@@ -525,6 +557,60 @@ mod tests {
         )
         .await;
         assert_eq!(refused.status, 403);
+    }
+
+    #[sqlx::test]
+    async fn maps_with_runs_and_no_file_are_listed_as_missing(db: PgPool) {
+        let state = AppState::for_tests(db.clone());
+        let key = setup(&db).await;
+        // Two runs on bhop_badges, one with a stored replay; one run on bhop_other, invalidated.
+        test_client::post(&db, "/v1/runs", Some(&key), &run("a", 30.0)).await;
+        test_client::post(&db, "/v1/runs", Some(&key), &run("b", 29.0)).await;
+        sqlx::query(
+            "UPDATE replays SET stored_key = 'replays/1.sjr', stored_at = now(), raw_bytes = 1, stored_bytes = 1
+             WHERE run_id = (SELECT min(run_id) FROM replays)",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        let mut other = run("c", 40.0);
+        other["map"] = "bhop_other".into();
+        test_client::post(&db, "/v1/runs", Some(&key), &other).await;
+        sqlx::query(
+            "WITH entry AS (
+                 INSERT INTO staff_log (action, target, reason) VALUES ('invalidate_run', 'x', 'x') RETURNING id
+             )
+             UPDATE runs SET invalidated_at = now(), invalidated_by = (SELECT id FROM entry)
+             WHERE map_id = (SELECT id FROM maps WHERE name = 'bhop_other')",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+        let maps = session(&db, STAFF, &[Privilege::ManageMaps]).await;
+        let list = |state: AppState, token: String| async move {
+            let response = send(
+                &state,
+                "GET",
+                "/v1/staff/viewer-files",
+                &token,
+                Body::empty(),
+            )
+            .await;
+            response.json::<StoredViewerFiles>().missing
+        };
+
+        let missing = list(state.clone(), maps.clone()).await;
+        assert_eq!(missing.len(), 1);
+        assert_eq!(
+            (missing[0].map.as_str(), missing[0].runs, missing[0].replays),
+            ("bhop_badges", 2, 1)
+        );
+
+        let badges = MapName::try_from("bhop_badges".to_owned()).unwrap();
+        upload_viewer_file(&db, &state.storage, None, &badges, packed(20))
+            .await
+            .unwrap();
+        assert!(list(state, maps).await.is_empty());
     }
 
     #[sqlx::test]

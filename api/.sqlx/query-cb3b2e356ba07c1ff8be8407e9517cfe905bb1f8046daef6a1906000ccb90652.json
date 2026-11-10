@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT m.name AS map, count(*) AS \"runs!\", count(rp.stored_key) AS \"replays!\"\n        FROM runs r\n        JOIN maps m ON m.id = r.map_id\n        LEFT JOIN replays rp ON rp.run_id = r.id\n        WHERE r.invalidated_at IS NULL\n          AND NOT EXISTS (\n              SELECT 1 FROM map_viewer_files f WHERE f.map_id = m.id AND f.object_key IS NOT NULL\n          )\n        GROUP BY m.name\n        ORDER BY 3 DESC, 2 DESC, m.name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "map",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "runs!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "replays!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "cb3b2e356ba07c1ff8be8407e9517cfe905bb1f8046daef6a1906000ccb90652"
+}

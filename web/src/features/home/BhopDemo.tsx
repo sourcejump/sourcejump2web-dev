@@ -17,8 +17,6 @@ import { simulateStrafes, tickSeconds, type StrafeTick } from "./strafeSim";
 const SECONDS = 9.5;
 // Once the run ends it fades out, then starts again.
 const FADE_SECONDS = 0.6;
-// How long the jump key stays lit after a jump, so it's visible at 60 frames a second.
-const JUMP_LIT_TICKS = 12;
 // With reduced motion the demo shows one still moment, late enough that several hops are behind it.
 const STILL_TICK = 620;
 
@@ -122,7 +120,6 @@ export function BhopDemo() {
   const tick = ticks[index]!;
   const hop = landings.filter((landing) => landing <= index).length;
   const lastLanding = landings[hop - 1] ?? 0;
-  const jumping = index - lastLanding < JUMP_LIT_TICKS;
   const [playerX, playerY] = project(now.x, now.y, now.z);
   const [shadowX, shadowY] = project(now.x, now.y, -FLOOR);
   const [cameraX] = project(now.x, 0, 0);
@@ -217,7 +214,8 @@ export function BhopDemo() {
             </Keycap>
             <Keycap>S</Keycap>
             <Keycap on={tick.key === "D"}>D</Keycap>
-            <Keycap on={jumping} className="col-span-3">
+            {/* Held throughout: with auto-bhop, the style most people play, the player never times a jump. */}
+            <Keycap on className="col-span-3">
               Jump
             </Keycap>
           </div>
@@ -237,7 +235,7 @@ export function BhopDemo() {
         </div>
         <div className="bg-bg/70 flex flex-col items-end rounded-md px-3 py-2">
           <span className="text-text-subtle text-xs tracking-widest uppercase">
-            Hop {Math.max(hop, 1)}
+            Speed
           </span>
           <span className="text-2xl leading-none font-bold tabular-nums sm:text-3xl">
             {Math.round(now.speed)}
