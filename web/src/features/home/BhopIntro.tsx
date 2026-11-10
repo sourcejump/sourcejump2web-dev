@@ -41,7 +41,18 @@ export function BhopIntro() {
           Bunnyhopping is a way of moving in Source games: by jumping and
           strafing in the air, you build speed far past the normal running
           limit. Bhop maps are courses run against the clock, and SourceJump
-          keeps the global records.
+          keeps the global records.{" "}
+          <Link
+            href="/help"
+            aria-label="Read more about bhop and SourceJump"
+            className="text-accent group inline-flex items-center gap-1 font-bold underline-offset-4 hover:underline"
+          >
+            Read more
+            <ArrowRight
+              aria-hidden
+              className="size-4 transition-transform duration-(--duration-fast) group-hover:translate-x-0.5"
+            />
+          </Link>
         </p>
       </div>
       <BhopDemo />
@@ -56,16 +67,6 @@ export function BhopIntro() {
           </li>
         ))}
       </ol>
-      <Link
-        href="/help"
-        className="text-accent group flex items-center gap-1 self-start text-sm font-bold"
-      >
-        How bhop works, step by step
-        <ArrowRight
-          aria-hidden
-          className="size-4 transition-transform duration-(--duration-fast) group-hover:translate-x-0.5"
-        />
-      </Link>
     </section>
   );
 }

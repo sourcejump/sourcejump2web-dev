@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT count(*) AS \"count!\" FROM legacy_maps m\n                   WHERE EXISTS (SELECT 1 FROM legacy_runs r WHERE r.map_id = m.id)",
+  "query": "SELECT count(*) AS \"count!\" FROM legacy_maps WHERE has_runs",
   "describe": {
     "columns": [
       {
@@ -17,5 +17,5 @@
       null
     ]
   },
-  "hash": "07baebf297e50075ed39f8adf4019c2a08cd219ba0591f7a97a746dc84b8d1a2"
+  "hash": "1382e3ef6f85b3c56df894d046e11be16d178486551a113db425b08468591601"
 }

@@ -221,30 +221,36 @@ async fn sign_out_everywhere(
     ))
 }
 
-/// The signed-in player, from the session cookie.
+/// The signed-in player, from the session cookie, or `null` for a visitor who isn't signed in.
+///
+/// Not a `401`: public pages ask on every visit, and a failed request shows as an error in the visitor's
+/// console.
 #[utoipa::path(
     get,
     path = "/v1/me",
     tag = "auth",
-    responses(
-        (status = OK, body = Me),
-        (status = UNAUTHORIZED, description = "Not signed in", body = ErrorBody),
-    ),
+    responses((status = OK, description = "The player, or `null` when not signed in", body = Option<Me>)),
 )]
-async fn me(State(state): State<AppState>, signed_in: SignedIn) -> Result<Json<Me>, ApiError> {
+async fn me(
+    State(state): State<AppState>,
+    signed_in: Option<SignedIn>,
+) -> Result<Json<Option<Me>>, ApiError> {
+    let Some(signed_in) = signed_in else {
+        return Ok(Json(None));
+    };
     let player = sqlx::query!(
         "SELECT name, avatar_url, country_code FROM players WHERE steamid64 = $1",
         signed_in.steamid64.get()
     )
     .fetch_one(&state.db)
     .await?;
-    Ok(Json(Me {
+    Ok(Json(Some(Me {
         steamid64: signed_in.steamid64.to_string(),
         name: player.name,
         avatar_url: player.avatar_url,
         country_code: player.country_code,
         privileges: signed_in.privileges.list(),
-    }))
+    })))
 }
 
 #[cfg(test)]
@@ -339,6 +345,13 @@ mod tests {
         test_client::send_to(state.clone(), request).await
     }
 
+    /// Whether `GET /v1/me` names a player for this session token.
+    async fn signed_in(state: &AppState, token: &str) -> bool {
+        let response = me_with(state, token).await;
+        assert_eq!(response.status, 200);
+        !response.json::<serde_json::Value>().is_null()
+    }
+
     #[sqlx::test]
     async fn signing_in_starts_a_session(db: PgPool) {
         let state = state(&db, fake_steam(true).await);
@@ -404,13 +417,13 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn me_needs_a_live_session(db: PgPool) {
+    async fn me_is_null_without_a_live_session(db: PgPool) {
         let state = state(&db, Steam::new());
-        assert_eq!(me_with(&state, "not-a-session").await.status, 401);
+        assert!(!signed_in(&state, "not-a-session").await);
         let anonymous =
             test_client::send_to(state, Request::get("/v1/me").body(Body::empty()).unwrap()).await;
-        assert_eq!(anonymous.status, 401);
-        assert!(anonymous.headers.get(header::WWW_AUTHENTICATE).is_none());
+        assert_eq!(anonymous.status, 200);
+        assert!(anonymous.json::<serde_json::Value>().is_null());
     }
 
     #[sqlx::test]
@@ -429,12 +442,12 @@ mod tests {
         };
 
         assert_eq!(sign_out("https://evil.example").await.status, 403);
-        assert_eq!(me_with(&state, &token).await.status, 200);
+        assert!(signed_in(&state, &token).await);
 
         let response = sign_out("https://sourcejump.test").await;
         assert_eq!(response.status, 303);
         assert_eq!(response.headers[header::LOCATION], "/maps");
-        assert_eq!(me_with(&state, &token).await.status, 401);
+        assert!(!signed_in(&state, &token).await);
     }
 
     #[sqlx::test]
@@ -462,16 +475,16 @@ mod tests {
             sign_out_everywhere("https://evil.example").await.status,
             403
         );
-        assert_eq!(me_with(&state, &elsewhere).await.status, 200);
+        assert!(signed_in(&state, &elsewhere).await);
 
         let response = sign_out_everywhere("https://sourcejump.test").await;
         assert_eq!(response.status, 303);
         assert_eq!(response.headers[header::LOCATION], "/maps");
         let removed = set_cookie(&response, "sj_session").expect("the session cookie is removed");
         assert!(removed.starts_with("sj_session=;"), "{removed}");
-        assert_eq!(me_with(&state, &token).await.status, 401);
-        assert_eq!(me_with(&state, &elsewhere).await.status, 401);
-        assert_eq!(me_with(&state, &someone_else).await.status, 200);
+        assert!(!signed_in(&state, &token).await);
+        assert!(!signed_in(&state, &elsewhere).await);
+        assert!(signed_in(&state, &someone_else).await);
 
         // Again without a live session: nothing to end, and the same way back.
         let again = sign_out_everywhere("https://sourcejump.test").await;

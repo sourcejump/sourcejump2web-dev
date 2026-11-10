@@ -203,32 +203,29 @@ async fn current(
 }
 
 /// A page of legacy standings and how many there are, leaving out players banned from records as every
-/// legacy view does.
+/// legacy view does. Ranks and places are stored by the recount (`standings.rs`), so only the page is read.
 async fn legacy(db: &sqlx::PgPool, page: Page) -> Result<(i64, Vec<ListedStanding>), sqlx::Error> {
     let rows = sqlx::query!(
         r#"
         WITH shown AS (
-            SELECT s.player_steamid64, s.points, s.completed, p.name, p.avatar_url, p.country_code
-            FROM legacy_standings s JOIN legacy_players p ON p.steamid64 = s.player_steamid64
+            SELECT s.player_steamid64, s.points, s.completed,
+                   CASE WHEN $1 THEN s.points_rank ELSE s.completed_rank END AS rank,
+                   CASE WHEN $1 THEN s.points_place ELSE s.completed_place END AS place
+            FROM legacy_standings s
             WHERE (NOT $1 OR s.points > 0) AND NOT EXISTS (
                 SELECT 1 FROM records_bans b WHERE b.player_steamid64 = s.player_steamid64
             )
-        ), ranked AS (
-            SELECT shown.*,
-                   CASE WHEN $1 THEN rank() OVER (ORDER BY round(points) DESC)
-                        ELSE rank() OVER (ORDER BY completed DESC) END AS rank,
-                   row_number() OVER (ORDER BY CASE WHEN $1 THEN points ELSE completed END DESC,
-                                               lower(name), player_steamid64) AS position
-            FROM shown
         ), page AS (
-            SELECT * FROM ranked WHERE position > $2 ORDER BY position LIMIT $3
+            SELECT shown.*, p.name, p.avatar_url, p.country_code
+            FROM (SELECT * FROM shown WHERE place > $2::int8 ORDER BY place LIMIT $3) shown
+            JOIN legacy_players p ON p.steamid64 = shown.player_steamid64
         )
-        SELECT (SELECT count(*) FROM ranked) AS "total!", page.rank AS "rank?",
+        SELECT (SELECT count(*) FROM shown) AS "total!", page.rank::int8 AS "rank?",
                round(page.points)::int8 AS "points?", page.completed::int8 AS "completed?",
                page.player_steamid64::text AS "steamid64?", page.name AS "name?",
                page.avatar_url AS "avatar_url?", page.country_code AS "country_code?"
         FROM (SELECT 1) one LEFT JOIN page ON true
-        ORDER BY page.position
+        ORDER BY page.place
         "#,
         page.by_points,
         page.offset,

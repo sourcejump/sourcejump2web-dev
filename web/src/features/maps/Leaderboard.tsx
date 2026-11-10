@@ -11,10 +11,10 @@ import { RunLink } from "@/features/runs/RunLink";
 import { formatDate, formatGap, formatTime } from "@/features/runs/time";
 import { Avatar } from "@/ui/Avatar";
 import { Badge } from "@/ui/Badge";
-import { Button } from "@/ui/Button";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
 import { Medal } from "@/ui/Medal";
+import { ListFooter } from "@/ui/ListFooter";
 import {
   Table,
   TableBody,
@@ -149,11 +149,20 @@ export function Leaderboard({
             <TableHeaderCell className="w-16">Place</TableHeaderCell>
             <TableHeaderCell>Player</TableHeaderCell>
             <TableHeaderCell numeric>Time</TableHeaderCell>
+            {/* A phone shows place, player and time; the run's dialog, opened from the time, has the rest. */}
             <TableHeaderCell numeric>Gap</TableHeaderCell>
-            <TableHeaderCell numeric>Jumps</TableHeaderCell>
-            <TableHeaderCell numeric>Strafes</TableHeaderCell>
-            <TableHeaderCell numeric>Sync</TableHeaderCell>
-            <TableHeaderCell numeric>Date</TableHeaderCell>
+            <TableHeaderCell numeric className="hidden md:table-cell">
+              Jumps
+            </TableHeaderCell>
+            <TableHeaderCell numeric className="hidden md:table-cell">
+              Strafes
+            </TableHeaderCell>
+            <TableHeaderCell numeric className="hidden md:table-cell">
+              Sync
+            </TableHeaderCell>
+            <TableHeaderCell numeric className="hidden sm:table-cell">
+              Date
+            </TableHeaderCell>
           </tr>
         </TableHead>
         <TableBody>
@@ -182,27 +191,16 @@ export function Leaderboard({
           </TableBody>
         )}
       </Table>
-      <div className="flex items-center justify-between gap-4">
-        <span className="text-text-muted text-sm tabular-nums">
-          {entries.length === page.total
+      <ListFooter
+        summary={
+          entries.length === page.total
             ? `All ${page.total} players`
-            : `Top ${entries.length} of ${page.total} players`}
-        </span>
-        {failed && (
-          <span className="text-danger text-sm">
-            More couldn&apos;t be loaded. Try again.
-          </span>
-        )}
-        {cursor && (
-          <Button
-            size="sm"
-            onClick={() => void showMore(cursor)}
-            disabled={loading}
-          >
-            {loading ? "Loading…" : "Show more"}
-          </Button>
-        )}
-      </div>
+            : `Top ${entries.length} of ${page.total} players`
+        }
+        onShowMore={cursor ? () => void showMore(cursor) : undefined}
+        loading={loading}
+        failed={failed}
+      />
     </div>
   );
 }
@@ -242,9 +240,13 @@ function EntryRow({
               src={entry.player.avatar_url ?? undefined}
               size="sm"
             />
-            {entry.player.name}
+            <span className="max-w-24 truncate sm:max-w-none">
+              {entry.player.name}
+            </span>
           </Link>
-          <Flag code={entry.player.country_code} />
+          <span className="hidden sm:contents">
+            <Flag code={entry.player.country_code} />
+          </span>
           {entry.legacy && <LegacyBadge />}
         </span>
       </TableCell>
@@ -264,16 +266,16 @@ function EntryRow({
           formatGap(entry.time - fastest)
         )}
       </TableCell>
-      <TableCell numeric className="text-text-muted">
+      <TableCell numeric className="text-text-muted hidden md:table-cell">
         {entry.jumps}
       </TableCell>
-      <TableCell numeric className="text-text-muted">
+      <TableCell numeric className="text-text-muted hidden md:table-cell">
         {entry.strafes}
       </TableCell>
-      <TableCell numeric className="text-text-muted">
+      <TableCell numeric className="text-text-muted hidden md:table-cell">
         {sync.format(entry.sync)}%
       </TableCell>
-      <TableCell numeric className="text-text-muted">
+      <TableCell numeric className="text-text-muted hidden sm:table-cell">
         {entry.finished_at ? (
           <time dateTime={entry.finished_at}>
             {formatDate(entry.finished_at)}

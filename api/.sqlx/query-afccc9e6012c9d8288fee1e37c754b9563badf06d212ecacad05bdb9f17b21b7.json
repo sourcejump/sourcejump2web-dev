@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        WITH shown AS (\n            SELECT s.player_steamid64, s.points, s.completed, p.name, p.avatar_url, p.country_code\n            FROM legacy_standings s JOIN legacy_players p ON p.steamid64 = s.player_steamid64\n            WHERE (NOT $1 OR s.points > 0) AND NOT EXISTS (\n                SELECT 1 FROM records_bans b WHERE b.player_steamid64 = s.player_steamid64\n            )\n        ), ranked AS (\n            SELECT shown.*,\n                   CASE WHEN $1 THEN rank() OVER (ORDER BY round(points) DESC)\n                        ELSE rank() OVER (ORDER BY completed DESC) END AS rank,\n                   row_number() OVER (ORDER BY CASE WHEN $1 THEN points ELSE completed END DESC,\n                                               lower(name), player_steamid64) AS position\n            FROM shown\n        ), page AS (\n            SELECT * FROM ranked WHERE position > $2 ORDER BY position LIMIT $3\n        )\n        SELECT (SELECT count(*) FROM ranked) AS \"total!\", page.rank AS \"rank?\",\n               round(page.points)::int8 AS \"points?\", page.completed::int8 AS \"completed?\",\n               page.player_steamid64::text AS \"steamid64?\", page.name AS \"name?\",\n               page.avatar_url AS \"avatar_url?\", page.country_code AS \"country_code?\"\n        FROM (SELECT 1) one LEFT JOIN page ON true\n        ORDER BY page.position\n        ",
+  "query": "\n        WITH shown AS (\n            SELECT s.player_steamid64, s.points, s.completed,\n                   CASE WHEN $1 THEN s.points_rank ELSE s.completed_rank END AS rank,\n                   CASE WHEN $1 THEN s.points_place ELSE s.completed_place END AS place\n            FROM legacy_standings s\n            WHERE (NOT $1 OR s.points > 0) AND NOT EXISTS (\n                SELECT 1 FROM records_bans b WHERE b.player_steamid64 = s.player_steamid64\n            )\n        ), page AS (\n            SELECT shown.*, p.name, p.avatar_url, p.country_code\n            FROM (SELECT * FROM shown WHERE place > $2::int8 ORDER BY place LIMIT $3) shown\n            JOIN legacy_players p ON p.steamid64 = shown.player_steamid64\n        )\n        SELECT (SELECT count(*) FROM shown) AS \"total!\", page.rank::int8 AS \"rank?\",\n               round(page.points)::int8 AS \"points?\", page.completed::int8 AS \"completed?\",\n               page.player_steamid64::text AS \"steamid64?\", page.name AS \"name?\",\n               page.avatar_url AS \"avatar_url?\", page.country_code AS \"country_code?\"\n        FROM (SELECT 1) one LEFT JOIN page ON true\n        ORDER BY page.place\n        ",
   "describe": {
     "columns": [
       {
@@ -85,5 +85,5 @@
       true
     ]
   },
-  "hash": "cf8a2824ab69abe86e493d89c35959613cd6cab2256f9a28e04c83b5ff3895d5"
+  "hash": "afccc9e6012c9d8288fee1e37c754b9563badf06d212ecacad05bdb9f17b21b7"
 }

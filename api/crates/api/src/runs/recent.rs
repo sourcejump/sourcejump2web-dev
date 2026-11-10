@@ -52,6 +52,9 @@ pub struct RecentRuns {
     pub runs: Vec<RecentRun>,
     /// Pass as `cursor` for the runs before these. None at the end.
     pub next_cursor: Option<String>,
+    /// How many runs match the filters. Only on the first page (no `cursor`): counting reads every matching
+    /// run, which a list that loads a page at a time shouldn't pay for again on each page.
+    pub total: Option<i64>,
     /// Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier.
     pub tier_count: Option<i16>,
 }
@@ -110,10 +113,15 @@ pub async fn recent_runs(
         return Ok(Json(RecentRuns {
             runs: Vec::new(),
             next_cursor: None,
+            total: after.is_none().then_some(0),
             tier_count,
         }));
     }
 
+    let total = match after {
+        None => Some(total(&state.db, &query, tier_count.is_some()).await?),
+        Some(_) => None,
+    };
     let mut runs = page(&state.db, &query, after, limit + 1, tier_count.is_some()).await?;
     let limit = usize::try_from(limit).expect("checked to be positive");
     let next_cursor = (runs.len() > limit).then(|| {
@@ -123,6 +131,7 @@ pub async fn recent_runs(
     Ok(Json(RecentRuns {
         runs,
         next_cursor: next_cursor.flatten(),
+        total,
         tier_count,
     }))
 }
@@ -140,6 +149,42 @@ async fn position(db: &PgPool, cursor: &str) -> Result<Position, ApiError> {
     Ok((finished_at, run_id))
 }
 
+fn track_kind(query: &RecentRunsQuery) -> Option<&'static str> {
+    query.track.map(|track| match track {
+        TrackKind::Main => "main",
+        TrackKind::Bonus => "bonus",
+    })
+}
+
+/// How many valid runs match the filters, the same ones `page` applies.
+async fn total(
+    db: &PgPool,
+    query: &RecentRunsQuery,
+    tiers_in_force: bool,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"
+        SELECT count(*) AS "total!" FROM runs r
+        WHERE r.invalidated_at IS NULL
+          AND (NOT $4 OR r.was_record)
+          AND ($1::text IS NULL OR r.style = $1)
+          AND ($2::text IS NULL OR ($2 = 'main') = (r.track = 0))
+          AND ($3::smallint IS NULL OR (
+              SELECT t.tier FROM map_tiers t
+              WHERE $5 AND t.map_id = r.map_id AND t.track = r.track
+              ORDER BY t.assigned_at DESC LIMIT 1
+          ) >= $3)
+        "#,
+        query.style,
+        track_kind(query),
+        query.min_tier,
+        query.records.unwrap_or(false),
+        tiers_in_force
+    )
+    .fetch_one(db)
+    .await
+}
+
 async fn page(
     db: &PgPool,
     query: &RecentRunsQuery,
@@ -147,22 +192,27 @@ async fn page(
     limit: i64,
     tiers_in_force: bool,
 ) -> Result<Vec<RecentRun>, sqlx::Error> {
-    let track = query.track.map(|track| match track {
-        TrackKind::Main => "main",
-        TrackKind::Bonus => "bonus",
-    });
+    let track = track_kind(query);
     // "Before" a run means earlier on its board in WR history's order: finish time, then ID. Whether a run
     // was a record is the stored `was_record` (`leaderboards/world_records.rs`), which the records filter reads
     // through its own index. `prior`, the
     // board's best before the run, and placements are worked out for the page's runs alone, reading the
     // board's earlier runs through the `runs_map` index.
+    // A run's tier is looked up per run, one probe of `map_tiers`' key, so the list is read newest first
+    // through `runs_recent` and stops at the page's last run. Joining `current_map_tiers` instead builds
+    // every map's tier first, and under a prepared statement's generic plan compared each run with all of
+    // them: 290 ms for `min_tier` on the beta's 3,000 runs (measured 2026-11-10), 5 ms this way.
     let rows = sqlx::query!(
         r#"
         WITH listed AS (
             SELECT r.id, r.map_id, r.style, r.track, r.player_steamid64, r.time, r.finished_at, r.was_record,
                    tier.tier
             FROM runs r
-            LEFT JOIN current_map_tiers tier ON $7 AND tier.map_id = r.map_id AND tier.track = r.track
+            LEFT JOIN LATERAL (
+                SELECT t.tier FROM map_tiers t
+                WHERE $7 AND t.map_id = r.map_id AND t.track = r.track
+                ORDER BY t.assigned_at DESC LIMIT 1
+            ) tier ON true
             WHERE r.invalidated_at IS NULL
               AND (NOT $4 OR r.was_record)
               AND ($1::text IS NULL OR r.style = $1)
@@ -346,12 +396,27 @@ mod tests {
         );
         let records = list(&db, "?records=true&track=main").await;
         assert_eq!(records.len(), 2);
+        // The total counts what the filters match, whatever the page size.
+        let total = async |query: &str| {
+            let page: RecentRuns = test_client::get(&db, &format!("/v1/runs{query}"))
+                .await
+                .json();
+            page.total
+        };
+        assert_eq!(total("?limit=1").await, Some(5));
+        assert_eq!(total("?records=true&track=main&limit=1").await, Some(2));
+        assert_eq!(total("?style=sw").await, Some(0));
         assert_eq!(list(&db, "?track=bonus").await.len(), 1);
         assert_eq!(list(&db, "?style=sw").await.len(), 0);
 
         // Pages continue where the last one ended.
         let first: RecentRuns = test_client::get(&db, "/v1/runs?limit=2").await.json();
         let cursor = first.next_cursor.unwrap();
+        assert_eq!(
+            total(&format!("?limit=2&cursor={cursor}")).await,
+            None,
+            "only the first page counts"
+        );
         let rest = list(&db, &format!("?limit=2&cursor={cursor}")).await;
         assert_eq!(
             rest[0],
@@ -412,5 +477,6 @@ mod tests {
         assert_eq!(page.tier_count, Some(5));
         let shown: Vec<_> = page.runs.iter().map(|r| (r.map.as_str(), r.tier)).collect();
         assert_eq!(shown, [("bhop_badges", Some(3))]);
+        assert_eq!(page.total, Some(1));
     }
 }

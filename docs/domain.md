@@ -38,6 +38,7 @@ What SourceJump's data means, what's decided, and who decides what. Read this be
 - Bans restrict records and/or posting, until lifted or a set date. Staff choose per ban whether existing runs are invalidated (on by default); new runs during a records ban are always stored invalid. Lifting a ban leaves those runs invalid until staff restore them. A posting ban covers posts and run comments, and leaves what was already posted up. Bans aren't public (lead, 2026-10-20).
 - Bonus tracks get their own leaderboards (leaning).
 - A server holds one API key at a time; a new key replaces the old. Staff count and invalidate runs per server, across its keys (lead, 2026-10-21).
+- Server owners request keys on the Discord (a dedicated channel may come nearer rollout); staff issue them and list the server. The help page explains connecting a server and links the plugin repo (lead, 2026-11-10).
 - Players sign in with Steam. Staff permissions are bitmaps of privileges and restrictions, for granular control (lead, 2026-10-19). Nobody changes their own privileges; `manage_privileges` is granted only on the server's command line; each change needs a reason (lead, 2026-10-20).
 - Profiles show the player's country flag from their public Steam profile, with a placeholder hinting them to set one. Steam data comes from the public profile XML, not the Steam Web API (lead, 2026-10-19).
 - Site navigation never prefetches pages, on hover or in view (lead, 2026-10-19).
@@ -49,7 +50,7 @@ What SourceJump's data means, what's decided, and who decides what. Read this be
 - Tier count and who assigns tiers (bonuses get their own tier).
 - Points formula. Strong preference: separate points and completions per style, with no style affecting another. A draft is shown, marked as one, until the community decides (`docs/site-api.md`; lead, 2026-10-26).
 - Ranked styles, their shavit settings and the landfix. Public testing runs on provisional values (migrations 0041–0042: normal, scroll, HSW, SW, A/D-only, W-only, 400 Velocity, Low Gravity, Autosync; landfix on all but Scroll and 400 Velocity), revised with the community from there (lead, 2026-11-04). BW has no definition yet.
-- How keys are requested and issued; whether a keyless server's queued runs can be imported once approved.
+- Whether a keyless server's queued runs can be imported once approved.
 - Zone submission and approval; run verification from replays; how AC detections feed moderation.
 - Whether non-compliant servers show as such on the public server list.
 - Which tickrate runs are ranked at. The ruleset's `tickrate` stays null (any) until it's decided.

@@ -18,7 +18,8 @@ export function SiteFooter() {
       <div className="text-text-muted mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm">
         <p>SourceJump: global records for Counter-Strike: Source bunnyhop.</p>
         <nav aria-label="Footer">
-          <ul className="flex flex-wrap gap-6">
+          {/* Three to a row on a phone, so the six links fill two even rows instead of leaving one alone. */}
+          <ul className="grid grid-cols-3 gap-x-6 gap-y-2 sm:flex">
             <li>
               <Link href="/help" className="hover:text-text">
                 Help

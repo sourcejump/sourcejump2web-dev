@@ -28,8 +28,9 @@ function RulesetDetails({ ruleset }: { ruleset: Schemas["Ruleset"] }) {
   const features = Object.entries(ruleset.features);
 
   return (
-    <div className="flex flex-col gap-8">
-      <p>
+    // Laid out like the help page, its neighbour in the footer: titled sections of rows with a line under each.
+    <div className="[&_code]:bg-surface-raised flex flex-col gap-4 leading-relaxed [&_code]:rounded-sm [&_code]:px-1 [&_code]:text-sm">
+      <p className="text-text-muted">
         Version {ruleset.version}, published{" "}
         <time dateTime={ruleset.published_at}>
           {publishedDate.format(new Date(ruleset.published_at))}
@@ -38,82 +39,85 @@ function RulesetDetails({ ruleset }: { ruleset: Schemas["Ruleset"] }) {
       </p>
 
       <Section title="Ranked styles">
-        <ul>
+        <dl>
           {ruleset.styles.map((style) => (
-            <li key={style.key}>
-              {style.name} <code className="opacity-70">{style.key}</code>
-            </li>
+            <Row key={style.key} name={style.name}>
+              <code>{style.key}</code>
+            </Row>
           ))}
-        </ul>
+        </dl>
       </Section>
 
       <Section title="Required cvars">
         {cvars.length === 0 ? (
-          <p>None.</p>
+          <None />
         ) : (
-          <table className="self-start">
-            <tbody>
-              {cvars.map(([name, value]) => (
-                <tr key={name}>
-                  <td className="pr-6">
-                    <code>{name}</code>
-                  </td>
-                  <td>
-                    <code>{value}</code>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <dl>
+            {cvars.map(([name, value]) => (
+              <Row key={name} name={<code>{name}</code>}>
+                <code>{value}</code>
+              </Row>
+            ))}
+          </dl>
         )}
       </Section>
 
       <Section title="Required plugins">
-        <ul>
-          {ruleset.plugins.required.map((plugin) => (
-            <li key={plugin.name}>
-              {plugin.name}:{" "}
-              {plugin.versions.length === 0
-                ? "any version"
-                : plugin.versions.join(", ")}
-            </li>
-          ))}
-        </ul>
+        {ruleset.plugins.required.length === 0 ? (
+          <None />
+        ) : (
+          <dl>
+            {ruleset.plugins.required.map((plugin) => (
+              <Row key={plugin.name} name={plugin.name}>
+                {plugin.versions.length === 0
+                  ? "Any version"
+                  : plugin.versions.join(", ")}
+              </Row>
+            ))}
+          </dl>
+        )}
       </Section>
 
       <Section title="Forbidden plugins">
         {ruleset.plugins.forbidden.length === 0 ? (
-          <p>None.</p>
+          <None />
         ) : (
-          <ul>
+          <dl>
             {ruleset.plugins.forbidden.map((plugin) => (
-              <li key={`${plugin.name}:${plugin.file_hash}`}>
-                {[plugin.name, plugin.file_hash].filter(Boolean).join(", ")}
-              </li>
+              <Row
+                key={`${plugin.name}:${plugin.file_hash}`}
+                name={plugin.name ?? "Unnamed"}
+              >
+                {plugin.file_hash && <code>{plugin.file_hash}</code>}
+              </Row>
             ))}
-          </ul>
+          </dl>
         )}
       </Section>
 
       <Section title="Zones">
-        <p>
-          Loaded from <code>{ruleset.zones.source_url}</code>. SourceJump
-          controls these zone types: {ruleset.zones.controlled_types.join(", ")}
-          .
-        </p>
+        <dl>
+          <Row name="Loaded from">
+            {/* An address has no spaces to wrap at, so it breaks anywhere rather than run off a phone's screen. */}
+            <code className="break-all">{ruleset.zones.source_url}</code>
+          </Row>
+          <Row name="Zone types SourceJump controls">
+            {ruleset.zones.controlled_types.join(", ")}
+          </Row>
+        </dl>
       </Section>
 
       <Section title="Features">
         {features.length === 0 ? (
-          <p>None.</p>
+          <None />
         ) : (
-          <ul>
+          <dl>
             {features.map(([name, enabled]) => (
-              <li key={name}>
-                <code>{name}</code>: {enabled ? "on" : "off"}
-              </li>
+              <Row key={name} name={<code>{name}</code>}>
+                {enabled ? "On" : "Off"}
+              </Row>
             ))}
-          </ul>
+          </dl>
         )}
       </Section>
     </div>
@@ -123,8 +127,22 @@ function RulesetDetails({ ruleset }: { ruleset: Schemas["Ruleset"] }) {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-xl font-bold">{title}</h2>
+      <h2 className="mt-4 text-xl font-bold">{title}</h2>
       {children}
     </section>
   );
+}
+
+/** One rule: its name, and its value beside it (under it on a phone). */
+function Row({ name, children }: { name: ReactNode; children: ReactNode }) {
+  return (
+    <div className="border-border flex flex-col gap-1 border-b py-2 sm:flex-row sm:gap-4">
+      <dt className="shrink-0 font-bold sm:w-64">{name}</dt>
+      <dd className="text-text-muted min-w-0">{children}</dd>
+    </div>
+  );
+}
+
+function None() {
+  return <p className="text-text-muted">None.</p>;
 }

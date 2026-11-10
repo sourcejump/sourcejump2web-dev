@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT count(*) AS \"total!\" FROM players p\n        WHERE EXISTS (\n            SELECT 1 FROM runs r\n            WHERE r.player_steamid64 = p.steamid64 AND r.invalidated_at IS NULL\n              AND r.finished_at > now() - interval '30 days'\n        )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "12075d2248d41c29064fdae58341c4e26b54d92277bc1583b9fbc15de7921f0e"
+}

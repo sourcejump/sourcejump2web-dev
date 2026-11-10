@@ -399,6 +399,7 @@ pub async fn refresh_if_stale(db: &PgPool) -> Result<bool, sqlx::Error> {
 }
 
 /// Legacy records are one style's main tracks, on the old site's tiers, which are always in force for them.
+/// Each standing's rank and place on the two lists is stored with it, so a list reads one page.
 async fn count_legacy(conn: &mut PgConnection, formula: &PointsFormula) -> Result<(), sqlx::Error> {
     let p = formula.policy;
     sqlx::query!("DELETE FROM legacy_standings")
@@ -406,16 +407,27 @@ async fn count_legacy(conn: &mut PgConnection, formula: &PointsFormula) -> Resul
         .await?;
     sqlx::query!(
         r#"
-        INSERT INTO legacy_standings (player_steamid64, points, completed)
-        SELECT player_steamid64, sum(points), count(*) FROM (
-            SELECT l.player_steamid64,
-                   coalesce(points_for(m.tier, l.time, min(l.time) OVER (PARTITION BY l.map_id), false,
-                                       $1, $2, $3, $4, $5), 0) AS points
-            FROM legacy_personal_bests l
-            JOIN legacy_maps m ON m.id = l.map_id
-            WHERE NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)
-        ) scored
-        GROUP BY player_steamid64
+        WITH counted AS (
+            SELECT player_steamid64, sum(points) AS points, count(*) AS completed FROM (
+                SELECT l.player_steamid64,
+                       coalesce(points_for(m.tier, l.time, min(l.time) OVER (PARTITION BY l.map_id), false,
+                                           $1, $2, $3, $4, $5), 0) AS points
+                FROM legacy_personal_bests l
+                JOIN legacy_maps m ON m.id = l.map_id
+                WHERE NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)
+            ) scored
+            GROUP BY player_steamid64
+        )
+        -- Ranked on the points shown, so players listed with equal points share a place; names break ties in
+        -- the lists' order (`leaderboards.rs`, `leaderboards/list.rs`).
+        INSERT INTO legacy_standings
+            (player_steamid64, points, completed, points_rank, points_place, completed_rank, completed_place)
+        SELECT c.player_steamid64, c.points, c.completed,
+               rank() OVER (ORDER BY round(c.points) DESC),
+               row_number() OVER (ORDER BY c.points DESC, lower(p.name), c.player_steamid64),
+               rank() OVER (ORDER BY c.completed DESC),
+               row_number() OVER (ORDER BY c.completed DESC, lower(p.name), c.player_steamid64)
+        FROM counted c JOIN legacy_players p ON p.steamid64 = c.player_steamid64
         "#,
         f64::from(p.base),
         f64::from(p.growth_percent),

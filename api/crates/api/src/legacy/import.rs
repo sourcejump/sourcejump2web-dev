@@ -87,6 +87,12 @@ pub async fn import(db: &PgPool, folder: &Path) -> Result<Report, Box<dyn Error>
     write_maps(&mut tx, &maps).await?;
     write_players(&mut tx, players.values()).await?;
     write_runs(&mut tx, &runs).await?;
+    // Completions on the pre-2.0 leaderboards are counted out of the maps with a run (`leaderboards.rs`).
+    sqlx::query!(
+        "UPDATE legacy_maps m SET has_runs = EXISTS (SELECT 1 FROM legacy_runs r WHERE r.map_id = m.id)"
+    )
+    .execute(&mut *tx)
+    .await?;
     for player in players.values() {
         if let Some(ban) = &player.ban {
             if carry_ban_over(&mut tx, player, ban).await? {
@@ -661,7 +667,19 @@ mod tests {
         assert_eq!(ban.banned_at.to_rfc3339(), "2022-01-02T03:04:05+00:00");
         assert_eq!(ban.ends_at, None);
 
-        // A second import replaces the legacy tables and doesn't ban twice.
+        // Each map is marked with whether it has runs, for the pre-2.0 leaderboards' "out of".
+        let marked = sqlx::query!(
+            r#"SELECT count(*) FILTER (WHERE has_runs) AS "with_runs!",
+                      count(*) FILTER (WHERE has_runs <> EXISTS (
+                          SELECT 1 FROM legacy_runs r WHERE r.map_id = m.id)) AS "wrong!"
+               FROM legacy_maps m"#
+        )
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert!(marked.with_runs > 0);
+        assert_eq!(marked.wrong, 0);
+
         let again = import(&db, &folder).await.unwrap();
         assert_eq!((again.runs, again.bans), (2, 0));
         assert_eq!(again.skipped["ban already carried over"], 1);

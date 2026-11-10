@@ -4,10 +4,10 @@
 import { type CSSProperties, useState } from "react";
 import { api, type Schemas } from "@/api/client";
 import { Avatar } from "@/ui/Avatar";
-import { Button } from "@/ui/Button";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
 import { Medal } from "@/ui/Medal";
+import { ListFooter } from "@/ui/ListFooter";
 import {
   Table,
   TableBody,
@@ -84,14 +84,16 @@ export function StandingsTable({
     });
   }
 
-  // The ranked value comes first after the player, the other one after it.
+  // The ranked value comes first after the player, the other one after it. A phone shows only the ranked one,
+  // so the row fits without scrolling sideways.
+  const second = "text-text-muted hidden sm:table-cell";
   const pointsCell = (standing: Schemas["ListedStanding"]) => (
-    <TableCell numeric className={byPoints ? "font-bold" : "text-text-muted"}>
+    <TableCell numeric className={byPoints ? "font-bold" : second}>
       {numbers.format(standing.points)}
     </TableCell>
   );
   const completedCell = (standing: Schemas["ListedStanding"]) => (
-    <TableCell numeric className={byPoints ? "text-text-muted" : "font-bold"}>
+    <TableCell numeric className={byPoints ? second : "font-bold"}>
       {numbers.format(standing.completed)}
       {first.out_of > 0 && (
         <span className="text-text-subtle ml-2 font-normal">
@@ -112,16 +114,22 @@ export function StandingsTable({
             {byPoints ? (
               <>
                 <TableHeaderCell numeric>Points</TableHeaderCell>
-                <TableHeaderCell numeric>{completedLabel}</TableHeaderCell>
+                <TableHeaderCell numeric className="hidden sm:table-cell">
+                  {completedLabel}
+                </TableHeaderCell>
               </>
             ) : (
               <>
                 <TableHeaderCell numeric>{completedLabel}</TableHeaderCell>
-                <TableHeaderCell numeric>Points</TableHeaderCell>
+                <TableHeaderCell numeric className="hidden sm:table-cell">
+                  Points
+                </TableHeaderCell>
               </>
             )}
             {!legacy && (
-              <TableHeaderCell numeric>World records</TableHeaderCell>
+              <TableHeaderCell numeric className="hidden sm:table-cell">
+                World records
+              </TableHeaderCell>
             )}
           </tr>
         </TableHead>
@@ -168,7 +176,7 @@ export function StandingsTable({
                 </>
               )}
               {!legacy && (
-                <TableCell numeric className="text-text-muted">
+                <TableCell numeric className={second}>
                   {numbers.format(standing.world_records ?? 0)}
                 </TableCell>
               )}
@@ -176,23 +184,16 @@ export function StandingsTable({
           ))}
         </TableBody>
       </Table>
-      <div className="flex items-center justify-between gap-4">
-        <span className="text-text-muted text-sm tabular-nums">
-          {complete
+      <ListFooter
+        summary={
+          complete
             ? `All ${numbers.format(ended ? standings.length : first.total)} players`
-            : `Top ${numbers.format(standings.length)} of ${numbers.format(first.total)} players`}
-        </span>
-        {failed && (
-          <span className="text-danger text-sm">
-            More couldn&apos;t be loaded. Try again.
-          </span>
-        )}
-        {!complete && (
-          <Button size="sm" onClick={() => void showMore()} disabled={loading}>
-            {loading ? "Loading…" : "Show more"}
-          </Button>
-        )}
-      </div>
+            : `Top ${numbers.format(standings.length)} of ${numbers.format(first.total)} players`
+        }
+        onShowMore={complete ? undefined : () => void showMore()}
+        loading={loading}
+        failed={failed}
+      />
     </div>
   );
 }

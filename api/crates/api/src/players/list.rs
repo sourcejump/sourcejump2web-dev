@@ -45,6 +45,9 @@ pub struct PlayerList {
     pub players: Vec<PlayerSummary>,
     /// Pass as `cursor` for the players after these. None at the end.
     pub next_cursor: Option<String>,
+    /// How many players the whole list has: everyone the search finds, or everyone with a run in the last
+    /// 30 days. A search page past the last match says 0.
+    pub total: i64,
     /// Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier.
     pub tier_count: Option<i16>,
 }
@@ -159,16 +162,21 @@ pub async fn list_players(
 
     // One more than a page is read, so a next page is offered only when there is one. `offset` is set for a
     // name search, whose pages are plain offsets: its order doesn't change as people play.
-    let (mut listed, offset) = match search {
+    let (mut listed, total, offset) = match search {
         None => {
             let after = match cursor {
                 None => None,
                 Some(cursor) => Some(position(&state.db, cursor).await?),
             };
-            (recently_active(&state.db, after, limit + 1).await?, None)
+            let listed = recently_active(&state.db, after, limit + 1).await?;
+            (listed, recently_active_count(&state.db).await?, None)
         }
         Some(q) => match SteamId64::parse_any(q) {
-            Some(steamid64) => (by_steamid(&state.db, steamid64).await?, None),
+            Some(steamid64) => {
+                let listed = by_steamid(&state.db, steamid64).await?;
+                let total = i64::try_from(listed.len()).expect("at most one player");
+                (listed, total, None)
+            }
             None if q.chars().count() < 2 => {
                 return Err(ApiError::Invalid(
                     "search for at least 2 characters".to_owned(),
@@ -183,10 +191,8 @@ pub async fn list_players(
                         .filter(|offset| *offset >= 0)
                         .ok_or_else(invalid_cursor)?,
                 };
-                (
-                    by_name(&state.db, q, offset, limit + 1).await?,
-                    Some(offset),
-                )
+                let (listed, total) = by_name(&state.db, q, offset, limit + 1).await?;
+                (listed, total, Some(offset))
             }
         },
     };
@@ -211,6 +217,7 @@ pub async fn list_players(
     Ok(Json(PlayerList {
         players,
         next_cursor,
+        total,
         tier_count,
     }))
 }
@@ -259,6 +266,22 @@ async fn recently_active(
     .await
 }
 
+/// How many players `recently_active` lists in all: one probe per player for a valid run in the last 30 days.
+async fn recently_active_count(db: &PgPool) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"
+        SELECT count(*) AS "total!" FROM players p
+        WHERE EXISTS (
+            SELECT 1 FROM runs r
+            WHERE r.player_steamid64 = p.steamid64 AND r.invalidated_at IS NULL
+              AND r.finished_at > now() - interval '30 days'
+        )
+        "#
+    )
+    .fetch_one(db)
+    .await
+}
+
 async fn by_steamid(db: &PgPool, steamid64: SteamId64) -> Result<Vec<Listed>, sqlx::Error> {
     sqlx::query_as!(
         Listed,
@@ -281,13 +304,14 @@ async fn by_name(
     q: &str,
     offset: i64,
     limit: i64,
-) -> Result<Vec<Listed>, sqlx::Error> {
+) -> Result<(Vec<Listed>, i64), sqlx::Error> {
     let pattern = name_search::contains_pattern(q);
     let mut tx = name_search::begin(db).await?;
-    let players = sqlx::query_as!(
-        Listed,
+    // Every match is found and ordered to take a page, so counting them alongside costs nothing more.
+    let rows = sqlx::query!(
         r#"
-        SELECT steamid64::text AS "steamid64!", name AS "name!", avatar_url, country_code
+        SELECT steamid64::text AS "steamid64!", name AS "name!", avatar_url, country_code,
+               count(*) OVER () AS "total!"
         FROM (
             SELECT p.steamid64, p.name, p.avatar_url, p.country_code, (SELECT max(finished_at) FROM runs
                           WHERE player_steamid64 = p.steamid64 AND invalidated_at IS NULL) AS last_run_at
@@ -315,7 +339,17 @@ async fn by_name(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(players)
+    let total = rows.first().map_or(0, |row| row.total);
+    let players = rows
+        .into_iter()
+        .map(|row| Listed {
+            steamid64: row.steamid64,
+            name: row.name,
+            avatar_url: row.avatar_url,
+            country_code: row.country_code,
+        })
+        .collect();
+    Ok((players, total))
 }
 
 /// Adds each listed player's latest valid run and their runs per day over the last 30 days (`activity.rs`),
@@ -525,16 +559,22 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(names(&first), ["player3", "player2"]);
+        assert_eq!(first.total, 3);
         let cursor = first.next_cursor.as_deref().unwrap();
         let second = list(&db, &format!("/v1/players?limit=2&cursor={cursor}")).await;
         assert_eq!(names(&second), ["player1"]);
+        assert_eq!(second.total, 3);
         assert!(second.next_cursor.is_none());
 
         // A search pages by offset.
         let first = list(&db, "/v1/players?q=player&limit=2").await;
         assert_eq!(first.next_cursor.as_deref(), Some("2"));
+        assert_eq!(first.total, 3);
         let second = list(&db, "/v1/players?q=player&limit=2&cursor=2").await;
         assert_eq!(names(&second), ["player1"]);
+        assert_eq!(second.total, 3);
+        assert_eq!(list(&db, "/v1/players?q=nobody").await.total, 0);
+        assert_eq!(list(&db, "/v1/players?q=76561197960287930").await.total, 0);
         assert_eq!(
             test_client::get(&db, "/v1/players?cursor=nope")
                 .await

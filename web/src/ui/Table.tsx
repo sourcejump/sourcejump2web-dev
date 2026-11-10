@@ -69,7 +69,7 @@ export function TableHeaderCell({
     <th
       scope="col"
       className={classNames(
-        "text-text-muted border-border h-10 border-b px-4 text-xs font-normal tracking-widest whitespace-nowrap uppercase",
+        "text-text-muted border-border h-10 border-b px-3 text-xs font-normal tracking-widest whitespace-nowrap uppercase sm:px-4",
         numeric ? "text-right" : "text-left",
         className,
       )}
@@ -91,7 +91,8 @@ export function TableCell({
   return (
     <td
       className={classNames(
-        "h-12 px-4",
+        // Tighter on a phone, where each column's padding is width a name or a time needs.
+        "h-12 px-3 sm:px-4",
         wrap ? "min-w-48 whitespace-normal" : "whitespace-nowrap",
         numeric && "text-right tabular-nums",
         className,

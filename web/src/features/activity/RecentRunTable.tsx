@@ -12,12 +12,12 @@ import {
 } from "@/features/runs/time";
 import { Avatar } from "@/ui/Avatar";
 import { Badge } from "@/ui/Badge";
-import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
 import { classNames } from "@/ui/classNames";
 import { Flag } from "@/ui/Flag";
 import { Link } from "@/ui/Link";
 import { Medal } from "@/ui/Medal";
+import { ListFooter } from "@/ui/ListFooter";
 import {
   Table,
   TableBody,
@@ -86,11 +86,13 @@ export function RecentRunTable({
       <Table>
         <TableHead>
           <tr>
-            <TableHeaderCell className="w-28">When</TableHeaderCell>
+            <TableHeaderCell className="hidden w-28 sm:table-cell">
+              When
+            </TableHeaderCell>
             <TableHeaderCell>Player</TableHeaderCell>
             <TableHeaderCell>Map</TableHeaderCell>
             <TableHeaderCell numeric>Time</TableHeaderCell>
-            <TableHeaderCell numeric className="w-20">
+            <TableHeaderCell numeric className="hidden w-20 sm:table-cell">
               Place
             </TableHeaderCell>
           </tr>
@@ -107,38 +109,51 @@ export function RecentRunTable({
                 } as CSSProperties
               }
             >
-              <TableCell className="text-text-muted">
-                {/* Counted from now, which differs between the server's render and the browser's. */}
-                <time dateTime={run.finished_at} suppressHydrationWarning>
-                  {formatSince(run.finished_at)}
-                </time>
+              <TableCell className="text-text-muted hidden sm:table-cell">
+                <Since iso={run.finished_at} />
               </TableCell>
-              <TableCell>
+              {/* On a phone the row fits without scrolling sideways: When moves under the name, the style under
+                  the map and the place under the time, names are cut short, and the flag, tier and gap are left out. */}
+              <TableCell className="h-14 sm:h-12">
                 <span className="flex items-center gap-2">
                   <Link
                     href={`/players/${run.player.steamid64}`}
-                    className="hover:text-accent flex items-center gap-3"
+                    className="hover:text-accent flex items-center gap-2 sm:gap-3"
                   >
                     <Avatar
                       name={run.player.name}
                       src={run.player.avatar_url ?? undefined}
                       size="sm"
                     />
-                    {run.player.name}
+                    <span className="flex min-w-0 flex-col">
+                      <span className="max-w-20 truncate sm:max-w-none">
+                        {run.player.name}
+                      </span>
+                      <span className="text-text-muted text-xs sm:hidden">
+                        <Since iso={run.finished_at} />
+                      </span>
+                    </span>
                   </Link>
-                  <Flag code={run.player.country_code} />
+                  <span className="hidden sm:contents">
+                    <Flag code={run.player.country_code} />
+                  </span>
                 </span>
               </TableCell>
               <TableCell>
-                <span className="flex items-center gap-2">
+                <span className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
                   {run.tier != null && tierCount != null && (
-                    <TierBadge tier={run.tier} tierCount={tierCount} />
+                    <span className="hidden sm:contents">
+                      <TierBadge tier={run.tier} tierCount={tierCount} />
+                    </span>
                   )}
-                  <Link href={mapHref(run)} className="hover:text-accent">
+                  <Link
+                    href={mapHref(run)}
+                    className="hover:text-accent max-w-28 truncate sm:max-w-none"
+                  >
                     {run.map}
                   </Link>
                   {(run.track > 0 || showStyle) && (
-                    <span className="text-text-subtle">
+                    <span className="text-text-subtle max-w-28 truncate text-xs sm:max-w-none sm:text-sm">
                       {[
                         run.track > 0 && trackName(run.track),
                         showStyle && (styleNames[run.style] ?? run.style),
@@ -154,7 +169,7 @@ export function RecentRunTable({
                 {run.gap != null && (
                   <span
                     className={classNames(
-                      "mr-2 text-xs",
+                      "mr-2 hidden text-xs sm:inline",
                       run.gap < 0 ? "text-success" : "text-text-subtle",
                     )}
                   >
@@ -169,8 +184,18 @@ export function RecentRunTable({
                 >
                   {formatTime(run.time)}
                 </RunLink>
+                {(run.world_record || run.placement != null) && (
+                  <span
+                    className={classNames(
+                      "block text-xs sm:hidden",
+                      run.world_record ? "text-accent" : "text-text-muted",
+                    )}
+                  >
+                    {run.world_record ? "WR" : `#${run.placement}`}
+                  </span>
+                )}
               </TableCell>
-              <TableCell numeric>
+              <TableCell numeric className="hidden sm:table-cell">
                 {run.world_record ? (
                   <Badge tone="accent">WR</Badge>
                 ) : run.placement != null ? (
@@ -185,24 +210,32 @@ export function RecentRunTable({
           ))}
         </TableBody>
       </Table>
-      <div className="flex items-center justify-end gap-4">
-        {failed && (
-          <span className="text-danger text-sm">
-            More couldn&apos;t be loaded. Try again.
-          </span>
-        )}
-        {cursor && (
-          <Button
-            size="sm"
-            onClick={() => void showMore(cursor)}
-            disabled={loading}
-          >
-            {loading ? "Loading…" : "Show more"}
-          </Button>
-        )}
-      </div>
+      <ListFooter
+        summary={summary(runs.length, first.total, !cursor, query.records)}
+        onShowMore={cursor ? () => void showMore(cursor) : undefined}
+        loading={loading}
+        failed={failed}
+      />
     </div>
   );
+}
+
+const numbers = new Intl.NumberFormat("en");
+
+/**
+ * "Latest 50 of 3,039 runs". The total is the first page's; once everything is shown, the rows themselves are
+ * counted, as runs finished since would make the two disagree.
+ */
+function summary(
+  shown: number,
+  total: number | null | undefined,
+  complete: boolean,
+  records: boolean | undefined,
+): string | undefined {
+  const what = records ? "world records" : "runs";
+  if (complete) return `All ${numbers.format(shown)} ${what}`;
+  if (total == null) return undefined;
+  return `Latest ${numbers.format(shown)} of ${numbers.format(Math.max(total, shown))} ${what}`;
 }
 
 /** The run's board on its map page. */
@@ -210,4 +243,13 @@ function mapHref(run: Schemas["RecentRun"]): string {
   const search = new URLSearchParams({ style: run.style });
   if (run.track > 0) search.set("track", String(run.track));
   return `/maps/${run.map}?${search}`;
+}
+
+/** How long ago the run finished. Counted from now, which differs between the server's render and the browser's. */
+function Since({ iso }: { iso: string }) {
+  return (
+    <time dateTime={iso} suppressHydrationWarning>
+      {formatSince(iso)}
+    </time>
+  );
 }

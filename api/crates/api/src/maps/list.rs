@@ -543,7 +543,7 @@ async fn add_board_times(
            FROM maps m
            CROSS JOIN LATERAL (
                (SELECT false AS viewer, rank() OVER (ORDER BY pb.time) AS place, pb.time, pb.run_id,
-                       pb.player_steamid64
+                       pb.player_steamid64, pb.finished_at
                 FROM personal_bests pb
                 WHERE pb.map_id = m.id AND pb.style = $2 AND pb.track = 0
                 ORDER BY pb.time, pb.finished_at, pb.run_id
@@ -552,13 +552,14 @@ async fn add_board_times(
                SELECT true, 1 + (SELECT count(*) FROM personal_bests faster
                                  WHERE faster.map_id = m.id AND faster.style = $2 AND faster.track = 0
                                    AND faster.time < own.time),
-                      own.time, own.run_id, own.player_steamid64
+                      own.time, own.run_id, own.player_steamid64, own.finished_at
                FROM personal_bests own
                WHERE own.player_steamid64 = $3 AND own.map_id = m.id AND own.style = $2 AND own.track = 0
            ) t
            LEFT JOIN players p ON p.steamid64 = t.player_steamid64
            WHERE m.name = ANY($1)
-           ORDER BY m.name, t.viewer, t.place, t.time"#,
+           -- Equal times in a board's order: whoever set theirs first, then by run.
+           ORDER BY m.name, t.viewer, t.place, t.time, t.finished_at, t.run_id"#,
         &names,
         style,
         viewer.map(SteamId64::get)

@@ -21,7 +21,6 @@ import { RunsDialog, type RunsDialogBoard } from "./RunsDialog";
 import { StyleOverview } from "./StyleOverview";
 import { TierProgress } from "./TierProgress";
 import { Badge } from "@/ui/Badge";
-import { Button } from "@/ui/Button";
 import { Card, Label } from "@/ui/Card";
 import { classNames } from "@/ui/classNames";
 import { CountUp } from "@/ui/CountUp";
@@ -31,6 +30,7 @@ import { ChoiceBar } from "@/ui/ChoiceBar";
 import { ChoiceMenu } from "@/ui/ChoiceMenu";
 import { Link } from "@/ui/Link";
 import { Medal } from "@/ui/Medal";
+import { ListFooter } from "@/ui/ListFooter";
 import {
   Table,
   TableBody,
@@ -566,10 +566,17 @@ function PersonalBests({
           <tr>
             <TableHeaderCell className="w-16">Place</TableHeaderCell>
             <TableHeaderCell>Map</TableHeaderCell>
-            {!style && <TableHeaderCell>Style</TableHeaderCell>}
+            {/* A phone leaves out the style and the date, so the time shows without scrolling sideways. */}
+            {!style && (
+              <TableHeaderCell className="hidden sm:table-cell">
+                Style
+              </TableHeaderCell>
+            )}
             <TableHeaderCell className="w-20">Runs</TableHeaderCell>
             <TableHeaderCell numeric>Time</TableHeaderCell>
-            <TableHeaderCell numeric>Date</TableHeaderCell>
+            <TableHeaderCell numeric className="hidden sm:table-cell">
+              Date
+            </TableHeaderCell>
           </tr>
         </TableHead>
         <TableBody>
@@ -603,7 +610,7 @@ function PersonalBests({
                         ? `/maps/${pb.map}?style=${pb.style}&view=legacy`
                         : `/maps/${pb.map}?style=${pb.style}${pb.track > 0 ? `&track=${pb.track}` : ""}`
                     }
-                    className="hover:text-accent"
+                    className="hover:text-accent max-w-32 truncate sm:max-w-none"
                   >
                     {pb.map}
                   </Link>
@@ -613,7 +620,7 @@ function PersonalBests({
                 </span>
               </TableCell>
               {!style && (
-                <TableCell className="text-text-muted">
+                <TableCell className="text-text-muted hidden sm:table-cell">
                   {styleName(pb.style)}
                 </TableCell>
               )}
@@ -651,7 +658,10 @@ function PersonalBests({
                   </RunLink>
                 )}
               </TableCell>
-              <TableCell numeric className="text-text-muted">
+              <TableCell
+                numeric
+                className="text-text-muted hidden sm:table-cell"
+              >
                 {pb.finished_at ? (
                   <time dateTime={pb.finished_at}>
                     {formatDate(pb.finished_at)}
@@ -664,14 +674,14 @@ function PersonalBests({
           ))}
         </TableBody>
       </Table>
-      <div className="flex items-center justify-between gap-4">
-        <RunsDialog
-          steamid64={steamid64}
-          board={runsOf}
-          onClose={() => setRunsOf(undefined)}
-        />
-        <span className="text-text-muted text-sm tabular-nums">
-          {records
+      <RunsDialog
+        steamid64={steamid64}
+        board={runsOf}
+        onClose={() => setRunsOf(undefined)}
+      />
+      <ListFooter
+        summary={
+          records
             ? !cursor
               ? count === 1
                 ? "1 world record"
@@ -683,23 +693,12 @@ function PersonalBests({
                 : `All ${count} personal bests`
               : total != null
                 ? `${personalBests.length} of ${total} personal bests`
-                : `${personalBests.length} personal bests so far`}
-        </span>
-        {failed && (
-          <span className="text-danger text-sm">
-            More couldn&apos;t be loaded. Try again.
-          </span>
-        )}
-        {cursor && (
-          <Button
-            size="sm"
-            onClick={() => void showMore(cursor)}
-            disabled={loading}
-          >
-            {loading ? "Loading…" : "Show more"}
-          </Button>
-        )}
-      </div>
+                : `${personalBests.length} personal bests so far`
+        }
+        onShowMore={cursor ? () => void showMore(cursor) : undefined}
+        loading={loading}
+        failed={failed}
+      />
     </div>
   );
 }

@@ -135,7 +135,7 @@ function List({
           href={more}
           className="text-text-muted hover:text-accent mt-auto flex items-center gap-1 self-start pt-1 text-sm"
         >
-          Show more
+          Full list
           <ArrowRight aria-hidden className="size-3.5" />
         </Link>
       )}

@@ -1,0 +1,87 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH shown AS (\n            SELECT s.* FROM legacy_standings s\n            WHERE NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = s.player_steamid64)\n        ), listed AS (\n            (SELECT true AS by_points, points_rank AS rank, points_place AS place, player_steamid64, points, completed\n             FROM shown WHERE points > 0 ORDER BY points_place LIMIT $1)\n            UNION ALL\n            (SELECT false, completed_rank, completed_place, player_steamid64, points, completed\n             FROM shown ORDER BY completed_place LIMIT $1)\n        )\n        SELECT l.by_points AS \"by_points!\", l.rank::int8 AS \"rank!\", round(l.points)::int8 AS \"points!\",\n               l.completed::int8 AS \"completed!\", l.player_steamid64::text AS \"steamid64!\", p.name AS \"name!\",\n               p.avatar_url, p.country_code\n        FROM listed l JOIN legacy_players p ON p.steamid64 = l.player_steamid64\n        ORDER BY l.by_points DESC, l.place\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "by_points!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "rank!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "points!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "completed!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "legacy_players",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "legacy_players",
+            "name": "avatar_url"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "legacy_players",
+            "name": "country_code"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "5bf1eedde5b75c077f2eb35e8f122f0f733b41c63568f0d2d1aad61354a32f85"
+}

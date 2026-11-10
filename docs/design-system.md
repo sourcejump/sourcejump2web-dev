@@ -32,21 +32,21 @@ One visual language that every page is built from, so pages can't drift apart. S
 | `TierBadge` | `tier` and `tierCount` from the API |
 | `Avatar` | Steam avatar or initials; `sm` to `xl` |
 | `Flag` | Country flag from an ISO code, a grey placeholder without one; `hint` replaces its tooltip |
-| `Table` + `TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/`TableCell` | Leaderboards and staff lists; `numeric` cells right-align, `wrap` cells let long names wrap, a `separated` row starts a group apart. Scrolls sideways inside its frame when too wide |
+| `Table` + `TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/`TableCell` | Leaderboards and staff lists; `numeric` cells right-align, `wrap` cells let long names wrap, a `separated` row starts a group apart. Lists drop or stack columns to fit a phone; anything still too wide scrolls sideways in its frame |
 | `Tabs` | Panels on one page; `underline` or `segmented` |
 | `LinkTabs` | Looks like `Tabs`, but each tab is a link: a view the server renders, such as the Maps page's sort |
 | `Segmented` | Looks like segmented `Tabs`, for a choice that changes the view in place (a server's activity range, a post's kind). The chosen option is in the accent |
 | `ChoiceMenu` | "Label  Value ▾": one choice from a list, in a `Menu` of radio items, changing the view in place, or following each option's `href` on a server page. Boards, profiles and the Maps page use a row of them (lead, 2026-10-26); quiet options are dimmed but choosable, disabled ones dimmed and kept in place. On a phone each takes a full row |
 | `ChoiceBar` | The row those menus sit in, with any tabs beside them. Every page uses it, so the spacing between choices stays the same everywhere |
-| `Pager` | Previous and next under a paged list |
+| `Pager`, `ListFooter` | Under a list: previous and next pages, or the count and "Show more" for one that loads in place |
 | `DividedList`, `DividedSection` | Rows with lines between them, and a part set off by a line above, inside a `Card` or `Dialog`. The lines run to the surface's edges |
 | `StepChart` | A value that changes in steps over time (WR history). Hover snaps a crosshair to the nearest point; points take focus and open their link |
-| `LineChart` | One count over time from zero (players online). A fixed box stretched by CSS fills its container before scripts load. Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
+| `LineChart` | One count over time from zero (players online). Hover, tap or arrow keys pick a point; the parent shows its values. An optional second line (`y2`, gold) shows a part of the first on the same scale (world records among runs). Never two scales on one chart |
 | `TierSpread` | How many maps hold each tier: a donut in tier colors beside each tier's count and share; each slice and row links to that tier's maps, the others dim, and "All" closes the list (Maps page) |
 | `Donut` | Ring of linked slices, the chosen one thick and the rest dimmed, a figure inside (`TierSpread`, profile styles) |
 | `Tooltip` | Hint on hover and focus; the child must be focusable |
 | `Menu`, `MenuItem`, `MenuLink`, `MenuSeparator` | Menu button (account, mobile sections) |
-| `Dialog` | Controlled modal (`open`, `onClose`). A field marked `data-autofocus` takes focus on each opening (React's `autoFocus` fires only on mount). Closes itself, without calling `onClose`, when its page is hidden for Back |
+| `Dialog` | Controlled modal (`open`, `onClose`). A field marked `data-autofocus` takes focus on each opening. Closes itself, without calling `onClose`, when its page is hidden for Back |
 | `Input`, `Textarea`, `CountUp` | Text field with optional icon; multi-line field; animated number |
 | `Prose` | Long-form HTML (a post's body) in the site's type. Only for HTML the API made safe |
 

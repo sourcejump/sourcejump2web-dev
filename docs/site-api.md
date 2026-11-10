@@ -10,7 +10,7 @@ Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirect
 - `SJ_PUBLIC_URL` is where players reach the site; redirects and the origin check use it.
 
 ## Players and privileges
-- `GET /v1/players` (`players/list.rs`): a search, else who ran in 30 days, each with latest run and runs per day.
+- `GET /v1/players` (`players/list.rs`): a search, else who ran in 30 days; latest run, runs per day, `total`.
 - Profiles take any SteamID form and answer with the SteamID64. Placements rank personal bests per board; equal times share a place.
 - Per style, a profile counts completed maps (main tracks, of the map list's; per tier of `maps_by_tier`), bonuses and world records, with the first 50 main-track personal bests by map; `…/personal-bests?style=&tracks=main|bonuses&q=&cursor=` pages on (`q`: map name), `records=true` keeps world records (2.0 only). No `style`: every style, newest first; `all_styles` counts across styles. `runs`: a board's valid runs, listed fastest first by `…/runs?map=&style=&track=`. `activity`: a year's runs per day (`players/activity.rs`). Ranks: `main_standing`, `bonus_standing` (lead, 2026-11-04).
 - `PUT /v1/players/{player}/details` (`players/details.rs`): setup and a country (`GET /v1/countries`), a save per 5 s; others' need `manage_bans` and a logged reason. Old-site setup shows first.
@@ -36,7 +36,7 @@ Players sign in with Steam (OpenID 2.0); the endpoints answer browsers (redirect
 - Stored, not computed per visit (lead, 2026-10-26): `personal_bests.points`, `standings` (per style, main and bonuses apart) and `legacy_standings`, recounted by `leaderboards/standings.rs` where they change: a track when a personal best or its tier changes there (a new WR moves all points); everything on a points or tiers policy, or at startup if the formula changed; legacy on bans, lifts, imports. One advisory lock serializes recounts. So are world records (`leaderboards/world_records.rs`): holders and `runs.was_record`, per board.
 
 ## Activity
-- `GET /v1/runs?style=&track=main|bonus&min_tier=&records=&cursor=` (`runs/recent.rs`): valid runs newest first by `finished_at`, each with its board's tier, `placement` counted against the valid runs before it (null unless it beat the player's own best), `world_record` (as in WR history) and its `gap` to the record it faced. `min_tier` matches nothing until a tier count is published.
+- `GET /v1/runs?style=&track=main|bonus&min_tier=&records=&cursor=` (`runs/recent.rs`): valid runs newest first by `finished_at` (`total` on page one), each with its board's tier, `placement` among the valid runs before it (null unless it beat their own best), `world_record` (as in WR history) and its `gap` to the record it faced. `min_tier` matches nothing until a tier count is published.
 
 ## Daily totals
 - `GET /v1/daily-totals/players|runs?range=month|year|all` (`daily_totals.rs`, hourly): players with a time (incl. pre-2.0), 2.0 runs and WRs per UTC day.

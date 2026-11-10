@@ -1,4 +1,4 @@
-// Help page: bunnyhopping explained for a new player, from the first hop to how a run reaches SourceJump.
+// Help page for a new player: what bunnyhopping and SourceJump are, and how to start bhopping.
 import type { Metadata } from "next";
 import { HelpGuide } from "@/features/help/HelpGuide";
 import { Page } from "@/ui/Page";
@@ -6,16 +6,16 @@ import { Page } from "@/ui/Page";
 export const metadata: Metadata = {
   title: "Help",
   description:
-    "What bunnyhopping is, how to strafe and gain speed, the styles, and how your runs reach SourceJump.",
+    "What bunnyhopping and SourceJump are, how to strafe and gain speed, the styles, and how to start playing.",
 };
 
 export default function HelpPage() {
   return (
     <Page width="narrow" className="gap-6">
-      <h1 className="text-3xl font-bold">How bhop works</h1>
+      <h1 className="text-3xl font-bold">Getting started</h1>
       <p>
-        A guide for new players: what bunnyhopping is, how to gain speed, and
-        how your runs end up on SourceJump.
+        A guide for new players: what bunnyhopping is, what SourceJump is, and
+        how to start bhopping.
       </p>
       <HelpGuide />
     </Page>

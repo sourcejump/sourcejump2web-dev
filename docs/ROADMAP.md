@@ -14,7 +14,7 @@
 
 Next: the public beta at beta.sourcejump.net on a temporary VPS, with Cloudflare R2 for files (ADR 0007, `docs/deploy.md`; the scripts have not run against a server yet).
 
-UI polish from the lead's review (2026-10-19), to do as pages are built: a no-country placeholder that reads as a flag; larger small text (menu labels like "Signed in as", header section links); more micro-animations, e.g. tooltips and the account menu opening. Profiles show per style a points rank (marked draft while the formula is), completed maps and world records (lead, 2026-10-20). From slice 5: on phones, leaderboards scroll sideways for jumps, strafes and sync (consider hiding them there); map images are uploaded and stored as fixed WebP sizes in object storage.
+UI polish from the lead's review (2026-10-19), to do as pages are built: a no-country placeholder that reads as a flag; larger small text (menu labels like "Signed in as", header section links); more micro-animations, e.g. tooltips and the account menu opening. Profiles show per style a points rank (marked draft while the formula is), completed maps and world records (lead, 2026-10-20). Map images are uploaded and stored as fixed WebP sizes in object storage.
 
 Staff area: the lead reviewed it (2026-10-21) and staff tools are moving onto the pages they act on, one area at a time (`docs/plans/staff-rework.md`). When the API is unreachable, pages say "sign in" instead of "can't load" (`signedInPlayer` returns null for both); the first full load shows one large placeholder over the sidebar.
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE legacy_maps m SET has_runs = EXISTS (SELECT 1 FROM legacy_runs r WHERE r.map_id = m.id)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "bdbd6050371e85e8ea28042d83859962904b6f4e14a2dd37d999881bf5a62269"
+}

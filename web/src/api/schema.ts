@@ -346,7 +346,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The signed-in player, from the session cookie. */
+        /**
+         * The signed-in player, from the session cookie, or `null` for a visitor who isn't signed in.
+         * @description Not a `401`: public pages ask on every visit, and a failed request shows as an error in the visitor's
+         *     console.
+         */
         get: operations["me"];
         put?: never;
         post?: never;
@@ -2482,6 +2486,12 @@ export interface components {
              * @description Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier.
              */
             tier_count?: number | null;
+            /**
+             * Format: int64
+             * @description How many players the whole list has: everyone the search finds, or everyone with a run in the last
+             *     30 days. A search page past the last match says 0.
+             */
+            total: number;
         };
         PlayerPersonalBest: {
             /** Format: date-time */
@@ -2881,6 +2891,12 @@ export interface components {
              * @description Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier.
              */
             tier_count?: number | null;
+            /**
+             * Format: int64
+             * @description How many runs match the filters. Only on the first page (no `cursor`): counting reads every matching
+             *     run, which a list that loads a page at a time shouldn't pay for again on each page.
+             */
+            total?: number | null;
         };
         Record: {
             /** Format: date-time */
@@ -4352,21 +4368,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The player, or `null` when not signed in */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Me"];
-                };
-            };
-            /** @description Not signed in */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
+                    "application/json": components["schemas"]["Me"] | null;
                 };
             };
         };

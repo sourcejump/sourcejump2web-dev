@@ -61,15 +61,30 @@ pub fn to_html(markdown: &str) -> String {
     out.replace("<a href=", r#"<a rel="nofollow noopener noreferrer" href="#)
 }
 
-/// A post's opening words as plain text, for lists: at most `max` characters, cut at a word.
+/// A post's opening words as plain text, for lists: at most `max` characters, cut at a word. Blocks (a
+/// heading, a paragraph, a list item) are set apart by `BLOCK_BREAK` unless the first already ends in
+/// punctuation, so a list doesn't read as one sentence.
 pub fn excerpt(markdown: &str, max: usize) -> String {
     let mut text = String::new();
+    let mut block_ended = false;
     for event in Parser::new_ext(markdown, Options::ENABLE_STRIKETHROUGH) {
         match event {
-            Event::Text(part) | Event::Code(part) => text.push_str(&part),
-            // Blocks and line breaks separate words; inline ends (bold, links) don't.
+            Event::Text(part) | Event::Code(part) => {
+                // Nested blocks end together (an item's paragraph, the item, the list): one break for all.
+                if std::mem::take(&mut block_ended) {
+                    let ended = text.trim_end();
+                    let sentence_over = ended.ends_with(['.', '!', '?', ':', ';', ',', '…']);
+                    text.push_str(if ended.is_empty() || sentence_over {
+                        " "
+                    } else {
+                        BLOCK_BREAK
+                    });
+                }
+                text.push_str(&part);
+            }
+            // Line breaks separate words; inline ends (bold, links) don't.
             Event::SoftBreak | Event::HardBreak => text.push(' '),
-            Event::End(end) if !is_inline(end) => text.push(' '),
+            Event::End(end) if !is_inline(end) => block_ended = true,
             _ => {}
         }
         if text.chars().count() > max {
@@ -84,9 +99,12 @@ pub fn excerpt(markdown: &str, max: usize) -> String {
     let cut = cut.rsplit_once(' ').map_or(cut.as_str(), |(head, _)| head);
     format!(
         "{}…",
-        cut.trim_end_matches(|c: char| c.is_ascii_punctuation())
+        cut.trim_end_matches(|c: char| c.is_ascii_punctuation() || c == '·' || c == ' ')
     )
 }
+
+/// What stands between two blocks in an excerpt.
+const BLOCK_BREAK: &str = " · ";
 
 fn is_inline(end: TagEnd) -> bool {
     matches!(
@@ -150,8 +168,16 @@ mod tests {
     fn excerpts_cut_at_a_word() {
         assert_eq!(
             excerpt("# Title\n\nSome *text* here.", 100),
-            "Title Some text here."
+            "Title · Some text here."
         );
+        assert_eq!(
+            excerpt(
+                "Maps:\n\n- bhop_eazy, a *short* warm-up\n- bhop_monster_jam, long\n\nDone. \n\nBye",
+                100
+            ),
+            "Maps: bhop_eazy, a short warm-up · bhop_monster_jam, long · Done. Bye"
+        );
+        assert_eq!(excerpt("# One\n\ntwo three", 6), "One…");
         assert_eq!(excerpt("one two three four", 12), "one two…");
         assert_eq!(
             excerpt("Some *emphasis*, **bold** and ~~struck~~ [links](/).", 100),

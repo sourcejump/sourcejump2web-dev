@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT steamid64::text AS \"steamid64!\", name AS \"name!\", avatar_url, country_code,\n               count(*) OVER () AS \"total!\"\n        FROM (\n            SELECT p.steamid64, p.name, p.avatar_url, p.country_code, (SELECT max(finished_at) FROM runs\n                          WHERE player_steamid64 = p.steamid64 AND invalidated_at IS NULL) AS last_run_at\n            FROM players p WHERE p.name ILIKE $1 ESCAPE '\\' OR $4 <% p.name\n            UNION ALL\n            SELECT lp.steamid64, lp.name, lp.avatar_url, lp.country_code, NULL\n            FROM legacy_players lp\n            WHERE (lp.name ILIKE $1 ESCAPE '\\' OR $4 <% lp.name)\n              AND NOT EXISTS (SELECT 1 FROM players WHERE steamid64 = lp.steamid64)\n        ) matches\n        -- The closest names first: exactly the search, then starting with it, then containing it, then near\n        -- misses by closeness; within each, whoever played last, then by ID so pages never overlap.\n        ORDER BY CASE WHEN lower(name) = lower($3) THEN 0 WHEN starts_with(lower(name), lower($3)) THEN 1\n                      WHEN name ILIKE $1 ESCAPE '\\' THEN 2 ELSE 3 END,\n                 CASE WHEN name NOT ILIKE $1 ESCAPE '\\' THEN word_similarity($4, name) END DESC NULLS LAST,\n                 last_run_at DESC NULLS LAST, name, steamid64\n        LIMIT $2 OFFSET $5\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "steamid64!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "avatar_url",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "total!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "5c6328851fb5a1bd056c462863a6da5223d8b1ac5445acfd176b0c3a1b04333f"
+}

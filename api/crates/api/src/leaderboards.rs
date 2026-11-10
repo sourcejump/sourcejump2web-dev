@@ -157,13 +157,10 @@ async fn out_of(
 ) -> Result<i64, sqlx::Error> {
     match (view, track) {
         (LeaderboardView::Legacy, _) => {
-            // One index probe per map beats a distinct over every legacy run.
-            sqlx::query_scalar!(
-                r#"SELECT count(*) AS "count!" FROM legacy_maps m
-                   WHERE EXISTS (SELECT 1 FROM legacy_runs r WHERE r.map_id = m.id)"#
-            )
-            .fetch_one(db)
-            .await
+            // Stored by the import, the only writer of legacy runs.
+            sqlx::query_scalar!(r#"SELECT count(*) AS "count!" FROM legacy_maps WHERE has_runs"#)
+                .fetch_one(db)
+                .await
         }
         (LeaderboardView::Current, LeaderboardTrack::Main) => played_count(db).await,
         (LeaderboardView::Current, LeaderboardTrack::Bonuses) => bonus_count(db).await,
@@ -228,23 +225,26 @@ async fn current(
         .collect())
 }
 
-/// The legacy lists, leaving out players banned from records as every legacy view does.
+/// The legacy lists, leaving out players banned from records as every legacy view does. Ranks and places are
+/// stored by the recount, which already leaves banned players out; the check here is a second guard.
 async fn legacy(db: &sqlx::PgPool, limit: i64) -> Result<Vec<Row>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"
         WITH shown AS (
-            SELECT s.player_steamid64, s.points, s.completed, p.name, p.avatar_url, p.country_code
-            FROM legacy_standings s JOIN legacy_players p ON p.steamid64 = s.player_steamid64
+            SELECT s.* FROM legacy_standings s
             WHERE NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = s.player_steamid64)
+        ), listed AS (
+            (SELECT true AS by_points, points_rank AS rank, points_place AS place, player_steamid64, points, completed
+             FROM shown WHERE points > 0 ORDER BY points_place LIMIT $1)
+            UNION ALL
+            (SELECT false, completed_rank, completed_place, player_steamid64, points, completed
+             FROM shown ORDER BY completed_place LIMIT $1)
         )
-        (SELECT true AS "by_points!", rank() OVER (ORDER BY round(points) DESC) AS "rank!",
-                round(points)::int8 AS "points!", completed::int8 AS "completed!",
-                player_steamid64::text AS "steamid64!", name AS "name!", avatar_url, country_code
-         FROM shown WHERE points > 0 ORDER BY points DESC, lower(name), player_steamid64 LIMIT $1)
-        UNION ALL
-        (SELECT false, rank() OVER (ORDER BY completed DESC), round(points)::int8, completed::int8,
-                player_steamid64::text, name, avatar_url, country_code
-         FROM shown ORDER BY completed DESC, lower(name), player_steamid64 LIMIT $1)
+        SELECT l.by_points AS "by_points!", l.rank::int8 AS "rank!", round(l.points)::int8 AS "points!",
+               l.completed::int8 AS "completed!", l.player_steamid64::text AS "steamid64!", p.name AS "name!",
+               p.avatar_url, p.country_code
+        FROM listed l JOIN legacy_players p ON p.steamid64 = l.player_steamid64
+        ORDER BY l.by_points DESC, l.place
         "#,
         limit,
     )
@@ -480,6 +480,19 @@ mod tests {
         let (top, completed) = lists(&db, "view=legacy").await;
         assert_eq!(top, [row("alice", 1, 100, 2), row("gabe", 2, 69, 1)]);
         assert_eq!(completed, top);
+
+        // The full lists page through the same stored places.
+        for ranking in ["points", "completed"] {
+            let path = format!("/v1/leaderboards/{ranking}?view=legacy&limit=1&offset=1");
+            let page: serde_json::Value = test_client::get(&db, &path).await.json();
+            assert_eq!(page["total"], 2, "{ranking}");
+            let second = &page["standings"][0];
+            assert_eq!(
+                (&second["player"]["name"], &second["rank"]),
+                (&json!("gabe"), &json!(2)),
+                "{ranking}"
+            );
+        }
     }
 
     #[sqlx::test]

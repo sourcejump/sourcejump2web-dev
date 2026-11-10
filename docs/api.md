@@ -34,7 +34,7 @@ How the `/v1/` API behaves for game servers, and rules every client can rely on.
 - One key per server, sent as `Authorization: Bearer sj_…`. Only its SHA-256 is stored, so a lost key is replaced, never recovered.
 - A missing, unknown or revoked key gets `401` on keyed endpoints (`ServerKey` in `servers/keys.rs`). The heartbeat never rejects for its key; it answers `valid`, `revoked`, `unknown` or `none`.
 - Every run and detection records the key it came with, so revoking a key can invalidate every run its server sent, with any key (staff choose, `site-api.md`).
-- Staff issue, replace and revoke keys on `/staff/keys` (or `sourcejump-api keys issue "<server name>"`, `keys revoke <prefix>`). A server holds one active key at a time (a unique index); a new key revokes its old one in the same step. How servers request keys is still open (`domain.md`).
+- Staff issue, replace and revoke keys on `/staff/keys` (or `sourcejump-api keys issue "<server name>"`, `keys revoke <prefix>`). A server holds one active key at a time (a unique index); a new key revokes its old one in the same step. Owners request keys on the Discord (`domain.md`).
 
 ## Server heartbeats
 - Every plugin server, keyed or not, sends one on map start and then every `next_heartbeat_seconds` (600 now): hostname, port, map, players and slots, versions (`shavit_version` null without shavit), plugins, compliance.

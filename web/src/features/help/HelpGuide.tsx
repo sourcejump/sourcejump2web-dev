@@ -1,4 +1,4 @@
-// The help page's guide: its sections in reading order, with a list of them at the top to jump to.
+// The help page's guide: what bhop and SourceJump are and how to play, its sections in reading order, with a list of them at the top to jump to.
 import { ArrowUpRight, CirclePlay } from "lucide-react";
 import type { ReactNode } from "react";
 import { classNames } from "@/ui/classNames";
@@ -9,6 +9,8 @@ import { Link } from "@/ui/Link";
 const beginnerPlaylist =
   "https://www.youtube.com/playlist?list=PLRpPuTzNftfjj4cIeyQ8JkSn855XZN56R";
 const discord = "https://discord.gg/RYP5G4tuwX";
+/** The SourceJump plugin servers install to connect. */
+const pluginRepo = "https://github.com/sourcejump/plugins";
 
 /**
  * The commands a new player needs, from the timer every connected server runs (shavit's bhoptimer, with
@@ -58,8 +60,47 @@ const sections: { id: string; title: string; body: ReactNode }[] = [
           Bhop maps are courses built around this: platforms, gaps, ramps and
           turns between a start zone and an end zone. A timer runs from the
           moment you leave the start zone, and the fastest time on each map and
-          style is the record. SourceJump collects those times from servers
-          around the world into one global list.
+          style is the record.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "what-is-sourcejump",
+    title: "What SourceJump is",
+    body: (
+      <>
+        <p>
+          SourceJump keeps the global records for CS:S bhop. Servers around the
+          world connect to it: they run the same timer, the same rules and the
+          SourceJump plugin, and send their players&apos; best times here. So
+          each map and style has one leaderboard instead of one per server, and
+          a record set on one server counts everywhere.
+        </p>
+        <p>
+          Each player has a profile with their times on every map, and new
+          records show up in the <Link href="/activity">activity</Link> feed.
+          Runs come with a replay you can watch, so you can see how the fastest
+          players take each map.
+        </p>
+        <p>
+          Any CS:S bhop server can connect.{" "}
+          <a href="#connecting-a-server">Connecting a server</a> explains what
+          it needs and how to get a key.
+        </p>
+        <p>
+          This is SourceJump 2.0, a rebuild of the original site. Times from
+          before 2.0 are kept and marked as pre-2.0, but they don&apos;t count
+          toward 2.0 records or ranks.
+        </p>
+        <p>
+          The community decides how SourceJump works: the rules, what counts and
+          how records are kept are all settled together on the{" "}
+          <a href={discord} rel="noreferrer" target="_blank">
+            Discord
+          </a>
+          . The rules in force are on the <Link href="/ruleset">ruleset</Link>{" "}
+          page.
         </p>
       </>
     ),
@@ -186,7 +227,7 @@ const sections: { id: string; title: string; body: ReactNode }[] = [
         <p>
           You need Counter-Strike: Source from Steam. Pick a server marked
           Connected in the <Link href="/servers">server list</Link>: only runs
-          on connected servers count here.
+          on <a href="#connecting-a-server">connected servers</a> count here.
         </p>
         <p>
           Every server runs the same timer, so the same{" "}
@@ -254,6 +295,67 @@ const sections: { id: string; title: string; body: ReactNode }[] = [
           ticks a second.
         </Term>
       </dl>
+    ),
+  },
+  {
+    id: "connecting-a-server",
+    title: "Connecting a server",
+    body: (
+      <>
+        <p>
+          Any CS:S server can run the{" "}
+          <a href={pluginRepo} rel="noreferrer" target="_blank">
+            SourceJump plugin
+          </a>
+          . It comes in one download with shavit&apos;s bhoptimer already set
+          up, and gives your server SourceJump&apos;s zones for every map, the
+          global records in game (<code>!wrsj</code>) and the standard movement
+          fixes. It keeps itself up to date.
+        </p>
+        <p>
+          For your players&apos; times to be sent to SourceJump, the server also
+          needs an API key:
+        </p>
+        <ol>
+          <li>
+            Install SourceMod, then extract the plugin&apos;s download into{" "}
+            <code>cstrike/</code>.
+          </li>
+          <li>
+            Ask for a key on the{" "}
+            <a href={discord} rel="noreferrer" target="_blank">
+              Discord
+            </a>{" "}
+            with your server&apos;s name and address. Staff issue it and add the
+            server to the <Link href="/servers">server list</Link>.
+          </li>
+          <li>
+            Put the key in <code>cfg/sourcemod/sourcejump.cfg</code> and
+            restart. <code>sm_sj_status</code> in the server console shows
+            whether the server is connected.
+          </li>
+        </ol>
+        <p>
+          From then on the server shows as Connected, and when a player beats
+          their SourceJump personal best on a ranked style, it sends the run and
+          its replay.
+        </p>
+        <p>
+          The plugin checks the server against the{" "}
+          <Link href="/ruleset">ruleset</Link> and sets the required cvars
+          itself. Anything else the ruleset requires, such as the BASH
+          anti-cheat, is listed there.
+        </p>
+        <p>
+          <strong>Keep the key private.</strong> It&apos;s how SourceJump knows
+          a time came from your server. If it leaks, ask for a new one: the old
+          one stops working.
+        </p>
+        <p>
+          <strong>Other styles</strong> are fine: your server can run any styles
+          it likes. Only ranked styles are sent; the rest stay on your server.
+        </p>
+      </>
     ),
   },
   {

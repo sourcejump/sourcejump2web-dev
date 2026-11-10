@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH counted AS (\n            SELECT player_steamid64, sum(points) AS points, count(*) AS completed FROM (\n                SELECT l.player_steamid64,\n                       coalesce(points_for(m.tier, l.time, min(l.time) OVER (PARTITION BY l.map_id), false,\n                                           $1, $2, $3, $4, $5), 0) AS points\n                FROM legacy_personal_bests l\n                JOIN legacy_maps m ON m.id = l.map_id\n                WHERE NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = l.player_steamid64)\n            ) scored\n            GROUP BY player_steamid64\n        )\n        -- Ranked on the points shown, so players listed with equal points share a place; names break ties in\n        -- the lists' order (`leaderboards.rs`, `leaderboards/list.rs`).\n        INSERT INTO legacy_standings\n            (player_steamid64, points, completed, points_rank, points_place, completed_rank, completed_place)\n        SELECT c.player_steamid64, c.points, c.completed,\n               rank() OVER (ORDER BY round(c.points) DESC),\n               row_number() OVER (ORDER BY c.points DESC, lower(p.name), c.player_steamid64),\n               rank() OVER (ORDER BY c.completed DESC),\n               row_number() OVER (ORDER BY c.completed DESC, lower(p.name), c.player_steamid64)\n        FROM counted c JOIN legacy_players p ON p.steamid64 = c.player_steamid64\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "69adb08587937e6c32c429749c480f2ee60e5e9335c1977814ed5b6db177c1de"
+}

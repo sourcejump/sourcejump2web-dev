@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        WITH listed AS (\n            SELECT r.id, r.map_id, r.style, r.track, r.player_steamid64, r.time, r.finished_at, r.was_record,\n                   tier.tier\n            FROM runs r\n            LEFT JOIN current_map_tiers tier ON $7 AND tier.map_id = r.map_id AND tier.track = r.track\n            WHERE r.invalidated_at IS NULL\n              AND (NOT $4 OR r.was_record)\n              AND ($1::text IS NULL OR r.style = $1)\n              AND ($2::text IS NULL OR ($2 = 'main') = (r.track = 0))\n              AND ($3::smallint IS NULL OR tier.tier >= $3)\n              AND ($5::timestamptz IS NULL OR (r.finished_at, r.id) < ($5, $6::bigint))\n            ORDER BY r.finished_at DESC, r.id DESC\n            LIMIT $8\n        )\n        SELECT l.id, l.style, l.track, l.time, l.finished_at, l.was_record, l.tier AS \"tier?\", prior.best AS \"best?\",\n               m.name AS map, place.placement AS \"placement?\",\n               p.steamid64::text AS \"steamid64!\", p.name, p.avatar_url, p.country_code\n        FROM listed l\n        CROSS JOIN LATERAL (\n            SELECT min(e.time) AS best FROM runs e\n            WHERE e.map_id = l.map_id AND e.style = l.style AND e.track = l.track\n              AND e.invalidated_at IS NULL AND (e.finished_at, e.id) < (l.finished_at, l.id)\n        ) prior\n        JOIN maps m ON m.id = l.map_id\n        JOIN players p ON p.steamid64 = l.player_steamid64\n        LEFT JOIN LATERAL (\n            SELECT 1 + count(*) AS placement FROM (\n                SELECT 1 FROM runs e\n                WHERE e.map_id = l.map_id AND e.style = l.style AND e.track = l.track\n                  AND e.invalidated_at IS NULL AND (e.finished_at, e.id) < (l.finished_at, l.id)\n                  AND e.player_steamid64 <> l.player_steamid64\n                GROUP BY e.player_steamid64\n                HAVING min(e.time) < l.time\n            ) faster\n        ) place ON NOT EXISTS (\n            SELECT 1 FROM runs e\n            WHERE e.map_id = l.map_id AND e.style = l.style AND e.track = l.track\n              AND e.invalidated_at IS NULL AND (e.finished_at, e.id) < (l.finished_at, l.id)\n              AND e.player_steamid64 = l.player_steamid64 AND e.time <= l.time\n        )\n        ORDER BY l.finished_at DESC, l.id DESC\n        ",
+  "query": "\n        WITH listed AS (\n            SELECT r.id, r.map_id, r.style, r.track, r.player_steamid64, r.time, r.finished_at, r.was_record,\n                   tier.tier\n            FROM runs r\n            LEFT JOIN LATERAL (\n                SELECT t.tier FROM map_tiers t\n                WHERE $7 AND t.map_id = r.map_id AND t.track = r.track\n                ORDER BY t.assigned_at DESC LIMIT 1\n            ) tier ON true\n            WHERE r.invalidated_at IS NULL\n              AND (NOT $4 OR r.was_record)\n              AND ($1::text IS NULL OR r.style = $1)\n              AND ($2::text IS NULL OR ($2 = 'main') = (r.track = 0))\n              AND ($3::smallint IS NULL OR tier.tier >= $3)\n              AND ($5::timestamptz IS NULL OR (r.finished_at, r.id) < ($5, $6::bigint))\n            ORDER BY r.finished_at DESC, r.id DESC\n            LIMIT $8\n        )\n        SELECT l.id, l.style, l.track, l.time, l.finished_at, l.was_record, l.tier AS \"tier?\", prior.best AS \"best?\",\n               m.name AS map, place.placement AS \"placement?\",\n               p.steamid64::text AS \"steamid64!\", p.name, p.avatar_url, p.country_code\n        FROM listed l\n        CROSS JOIN LATERAL (\n            SELECT min(e.time) AS best FROM runs e\n            WHERE e.map_id = l.map_id AND e.style = l.style AND e.track = l.track\n              AND e.invalidated_at IS NULL AND (e.finished_at, e.id) < (l.finished_at, l.id)\n        ) prior\n        JOIN maps m ON m.id = l.map_id\n        JOIN players p ON p.steamid64 = l.player_steamid64\n        LEFT JOIN LATERAL (\n            SELECT 1 + count(*) AS placement FROM (\n                SELECT 1 FROM runs e\n                WHERE e.map_id = l.map_id AND e.style = l.style AND e.track = l.track\n                  AND e.invalidated_at IS NULL AND (e.finished_at, e.id) < (l.finished_at, l.id)\n                  AND e.player_steamid64 <> l.player_steamid64\n                GROUP BY e.player_steamid64\n                HAVING min(e.time) < l.time\n            ) faster\n        ) place ON NOT EXISTS (\n            SELECT 1 FROM runs e\n            WHERE e.map_id = l.map_id AND e.style = l.style AND e.track = l.track\n              AND e.invalidated_at IS NULL AND (e.finished_at, e.id) < (l.finished_at, l.id)\n              AND e.player_steamid64 = l.player_steamid64 AND e.time <= l.time\n        )\n        ORDER BY l.finished_at DESC, l.id DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -75,7 +75,7 @@
         "type_info": "Int2",
         "origin": {
           "Table": {
-            "table": "current_map_tiers",
+            "table": "map_tiers",
             "name": "tier"
           }
         }
@@ -162,7 +162,7 @@
       false,
       false,
       false,
-      true,
+      false,
       null,
       false,
       null,
@@ -172,5 +172,5 @@
       true
     ]
   },
-  "hash": "cd24562230febd3f5cbef6bd3b0f52dec58960f3fbd47a69728e4e020db12a66"
+  "hash": "d85abba4a26d3e8295b2229c6154bcf59cb723534fd27953a0c17a444282dbca"
 }

@@ -1168,24 +1168,23 @@
         "tags": [
           "auth"
         ],
-        "summary": "The signed-in player, from the session cookie.",
+        "summary": "The signed-in player, from the session cookie, or `null` for a visitor who isn't signed in.",
+        "description": "Not a `401`: public pages ask on every visit, and a failed request shows as an error in the visitor's\nconsole.",
         "operationId": "me",
         "responses": {
           "200": {
+            "description": "The player, or `null` when not signed in",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Me"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Me"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               }
             }
@@ -8478,7 +8477,8 @@
       "PlayerList": {
         "type": "object",
         "required": [
-          "players"
+          "players",
+          "total"
         ],
         "properties": {
           "next_cursor": {
@@ -8501,6 +8501,11 @@
             ],
             "format": "int32",
             "description": "Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many players the whole list has: everyone the search finds, or everyone with a run in the last\n30 days. A search page past the last match says 0."
           }
         }
       },
@@ -9455,6 +9460,14 @@
             ],
             "format": "int32",
             "description": "Number of tiers in force; None while the community hasn't set tiers, and runs then have no tier."
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How many runs match the filters. Only on the first page (no `cursor`): counting reads every matching\nrun, which a list that loads a page at a time shouldn't pay for again on each page."
           }
         }
       },
