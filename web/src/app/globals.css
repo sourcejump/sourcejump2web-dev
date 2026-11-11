@@ -7,6 +7,7 @@
   /* Taps show the site's own pressed and hover states, not the browser's grey flash, and act without the
      double-tap zoom delay. */
   html {
+    --site-header-height: 80px;
     -webkit-tap-highlight-color: transparent;
   }
   a,
@@ -47,5 +48,16 @@
 
   ::selection {
     background: var(--color-accent-soft);
+  }
+}
+
+@media (max-width: 900px) {
+  html {
+    --site-header-height: 68px;
+  }
+}
+@media (max-width: 600px) {
+  html {
+    --site-header-height: 64px;
   }
 }
