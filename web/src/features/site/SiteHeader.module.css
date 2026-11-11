@@ -80,13 +80,6 @@
   background: #162332b3;
   box-shadow: inset 0 0 0 1px #8cc4ff80;
 }
-.discord {
-  color: #bac8d9;
-  font-size: 13px;
-}
-.discord:hover {
-  color: #fff;
-}
 .account {
   display: flex;
   align-items: center;
@@ -112,9 +105,6 @@
   }
 }
 @media (max-width: 1350px) {
-  .discord {
-    display: none;
-  }
   .shell {
     gap: 28px;
   }
