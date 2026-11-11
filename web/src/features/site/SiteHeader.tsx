@@ -6,11 +6,9 @@ import { AccountArea } from "./AccountArea";
 import { HeaderSearch } from "./HeaderSearch";
 import { HeaderShell } from "./HeaderShell";
 import { SiteNav, SiteNavLinks } from "./SiteNav";
-import { communityLinks } from "./navigation";
 import styles from "./SiteHeader.module.css";
 
 const wordmark = Play({ weight: "700", subsets: ["latin"] });
-const discord = communityLinks.find((link) => link.brand === "discord")!.href;
 
 export function SiteHeader() {
   return (
@@ -32,14 +30,6 @@ export function SiteHeader() {
               <HeaderSearch />
             </Suspense>
           </div>
-          <a
-            href={discord}
-            target="_blank"
-            rel="noreferrer"
-            className={styles.discord}
-          >
-            Discord
-          </a>
           <div className={styles.account}>
             <Suspense>
               <AccountArea />

@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { Link } from "@/ui/Link";
-import { communityLinks, isCurrent } from "./navigation";
+import { isCurrent } from "./navigation";
 import styles from "./SiteHeader.module.css";
 
 const navigation = [
@@ -12,7 +12,6 @@ const navigation = [
   { href: "/players", label: "Players" },
   { href: "/servers", label: "Servers" },
 ];
-const discord = communityLinks.find((link) => link.brand === "discord")!.href;
 
 export function SiteNav({ mobile = false }: { mobile?: boolean }) {
   return <SiteNavLinks pathname={usePathname()} mobile={mobile} />;
@@ -40,14 +39,7 @@ export function SiteNavLinks({
           {label}
         </Link>
       ))}
-      {mobile && (
-        <>
-          <Link href="/ruleset">Ruleset</Link>
-          <a href={discord} target="_blank" rel="noreferrer">
-            Discord
-          </a>
-        </>
-      )}
+      {mobile && <Link href="/ruleset">Ruleset</Link>}
     </nav>
   );
 }
