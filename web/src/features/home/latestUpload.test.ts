@@ -61,7 +61,7 @@ it("uses a standard thumbnail when a high-resolution version is unavailable", as
     .mockResolvedValueOnce(new Response(null, { status: 404 }));
   vi.stubGlobal("fetch", fetch);
   const upload = await latestUpload();
-  expect(upload.thumbnail).toBe(
+  expect(upload!.thumbnail).toBe(
     "https://i.ytimg.com/vi/v7AFSKcOvSE/hqdefault.jpg",
   );
 });
@@ -111,13 +111,13 @@ it("rejects a channel-page video that belongs to another channel", async () => {
       .mockResolvedValueOnce(new Response(channelPage))
       .mockResolvedValueOnce(new Response(watchPage("another-channel"))),
   );
-  await expect(latestUpload()).rejects.toThrow("invalid");
+  expect(await latestUpload()).toBeNull();
 });
 
-it("surfaces feed failures so the component can show its channel fallback", async () => {
+it("gives no upload when YouTube is unavailable, so a prerender never fails on it", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue(new Response(null, { status: 503 })),
   );
-  await expect(latestUpload()).rejects.toThrow("503");
+  expect(await latestUpload()).toBeNull();
 });

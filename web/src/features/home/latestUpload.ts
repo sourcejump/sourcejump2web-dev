@@ -73,6 +73,15 @@ export function parseUploadFeed(xml: string) {
 export async function latestUpload() {
   "use cache";
   cacheLife({ stale: 300, revalidate: 900, expire: 86400 });
+  // An error thrown here while the homepage is prerendered fails the whole build, so a YouTube outage yields no upload instead.
+  try {
+    return await findLatestUpload();
+  } catch {
+    return null;
+  }
+}
+
+async function findLatestUpload() {
   const signal = AbortSignal.timeout(8000);
   let upload;
   try {

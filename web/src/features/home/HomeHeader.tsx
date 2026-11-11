@@ -10,7 +10,7 @@ const views = new Intl.NumberFormat("en", {
 });
 
 export async function HomeHeader() {
-  const upload = await latestUpload().catch(() => null);
+  const upload = await latestUpload();
   const hasRun = upload?.map && upload.player && upload.time;
 
   return (
