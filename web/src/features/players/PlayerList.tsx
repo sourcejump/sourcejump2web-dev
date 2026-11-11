@@ -94,7 +94,8 @@ export function PlayerList({
               // link (middle-click, keyboard). The run link sits above it and opens the run instead.
               <TableRow
                 key={player.steamid64}
-                className="motion-enter group relative"
+                // Over the run, only the run lights up: the row's own hover would say the click opens the profile.
+                className="motion-enter group relative hover:has-[[data-run-link]:hover]:bg-transparent"
                 style={
                   {
                     // Rows past the twelfth share the last delay, so a page added by "Show more" fades in together.
@@ -135,37 +136,43 @@ export function PlayerList({
                 </TableCell>
                 <TableCell>
                   {run ? (
-                    <RunLink
-                      runId={run.run_id}
-                      // Raised on hover, so it reads as its own target within the row: a click here opens the run.
-                      className="group/run hover:bg-surface-overlay relative z-10 -mx-2 -my-1 flex items-center gap-3 rounded-md px-2 py-1 transition-colors duration-(--duration-fast)"
-                    >
-                      <span className="hidden sm:block">
-                        <MapImage image={run.map_image} size="thumb" />
-                      </span>
-                      <span className="flex flex-col gap-0.5">
-                        <span className="flex items-center gap-2">
-                          {run.tier != null && tierCount != null && (
-                            <TierBadge tier={run.tier} tierCount={tierCount} />
-                          )}
-                          <span className="group-hover/run:text-accent max-w-36 truncate font-bold sm:max-w-none">
-                            {run.map}
+                    // `contents`: no box of its own; it marks the run link for the row's hover above.
+                    <span data-run-link className="contents">
+                      <RunLink
+                        runId={run.run_id}
+                        // Raised on hover, so it reads as its own target within the row: a click here opens the run.
+                        className="group/run hover:bg-surface-overlay relative z-10 -mx-2 -my-1 flex items-center gap-3 rounded-md px-2 py-1 transition-colors duration-(--duration-fast)"
+                      >
+                        <span className="hidden sm:block">
+                          <MapImage image={run.map_image} size="thumb" />
+                        </span>
+                        <span className="flex flex-col gap-0.5">
+                          <span className="flex items-center gap-2">
+                            {run.tier != null && tierCount != null && (
+                              <TierBadge
+                                tier={run.tier}
+                                tierCount={tierCount}
+                              />
+                            )}
+                            <span className="group-hover/run:text-accent max-w-36 truncate font-bold sm:max-w-none">
+                              {run.map}
+                            </span>
+                          </span>
+                          {/* One quiet line, place · time · style: the highlight column says what stood out. */}
+                          <span className="text-text-muted text-sm">
+                            {run.placement != null && `#${run.placement} · `}
+                            {formatTime(run.time)}
+                            {" · "}
+                            {[
+                              styleNames[run.style] ?? run.style,
+                              run.track > 0 && trackName(run.track),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </span>
                         </span>
-                        {/* One quiet line, place · time · style: the highlight column says what stood out. */}
-                        <span className="text-text-muted text-sm">
-                          {run.placement != null && `#${run.placement} · `}
-                          {formatTime(run.time)}
-                          {" · "}
-                          {[
-                            styleNames[run.style] ?? run.style,
-                            run.track > 0 && trackName(run.track),
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                      </span>
-                    </RunLink>
+                      </RunLink>
+                    </span>
                   ) : (
                     <span className="text-text-subtle">No 2.0 runs</span>
                   )}

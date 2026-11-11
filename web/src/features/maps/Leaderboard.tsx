@@ -7,6 +7,11 @@ import { useEffect, useState } from "react";
 import { api, type Schemas } from "@/api/client";
 import { LegacyBadge } from "@/features/legacy/LegacyBadge";
 import type { View } from "@/features/legacy/views";
+import {
+  ReplayCell,
+  ReplayHeaderCell,
+  TIME_BESIDE_REPLAY,
+} from "@/features/replays/ReplayLink";
 import { RunLink } from "@/features/runs/RunLink";
 import { formatDate, formatGap, formatTime } from "@/features/runs/time";
 import { Avatar } from "@/ui/Avatar";
@@ -148,7 +153,10 @@ export function Leaderboard({
           <tr>
             <TableHeaderCell className="w-16">Place</TableHeaderCell>
             <TableHeaderCell>Player</TableHeaderCell>
-            <TableHeaderCell numeric>Time</TableHeaderCell>
+            <TableHeaderCell numeric className={TIME_BESIDE_REPLAY}>
+              Time
+            </TableHeaderCell>
+            <ReplayHeaderCell />
             {/* A phone shows place, player and time; the run's dialog, opened from the time, has the rest. */}
             <TableHeaderCell numeric>Gap</TableHeaderCell>
             <TableHeaderCell numeric className="hidden md:table-cell">
@@ -250,7 +258,7 @@ function EntryRow({
           {entry.legacy && <LegacyBadge />}
         </span>
       </TableCell>
-      <TableCell numeric>
+      <TableCell numeric className={TIME_BESIDE_REPLAY}>
         <RunLink
           runId={entry.run_id}
           legacy={entry.legacy}
@@ -259,6 +267,7 @@ function EntryRow({
           {formatTime(entry.time)}
         </RunLink>
       </TableCell>
+      <ReplayCell runId={entry.run_id} hasReplay={entry.has_replay} />
       <TableCell numeric className="text-text-muted">
         {!entry.legacy && entry.time === record ? (
           <Badge tone="accent">WR</Badge>

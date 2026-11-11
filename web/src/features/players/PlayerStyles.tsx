@@ -14,10 +14,15 @@ import {
   ViewMenu,
   viewFrom,
 } from "@/features/legacy/views";
+import {
+  ReplayCell,
+  ReplayHeaderCell,
+  TIME_BESIDE_REPLAY,
+} from "@/features/replays/ReplayLink";
 import { RunLink } from "@/features/runs/RunLink";
-import { formatDate, formatTime } from "@/features/runs/time";
+import { formatDate, formatGap, formatTime } from "@/features/runs/time";
 import { ActivityCalendar } from "./ActivityCalendar";
-import { RunsDialog, type RunsDialogBoard } from "./RunsDialog";
+import { loadRuns, RunsDialog, type RunsDialogBoard } from "./RunsDialog";
 import { StyleOverview } from "./StyleOverview";
 import { TierProgress } from "./TierProgress";
 import { Badge } from "@/ui/Badge";
@@ -484,6 +489,13 @@ function PersonalBests({
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [runsOf, setRunsOf] = useState<RunsDialogBoard>();
+  const runsBoard = (pb: Schemas["PersonalBest"]): RunsDialogBoard => ({
+    map: pb.map,
+    style: pb.style,
+    styleName: styleName(pb.style),
+    track: pb.track,
+    runs: pb.runs,
+  });
 
   function fetchPage(after: string | undefined) {
     return api
@@ -573,7 +585,10 @@ function PersonalBests({
               </TableHeaderCell>
             )}
             <TableHeaderCell className="w-20">Runs</TableHeaderCell>
-            <TableHeaderCell numeric>Time</TableHeaderCell>
+            <TableHeaderCell numeric className={TIME_BESIDE_REPLAY}>
+              Time
+            </TableHeaderCell>
+            <ReplayHeaderCell />
             <TableHeaderCell numeric className="hidden sm:table-cell">
               Date
             </TableHeaderCell>
@@ -629,14 +644,12 @@ function PersonalBests({
                 {pb.runs > 1 && (
                   <button
                     type="button"
-                    onClick={() =>
-                      setRunsOf({
-                        map: pb.map,
-                        style: pb.style,
-                        styleName: styleName(pb.style),
-                        track: pb.track,
-                      })
+                    // Loading starts on the way to the click, so the dialog usually opens with its runs.
+                    onPointerEnter={() =>
+                      void loadRuns(steamid64, runsBoard(pb))
                     }
+                    onFocus={() => void loadRuns(steamid64, runsBoard(pb))}
+                    onClick={() => setRunsOf(runsBoard(pb))}
                     aria-label={`${pb.runs} runs on ${pb.map}`}
                     className="text-text-muted hover:text-accent hover:border-border hover:bg-surface-raised inline-flex items-center gap-1 rounded-sm border border-transparent px-1.5 py-0.5 text-xs tabular-nums transition-colors duration-(--duration-fast)"
                   >
@@ -645,7 +658,13 @@ function PersonalBests({
                   </button>
                 )}
               </TableCell>
-              <TableCell numeric>
+              <TableCell numeric className={TIME_BESIDE_REPLAY}>
+                {/* How far behind the board's world record it is now, as Activity shows against the record a run faced. */}
+                {pb.rank !== 1 && pb.world_record_time != null && (
+                  <span className="text-text-subtle mr-2 hidden text-xs sm:inline">
+                    {formatGap(pb.time - pb.world_record_time)}
+                  </span>
+                )}
                 {/* Legacy runs have no run page: the old site kept no more than this row. */}
                 {pb.legacy ? (
                   formatTime(pb.time)
@@ -658,6 +677,7 @@ function PersonalBests({
                   </RunLink>
                 )}
               </TableCell>
+              <ReplayCell runId={pb.run_id} hasReplay={pb.has_replay} />
               <TableCell
                 numeric
                 className="text-text-muted hidden sm:table-cell"

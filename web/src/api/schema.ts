@@ -2386,6 +2386,11 @@ export interface components {
              */
             finished_at?: string | null;
             /**
+             * @description Whether `GET /v1/replays/{run_id}` serves this run's replay: it's stored and its style's replays are
+             *     public. Always false for legacy runs.
+             */
+            has_replay: boolean;
+            /**
              * @description A legacy run from the old site, on the main track. Its `run_id` is then the old site's, and it has no
              *     run page.
              */
@@ -2416,6 +2421,12 @@ export interface components {
              * @description 0 is the main track, 1 and up are bonuses.
              */
             track: number;
+            /**
+             * Format: double
+             * @description Seconds: the board's 2.0 world record now, for how far behind it this time is. None for a legacy run,
+             *     whose map may not be on 2.0's list.
+             */
+            world_record_time?: number | null;
         };
         PersonalBestPage: {
             /** @description Pass as `cursor` for the personal bests after these. None at the end. */
@@ -2852,6 +2863,11 @@ export interface components {
              *     when slower. None for the board's first run.
              */
             gap?: number | null;
+            /**
+             * @description Whether `GET /v1/replays/{run_id}` serves this run's replay: it's stored and its style's replays are
+             *     public.
+             */
+            has_replay: boolean;
             map: string;
             /**
              * Format: int64

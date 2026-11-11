@@ -1,5 +1,6 @@
 // One map in the Maps page's grid: its picture, tier, name and player count, then the main track's top three
-// times and the signed-in player's own, each linking to its run.
+// times and the signed-in player's own, each linking to its run. The picture and name open the map in the
+// style those times are in.
 import type { Schemas } from "@/api/client";
 import { formatTime } from "@/features/runs/time";
 import { classNames } from "@/ui/classNames";
@@ -13,10 +14,13 @@ const ROW = "flex h-7 items-center gap-2 rounded-md px-1.5";
 
 export function MapTile({
   map,
+  href,
   tierCount,
   signInHref,
 }: {
   map: Schemas["MapSummary"];
+  /** The map's page, on the style the tile's times are in. */
+  href: string;
   tierCount: number | null | undefined;
   /** Set when nobody is signed in: the "Your time" row offers sign-in instead. */
   signInHref?: string;
@@ -37,7 +41,7 @@ export function MapTile({
     // a lift, which would say the whole tile is one link.
     <article className="group border-border bg-surface hover:border-border-strong flex flex-col overflow-hidden rounded-lg border transition-colors duration-(--duration-base)">
       <Link
-        href={`/maps/${map.name}`}
+        href={href}
         tabIndex={-1}
         aria-hidden
         className="relative block overflow-hidden"
@@ -58,7 +62,7 @@ export function MapTile({
       <div className="flex flex-col gap-2 p-2 pt-2.5">
         <div className="flex items-baseline gap-2 px-1.5">
           <Link
-            href={`/maps/${map.name}`}
+            href={href}
             className="hover:text-accent min-w-0 truncate font-bold"
           >
             {map.name}

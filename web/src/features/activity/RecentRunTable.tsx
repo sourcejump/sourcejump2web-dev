@@ -3,6 +3,11 @@
 // loads older runs a page at a time.
 import { useState, type CSSProperties } from "react";
 import { api, type Schemas } from "@/api/client";
+import {
+  ReplayCell,
+  ReplayHeaderCell,
+  TIME_BESIDE_REPLAY,
+} from "@/features/replays/ReplayLink";
 import { RunLink } from "@/features/runs/RunLink";
 import {
   formatGap,
@@ -91,8 +96,12 @@ export function RecentRunTable({
             </TableHeaderCell>
             <TableHeaderCell>Player</TableHeaderCell>
             <TableHeaderCell>Map</TableHeaderCell>
-            <TableHeaderCell numeric>Time</TableHeaderCell>
-            <TableHeaderCell numeric className="hidden w-20 sm:table-cell">
+            {/* Time, replay and Place sit close, so a run's replay button reads with its place beside it. */}
+            <TableHeaderCell numeric className={TIME_BESIDE_REPLAY}>
+              Time
+            </TableHeaderCell>
+            <ReplayHeaderCell />
+            <TableHeaderCell className="hidden w-16 sm:table-cell sm:pl-0">
               Place
             </TableHeaderCell>
           </tr>
@@ -164,7 +173,7 @@ export function RecentRunTable({
                   )}
                 </span>
               </TableCell>
-              <TableCell numeric>
+              <TableCell numeric className={TIME_BESIDE_REPLAY}>
                 {/* Against the record when the run finished: what a new WR took off, or how far behind it was. */}
                 {run.gap != null && (
                   <span
@@ -195,11 +204,12 @@ export function RecentRunTable({
                   </span>
                 )}
               </TableCell>
-              <TableCell numeric className="hidden sm:table-cell">
+              <ReplayCell runId={run.run_id} hasReplay={run.has_replay} />
+              <TableCell className="hidden sm:table-cell sm:pl-0">
                 {run.world_record ? (
                   <Badge tone="accent">WR</Badge>
                 ) : run.placement != null ? (
-                  <span className="inline-flex justify-end">
+                  <span className="inline-flex">
                     <Medal placement={run.placement} />
                   </span>
                 ) : (

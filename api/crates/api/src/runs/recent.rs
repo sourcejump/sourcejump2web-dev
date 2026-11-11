@@ -15,6 +15,7 @@ use crate::{
     error::{ApiError, ErrorBody},
     maps::{check_page, tiers},
     players::PlayerRef,
+    replays::current_policy,
 };
 
 const DEFAULT_LIMIT: i64 = 50;
@@ -81,6 +82,9 @@ pub struct RecentRun {
     /// Seconds against the board's record when the run finished: negative for a new world record, positive
     /// when slower. None for the board's first run.
     pub gap: Option<f64>,
+    /// Whether `GET /v1/replays/{run_id}` serves this run's replay: it's stored and its style's replays are
+    /// public.
+    pub has_replay: bool,
 }
 
 /// The latest valid runs, newest first, a page at a time.
@@ -224,6 +228,8 @@ async fn page(
         )
         SELECT l.id, l.style, l.track, l.time, l.finished_at, l.was_record, l.tier AS "tier?", prior.best AS "best?",
                m.name AS map, place.placement AS "placement?",
+               EXISTS (SELECT 1 FROM replays rp WHERE rp.run_id = l.id AND rp.stored_key IS NOT NULL)
+                   AS "stored!",
                p.steamid64::text AS "steamid64!", p.name, p.avatar_url, p.country_code
         FROM listed l
         CROSS JOIN LATERAL (
@@ -261,11 +267,13 @@ async fn page(
     )
     .fetch_all(db)
     .await?;
+    let policy = current_policy(&mut *db.acquire().await?).await?;
 
     Ok(rows
         .into_iter()
         .map(|row| {
             RecentRun {
+                has_replay: row.stored && policy.is_public(&row.style),
                 run_id: row.id,
                 player: PlayerRef {
                     steamid64: row.steamid64,

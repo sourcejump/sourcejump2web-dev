@@ -1,0 +1,93 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT shown.map AS \"map!\", shown.track AS \"track!\", shown.time AS \"time!\",\n               CASE WHEN NOT shown.legacy THEN 1 + (\n                   SELECT count(*) FROM personal_bests faster\n                   WHERE faster.map_id = shown.map_id AND faster.style = $2 AND faster.track = shown.track\n                     AND faster.time < shown.time) END AS rank,\n               shown.legacy AS \"legacy!\", shown.id AS \"id!\", shown.finished_at,\n               CASE WHEN shown.legacy THEN 1 ELSE (\n                   SELECT count(*) FROM runs r\n                   WHERE r.player_steamid64 = $1 AND r.map_id = shown.map_id AND r.style = $2\n                     AND r.track = shown.track AND r.invalidated_at IS NULL) END AS \"runs!\",\n               CASE WHEN NOT shown.legacy THEN (\n                   SELECT min(w.time) FROM personal_bests w\n                   WHERE w.map_id = shown.map_id AND w.style = $2 AND w.track = shown.track) END\n                   AS world_record_time,\n               NOT shown.legacy AND EXISTS (\n                   SELECT 1 FROM replays rp WHERE rp.run_id = shown.id AND rp.stored_key IS NOT NULL)\n                   AS \"stored!\"\n        FROM (\n            SELECT DISTINCT ON (both_kinds.map, both_kinds.track) both_kinds.*\n            FROM (\n                SELECT m.name AS map, pb.map_id, pb.track, pb.time, false AS legacy, pb.run_id AS id,\n                       pb.finished_at\n                FROM personal_bests pb\n                JOIN maps m ON m.id = pb.map_id\n                WHERE $3 AND pb.player_steamid64 = $1 AND pb.style = $2 AND pb.track = $4\n                UNION ALL\n                SELECT lm.name, NULL::bigint, $4::smallint, l.time, true, l.id::bigint, l.finished_at\n                FROM legacy_personal_bests l\n                JOIN legacy_maps lm ON lm.id = l.map_id\n                WHERE l.player_steamid64 = $1 AND NOT EXISTS (SELECT 1 FROM records_bans b WHERE b.player_steamid64 = $1)\n            ) both_kinds\n            WHERE ($5::text IS NULL OR (both_kinds.map, both_kinds.track) > ($5, $6::smallint))\n              AND ($8::text IS NULL OR both_kinds.map ILIKE $8)\n            ORDER BY both_kinds.map, both_kinds.track, both_kinds.time, both_kinds.legacy\n            LIMIT $7\n        ) shown\n        ORDER BY shown.map, shown.track\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "map!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "track!",
+        "type_info": "Int2",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "time!",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "rank",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "legacy!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "id!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "finished_at",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "runs!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "world_record_time",
+        "type_info": "Float8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "stored!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Bool",
+        "Int2",
+        "Text",
+        "Int2",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "880d1e0adc85d8b41aca96db8042a9852366f2eb39738880d7841eb209c288d3"
+}

@@ -336,6 +336,12 @@ export async function MapList({ params }: { params: MapListParams }) {
               >
                 <MapTile
                   map={map}
+                  // The map opens on the style whose records the list shows.
+                  href={
+                    style && style !== styles.keys[0]
+                      ? `/maps/${map.name}?style=${encodeURIComponent(style)}`
+                      : `/maps/${map.name}`
+                  }
                   tierCount={list.tier_count}
                   signInHref={
                     me

@@ -8273,7 +8273,8 @@
           "time",
           "legacy",
           "run_id",
-          "runs"
+          "runs",
+          "has_replay"
         ],
         "properties": {
           "finished_at": {
@@ -8283,6 +8284,10 @@
             ],
             "format": "date-time",
             "description": "None only for a few legacy runs whose date the old site stored unreadably."
+          },
+          "has_replay": {
+            "type": "boolean",
+            "description": "Whether `GET /v1/replays/{run_id}` serves this run's replay: it's stored and its style's replays are\npublic. Always false for legacy runs."
           },
           "legacy": {
             "type": "boolean",
@@ -8320,6 +8325,14 @@
             "type": "integer",
             "format": "int32",
             "description": "0 is the main track, 1 and up are bonuses."
+          },
+          "world_record_time": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Seconds: the board's 2.0 world record now, for how far behind it this time is. None for a legacy run,\nwhose map may not be on 2.0's list."
           }
         }
       },
@@ -9372,7 +9385,8 @@
           "track",
           "time",
           "finished_at",
-          "world_record"
+          "world_record",
+          "has_replay"
         ],
         "properties": {
           "finished_at": {
@@ -9387,6 +9401,10 @@
             ],
             "format": "double",
             "description": "Seconds against the board's record when the run finished: negative for a new world record, positive\nwhen slower. None for the board's first run."
+          },
+          "has_replay": {
+            "type": "boolean",
+            "description": "Whether `GET /v1/replays/{run_id}` serves this run's replay: it's stored and its style's replays are\npublic."
           },
           "map": {
             "type": "string"

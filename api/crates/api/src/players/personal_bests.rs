@@ -17,6 +17,7 @@ use crate::{
     error::{ApiError, ErrorBody},
     legacy::{self, View},
     name_search,
+    replays::current_policy,
 };
 
 pub const DEFAULT_LIMIT: i64 = 50;
@@ -83,6 +84,12 @@ pub struct PersonalBest {
     /// Their valid 2.0 runs on this map, style and track, this one included (`GET /v1/players/{player}/runs`
     /// lists them); 1 for a legacy run.
     pub runs: i64,
+    /// Seconds: the board's 2.0 world record now, for how far behind it this time is. None for a legacy run,
+    /// whose map may not be on 2.0's list.
+    pub world_record_time: Option<f64>,
+    /// Whether `GET /v1/replays/{run_id}` serves this run's replay: it's stored and its style's replays are
+    /// public. Always false for legacy runs.
+    pub has_replay: bool,
 }
 
 /// Where a page starts: after this map and track, or, most recent first, after this finish time and run.
@@ -132,7 +139,12 @@ pub(super) async fn personal_bests(
                own.run_id AS "run_id!", own.finished_at AS "finished_at!",
                (SELECT count(*) FROM runs r
                 WHERE r.player_steamid64 = $1 AND r.map_id = own.map_id AND r.style = own.style
-                  AND r.track = own.track AND r.invalidated_at IS NULL) AS "runs!"
+                  AND r.track = own.track AND r.invalidated_at IS NULL) AS "runs!",
+               (SELECT min(w.time) FROM personal_bests w
+                WHERE w.map_id = own.map_id AND w.style = own.style AND w.track = own.track)
+                   AS "world_record_time!",
+               EXISTS (SELECT 1 FROM replays rp WHERE rp.run_id = own.run_id AND rp.stored_key IS NOT NULL)
+                   AS "stored!"
         FROM (
             SELECT pb.style, pb.map_id, m.name AS map, pb.track, pb.time, pb.run_id, pb.finished_at
             FROM personal_bests pb
@@ -168,10 +180,13 @@ pub(super) async fn personal_bests(
     )
     .fetch_all(db)
     .await?;
+    let policy = current_policy(&mut *db.acquire().await?).await?;
 
     Ok(rows
         .into_iter()
         .map(|row| PersonalBest {
+            has_replay: row.stored && policy.is_public(&row.style),
+            world_record_time: Some(row.world_record_time),
             style: row.style,
             map: row.map,
             track: row.track,
@@ -208,7 +223,14 @@ async fn view_personal_bests(
                CASE WHEN shown.legacy THEN 1 ELSE (
                    SELECT count(*) FROM runs r
                    WHERE r.player_steamid64 = $1 AND r.map_id = shown.map_id AND r.style = $2
-                     AND r.track = shown.track AND r.invalidated_at IS NULL) END AS "runs!"
+                     AND r.track = shown.track AND r.invalidated_at IS NULL) END AS "runs!",
+               CASE WHEN NOT shown.legacy THEN (
+                   SELECT min(w.time) FROM personal_bests w
+                   WHERE w.map_id = shown.map_id AND w.style = $2 AND w.track = shown.track) END
+                   AS world_record_time,
+               NOT shown.legacy AND EXISTS (
+                   SELECT 1 FROM replays rp WHERE rp.run_id = shown.id AND rp.stored_key IS NOT NULL)
+                   AS "stored!"
         FROM (
             SELECT DISTINCT ON (both_kinds.map, both_kinds.track) both_kinds.*
             FROM (
@@ -241,10 +263,15 @@ async fn view_personal_bests(
     )
     .fetch_all(db)
     .await?;
+    let public = current_policy(&mut *db.acquire().await?)
+        .await?
+        .is_public(legacy::STYLE);
 
     Ok(rows
         .into_iter()
         .map(|row| PersonalBest {
+            has_replay: row.stored && public,
+            world_record_time: row.world_record_time,
             style: legacy::STYLE.to_owned(),
             map: row.map,
             track: row.track,

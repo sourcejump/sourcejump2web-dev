@@ -88,20 +88,6 @@ export function MapBoards({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {board ? (
-          <WorldRecordCard record={board.world_record} />
-        ) : (
-          <StatCard
-            label="World record"
-            value={null}
-            className="col-span-2 sm:col-span-1"
-          />
-        )}
-        <StatCard label="Players" value={totals.players} />
-        <StatCard label="Runs" value={totals.runs} />
-      </div>
-
       <ChoiceBar>
         <ChoiceMenu
           label="Style"
@@ -135,6 +121,20 @@ export function MapBoards({
             <TierBadge tier={track.tier} tierCount={map.tier_count} />
           )}
       </ChoiceBar>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        {board ? (
+          <WorldRecordCard record={board.world_record} />
+        ) : (
+          <StatCard
+            label="World record"
+            value={null}
+            className="col-span-2 sm:col-span-1"
+          />
+        )}
+        <StatCard label="Players" value={totals.players} />
+        <StatCard label="Runs" value={totals.runs} />
+      </div>
 
       {/* The Pre-2.0 view shows the old site's records instead; the two histories are never mixed. */}
       {view === "legacy" ? (
