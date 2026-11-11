@@ -78,7 +78,7 @@ Pages swap in place: the old page fades out and the new one in (React's `<ViewTr
 Links never prefetch, whether in view or hovered (lead's choice, 2026-10-19). A page loads only once it's opened, and the fade covers the wait. `e2e/navigation.e2e.ts` checks that following a link doesn't reload the page.
 
 ## Layout shell (`web/src/features/site/`)
-Header, page and footer sit on the sheet. The header is one sticky bar: wordmark, sections, search (`/`), Steam sign-in; footer: one line, community logos. Phones: menu, wordmark, search, account. Account and current section sit in `<Suspense>`, so every shell stays static. Search lives on the Players page.
+Header, page and footer sit on the sheet. The header is one sticky bar: wordmark, sections, search (`/`), Discord, Steam sign-in; footer: one line, community logos. Phones: wordmark, search, account, menu. Account and current section sit in `<Suspense>`, so every shell stays static. Search lives on the Players page.
 
 ## Screenshot tests
 `npm run test:ui` (part of `just check`) screenshots `/dev/ui` wide, on a phone, with the menu open and with the dialog open, and fails on any pixel change. After an intended visual change:

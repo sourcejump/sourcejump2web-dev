@@ -172,9 +172,14 @@ export function HeaderSearch() {
     setActive(-1);
   }
 
-  function go(href: string) {
+  function leave() {
     close();
+    setExpanded(false);
     input.current?.blur();
+  }
+
+  function go(href: string) {
+    leave();
     router.push(href);
   }
 
@@ -338,7 +343,7 @@ export function HeaderSearch() {
                           id={optionId(index)}
                           href={targets[index]!}
                           active={active === index}
-                          onPick={close}
+                          onPick={leave}
                           picture={
                             <Avatar
                               name={player.name}
@@ -373,7 +378,7 @@ export function HeaderSearch() {
                             id={optionId(index)}
                             href={targets[index]!}
                             active={active === index}
-                            onPick={close}
+                            onPick={leave}
                             picture={
                               map.image ? (
                                 // eslint-disable-next-line @next/next/no-img-element -- the API serves the thumbnail at its size

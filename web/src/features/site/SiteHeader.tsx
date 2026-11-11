@@ -1,47 +1,60 @@
-// The top of every page: one bar across the window, staying in view while the page scrolls. The
-// wordmark and the sections, then the search for players and maps and the account corner. On a phone: the menu,
-// the wordmark, the search button and the account corner.
 import { Suspense } from "react";
 import { Play } from "next/font/google";
+import { Plus } from "lucide-react";
 import { Link } from "@/ui/Link";
 import { AccountArea } from "./AccountArea";
 import { HeaderSearch } from "./HeaderSearch";
+import { HeaderShell } from "./HeaderShell";
 import { SiteNav, SiteNavLinks } from "./SiteNav";
+import { communityLinks } from "./navigation";
+import styles from "./SiteHeader.module.css";
 
 const wordmark = Play({ weight: "700", subsets: ["latin"] });
+const discord = communityLinks.find((link) => link.brand === "discord")!.href;
 
 export function SiteHeader() {
   return (
-    <header
-      // Named so page fades leave the header in place (motion.css).
-      style={{ viewTransitionName: "site-header" }}
-      className="bg-gutter border-border sticky top-0 z-10 border-b"
-    >
-      <div className="max-w-site mx-auto flex h-16 w-full items-center gap-2 px-4 sm:px-6 lg:gap-8">
+    <HeaderShell>
+      <div className={styles.shell}>
         <Link
           href="/"
-          className={`${wordmark.className} text-base font-bold tracking-wide whitespace-nowrap uppercase sm:text-lg sm:tracking-wider`}
+          className={`${wordmark.className} ${styles.wordmark}`}
+          aria-label="SourceJump"
         >
-          Source<span className="text-accent">Jump</span>
+          SOURCE<span>JUMP</span>
         </Link>
         <Suspense fallback={<SiteNavLinks pathname={null} />}>
           <SiteNav />
         </Suspense>
-        <div className="ml-auto flex items-center gap-1">
-          {/* Uses the address to close its list on a page change, so it streams in like the section links. */}
-          <Suspense fallback={<div className="size-9 xl:h-9 xl:w-64" />}>
-            <HeaderSearch />
-          </Suspense>
-          <span
-            aria-hidden
-            className="bg-border mx-3 hidden h-6 w-px xl:mx-4 xl:block"
-          />
-          {/* Depends on the session cookie, so it streams in per request while the shell stays static. */}
-          <Suspense>
-            <AccountArea />
-          </Suspense>
+        <div className={styles.right}>
+          <div className={styles.search}>
+            <Suspense fallback={<div className="size-9 xl:w-60" />}>
+              <HeaderSearch />
+            </Suspense>
+          </div>
+          <a
+            href={discord}
+            target="_blank"
+            rel="noreferrer"
+            className={styles.discord}
+          >
+            Discord
+          </a>
+          <div className={styles.account}>
+            <Suspense>
+              <AccountArea />
+            </Suspense>
+          </div>
         </div>
+        <details data-site-menu className={styles.mobileMenu}>
+          <summary aria-label="Open navigation">
+            Menu <Plus aria-hidden />
+          </summary>
+          <Suspense fallback={<SiteNavLinks pathname={null} mobile />}>
+            <SiteNav mobile />
+          </Suspense>
+        </details>
       </div>
-    </header>
+    </HeaderShell>
   );
 }
