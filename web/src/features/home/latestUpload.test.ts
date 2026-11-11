@@ -61,15 +61,63 @@ it("uses a standard thumbnail when a high-resolution version is unavailable", as
     .mockResolvedValueOnce(new Response(null, { status: 404 }));
   vi.stubGlobal("fetch", fetch);
   const upload = await latestUpload();
-  expect(upload.thumbnail).toBe(
+  expect(upload!.thumbnail).toBe(
     "https://i.ytimg.com/vi/v7AFSKcOvSE/hqdefault.jpg",
   );
 });
 
-it("surfaces feed failures so the component can show its channel fallback", async () => {
+const channelPage = `<script>var ytInitialData = {"contentId":"v7AFSKcOvSE","contentType":"LOCKUP_CONTENT_TYPE_VIDEO"};</script>`;
+const watchPage = (channel = "UCyEAWx-xBlI-uP2RkqaG43A") =>
+  `<script>var ytInitialPlayerResponse = ${JSON.stringify({
+    videoDetails: {
+      videoId: "v7AFSKcOvSE",
+      channelId: channel,
+      title: "bhop_test in 1:15 by A & B",
+      viewCount: "1749",
+      shortDescription: "Player: A & B\nMap: bhop_test\nTime: 1:15.784",
+    },
+    microformat: {
+      playerMicroformatRenderer: { publishDate: "2026-11-08T14:21:09-08:00" },
+    },
+  })};</script>`;
+
+it("reads the latest channel upload when YouTube's feed returns 404", async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(new Response(null, { status: 404 }))
+    .mockResolvedValueOnce(new Response(channelPage))
+    .mockResolvedValueOnce(new Response(watchPage()))
+    .mockResolvedValueOnce(new Response(null));
+  vi.stubGlobal("fetch", fetch);
+  const upload = await latestUpload();
+  expect(upload).toMatchObject({
+    id: "v7AFSKcOvSE",
+    player: "A & B",
+    time: "1:15.784",
+    views: 1749,
+    publishedAt: "2026-11-08T14:21:09-08:00",
+  });
+  expect(fetch.mock.calls[2]![0]).toBe(
+    "https://www.youtube.com/watch?v=v7AFSKcOvSE",
+  );
+});
+
+it("rejects a channel-page video that belongs to another channel", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(channelPage))
+      .mockResolvedValueOnce(new Response(watchPage("another-channel"))),
+  );
+  expect(await latestUpload()).toBeNull();
+});
+
+it("gives no upload when YouTube is unavailable, so a prerender never fails on it", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue(new Response(null, { status: 503 })),
   );
-  await expect(latestUpload()).rejects.toThrow("503");
+  expect(await latestUpload()).toBeNull();
 });

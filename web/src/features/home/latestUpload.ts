@@ -4,6 +4,14 @@ import { formatSince } from "../runs/time";
 export const youtubeChannel = "https://www.youtube.com/@SourceJump";
 const channelId = "UCyEAWx-xBlI-uP2RkqaG43A";
 
+function runDetails(description: string) {
+  return {
+    map: description.match(/^Map:\s*(.+)$/m)?.[1]?.trim(),
+    player: description.match(/^Player:\s*(.+)$/m)?.[1]?.trim(),
+    time: description.match(/^Time:\s*(\d+(?::\d{2}){0,2}\.\d{3})\s*$/m)?.[1],
+  };
+}
+
 function text(xml: string, tag: string): string | undefined {
   const value = xml.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`))?.[1];
   if (!value) return undefined;
@@ -53,11 +61,7 @@ export function parseUploadFeed(xml: string) {
         title,
         publishedAt,
         views: views === undefined ? undefined : Number(views),
-        map: description.match(/^Map:\s*(.+)$/m)?.[1]?.trim(),
-        player: description.match(/^Player:\s*(.+)$/m)?.[1]?.trim(),
-        time: description.match(
-          /^Time:\s*(\d+(?::\d{2}){0,2}\.\d{3})\s*$/m,
-        )?.[1],
+        ...runDetails(description),
       };
     })
     .filter((upload) => upload !== null)
@@ -69,12 +73,77 @@ export function parseUploadFeed(xml: string) {
 export async function latestUpload() {
   "use cache";
   cacheLife({ stale: 300, revalidate: 900, expire: 86400 });
-  const response = await fetch(
-    `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`,
-    { signal: AbortSignal.timeout(8000) },
-  );
-  if (!response.ok) throw new Error(`YouTube feed returned ${response.status}`);
-  const upload = parseUploadFeed(await response.text());
+  // An error thrown here while the homepage is prerendered fails the whole build, so a YouTube outage yields no upload instead.
+  try {
+    return await findLatestUpload();
+  } catch {
+    return null;
+  }
+}
+
+async function findLatestUpload() {
+  const signal = AbortSignal.timeout(8000);
+  let upload;
+  try {
+    const response = await fetch(
+      `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`,
+      { signal },
+    );
+    if (!response.ok)
+      throw new Error(`YouTube feed returned ${response.status}`);
+    upload = parseUploadFeed(await response.text());
+  } catch {
+    // YouTube's public feed can return 404 while the channel and videos remain available.
+    const channel = await fetch(`${youtubeChannel}/videos`, { signal });
+    if (!channel.ok)
+      throw new Error(`YouTube channel returned ${channel.status}`);
+    const html = await channel.text();
+    const id =
+      html.match(
+        /"contentId":"([\w-]{11})","contentType":"LOCKUP_CONTENT_TYPE_VIDEO"/,
+      )?.[1] ?? html.match(/"videoRenderer":\{"videoId":"([\w-]{11})"/)?.[1];
+    if (!id) throw new Error("YouTube channel contains no upload");
+    const watch = await fetch(`https://www.youtube.com/watch?v=${id}`, {
+      signal,
+    });
+    if (!watch.ok) throw new Error(`YouTube video returned ${watch.status}`);
+    const player = (await watch.text()).match(
+      /var ytInitialPlayerResponse = (.*?);<\/script>/,
+    )?.[1];
+    if (!player) throw new Error("YouTube video details are unavailable");
+    const data = JSON.parse(player) as {
+      videoDetails?: {
+        videoId: string;
+        channelId: string;
+        title: string;
+        viewCount?: string;
+        shortDescription?: string;
+      };
+      microformat?: { playerMicroformatRenderer?: { publishDate?: string } };
+    };
+    const details = data.videoDetails;
+    const publishedAt =
+      data.microformat?.playerMicroformatRenderer?.publishDate;
+    if (
+      details?.channelId !== channelId ||
+      details.videoId !== id ||
+      typeof details.title !== "string" ||
+      !details.title ||
+      !publishedAt ||
+      !Number.isFinite(Date.parse(publishedAt))
+    )
+      throw new Error("YouTube upload details are invalid");
+    upload = {
+      id,
+      title: details.title,
+      publishedAt,
+      views:
+        details.viewCount && /^\d+$/.test(details.viewCount)
+          ? Number(details.viewCount)
+          : undefined,
+      ...runDetails(details.shortDescription ?? ""),
+    };
+  }
   const highResolution = `https://i.ytimg.com/vi/${upload.id}/maxresdefault.jpg`;
   // Some uploads have no maximum-resolution thumbnail; keep the standard version available.
   const image = await fetch(highResolution, {
