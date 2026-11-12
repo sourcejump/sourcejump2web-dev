@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { Play } from "next/font/google";
-import { Plus } from "lucide-react";
 import { Link } from "@/ui/Link";
 import { AccountArea } from "./AccountArea";
 import { HeaderSearch } from "./HeaderSearch";
@@ -36,14 +35,9 @@ export function SiteHeader() {
             </Suspense>
           </div>
         </div>
-        <details data-site-menu className={styles.mobileMenu}>
-          <summary aria-label="Open navigation">
-            Menu <Plus aria-hidden />
-          </summary>
-          <Suspense fallback={<SiteNavLinks pathname={null} mobile />}>
-            <SiteNav mobile />
-          </Suspense>
-        </details>
+        <Suspense fallback={null}>
+          <SiteNav mobile />
+        </Suspense>
       </div>
     </HeaderShell>
   );

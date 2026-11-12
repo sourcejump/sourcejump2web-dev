@@ -135,52 +135,13 @@
   .nav {
     display: none;
   }
+  .mobileMenu [role="menu"] {
+    top: var(--site-header-height);
+  }
   .mobileMenu {
     display: block;
-  }
-  .mobileMenu summary {
-    display: flex;
-    min-height: 44px;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    list-style: none;
-    font-size: 13px;
-  }
-  .mobileMenu summary::-webkit-details-marker {
-    display: none;
-  }
-  .mobileMenu summary svg {
-    width: 20px;
-    height: 20px;
-    transition: transform 200ms;
-  }
-  .mobileMenu[open] summary svg {
-    transform: rotate(45deg);
-  }
-  .mobileLinks {
-    position: absolute;
-    top: 100%;
-    right: 16px;
-    left: 16px;
-    display: flex;
-    max-height: calc(100svh - var(--site-header-height) - 24px);
-    flex-direction: column;
-    overflow-y: auto;
-    padding: 16px 24px;
-    border-radius: 18px;
-    background: #101b2af5;
-    backdrop-filter: blur(24px);
-  }
-  .mobileLinks a {
-    display: flex;
-    min-height: 48px;
-    flex-shrink: 0;
-    align-items: center;
-    font-size: 16px;
-  }
-  .mobileLinks a[aria-current="page"] {
-    color: #94c7ff;
+    order: -1;
+    margin-left: -8px;
   }
 }
 @media (max-width: 600px) {
@@ -215,10 +176,6 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  .mobileMenu summary {
-    gap: 4px;
-    font-size: 12px;
-  }
 }
 @media (max-width: 359px) {
   .shell {
@@ -226,14 +183,6 @@
   }
   .wordmark {
     font-size: 18px;
-  }
-  .mobileMenu summary {
-    font-size: 0;
-    gap: 0;
-  }
-  .mobileMenu summary svg {
-    width: 22px;
-    height: 22px;
   }
 }
 
