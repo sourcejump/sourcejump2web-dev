@@ -1,7 +1,7 @@
 // Help page for a new player: what bunnyhopping and SourceJump are, and how to start bhopping.
 import type { Metadata } from "next";
 import { HelpGuide } from "@/features/help/HelpGuide";
-import { Page } from "@/ui/Page";
+import { PageView } from "@/ui/Page";
 
 export const metadata: Metadata = {
   title: "Help",
@@ -11,13 +11,14 @@ export const metadata: Metadata = {
 
 export default function HelpPage() {
   return (
-    <Page width="narrow" className="gap-6">
+    // A reading width: the help layout around it is as wide as the Commands page's tables need.
+    <PageView className="max-w-3xl">
       <h1 className="text-3xl font-bold">Getting started</h1>
       <p>
         A guide for new players: what bunnyhopping is, what SourceJump is, and
         how to start bhopping.
       </p>
       <HelpGuide />
-    </Page>
+    </PageView>
   );
 }

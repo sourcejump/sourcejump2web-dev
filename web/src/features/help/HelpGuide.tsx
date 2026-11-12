@@ -259,6 +259,10 @@ const sections: { id: string; title: string; body: ReactNode }[] = [
             </Term>
           ))}
         </dl>
+        <p>
+          <Link href="/help/commands">All commands</Link> lists every command on
+          a SourceJump server, with its other names and who can use it.
+        </p>
       </>
     ),
   },
