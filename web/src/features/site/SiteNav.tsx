@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Link } from "@/ui/Link";
 import { isCurrent } from "./navigation";
+import { MobileSiteNav } from "./MobileSiteNav";
 import styles from "./SiteHeader.module.css";
 
 const navigation = [
@@ -23,11 +24,9 @@ export function SiteNavLinks({
   pathname: string | null;
   mobile?: boolean;
 }) {
+  if (mobile) return <MobileSiteNav pathname={pathname} />;
   return (
-    <nav
-      aria-label={mobile ? "Mobile" : "Main"}
-      className={mobile ? styles.mobileLinks : styles.nav}
-    >
+    <nav aria-label="Main" className={styles.nav}>
       {navigation.map(({ href, label }) => (
         <Link
           key={href}
@@ -39,7 +38,6 @@ export function SiteNavLinks({
           {label}
         </Link>
       ))}
-      {mobile && <Link href="/ruleset">Ruleset</Link>}
     </nav>
   );
 }
