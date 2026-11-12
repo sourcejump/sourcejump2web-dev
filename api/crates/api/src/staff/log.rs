@@ -49,7 +49,8 @@ pub enum StaffAction {
     PublishRuleset,
     /// Published a policy version. Target: the policy's name; detail: `version`, `value`.
     PublishPolicy,
-    /// Rated a map's track. Target: the map; detail: `track`, `tier`.
+    /// Rated a map's track. Target: the map; detail: `track`, `tier`, and from 2026-11-12 `previous` (the tier
+    /// it replaced; null when the track had none).
     SetTier,
     /// Set or cleared a map's one image, before maps held several. No longer made; kept so earlier entries
     /// still read. Detail: `image` (a storage key) or, from before uploads, `image_url`.
@@ -323,9 +324,10 @@ pub struct Entry<'a> {
 }
 
 /// Records an action and returns its entry's ID. Call it on the transaction that makes the change, so neither
-/// lands without the other.
+/// lands without the other. A map edit made on the site is queued for the Discord map-edits feed too.
 pub async fn record(conn: &mut PgConnection, entry: Entry<'_>) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar!(
+    let posts_to_discord = entry.actor.is_some() && super::map_edits::feeds(entry.action);
+    let id = sqlx::query_scalar!(
         "INSERT INTO staff_log (actor_steamid64, action, target, reason, detail) VALUES ($1, $2, $3, $4, $5)
          RETURNING id",
         entry.actor.map(SteamId64::get),
@@ -334,8 +336,12 @@ pub async fn record(conn: &mut PgConnection, entry: Entry<'_>) -> Result<i64, sq
         entry.reason,
         entry.detail
     )
-    .fetch_one(conn)
-    .await
+    .fetch_one(&mut *conn)
+    .await?;
+    if posts_to_discord {
+        super::map_edits::queue(conn, id).await?;
+    }
+    Ok(id)
 }
 
 /// A recorded staff action.

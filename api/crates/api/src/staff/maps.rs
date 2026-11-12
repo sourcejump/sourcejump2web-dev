@@ -93,7 +93,7 @@ pub async fn set_tier(
         action: StaffAction::SetTier,
         target: map.as_str(),
         reason: None,
-        detail: json!({ "track": track, "tier": tier }),
+        detail: json!({ "track": track, "tier": tier, "previous": in_force }),
     };
     log::record(&mut tx, entry).await?;
     tx.commit().await?;

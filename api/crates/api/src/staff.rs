@@ -11,6 +11,7 @@ pub mod access;
 pub mod anticheat;
 pub mod keys;
 pub mod log;
+pub mod map_edits;
 pub mod map_images;
 pub mod map_viewer_file;
 pub mod maps;

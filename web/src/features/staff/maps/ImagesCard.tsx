@@ -1,10 +1,18 @@
 "use client";
 // A map's pictures on its Manage view, for staff who hold manage_maps: up to 10 in order, the first being the
 // cover. Add images takes several files at once and uploads them one by one; the API crops, resizes and
-// compresses each. Arrows reorder, Make cover moves one to the front, and Remove asks first.
+// compresses each. Dragging a picture, the arrows and Make cover rearrange a draft order that's saved with
+// Save order, so trying out an order posts nothing (each saved order is logged and announced on Discord).
+// Remove asks first.
 import { ChevronLeft, ChevronRight, ImageUp, Star, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type ChangeEvent, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type PointerEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { api, failureMessage, type Schemas } from "@/api/client";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
@@ -18,14 +26,93 @@ const TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 type Image = Schemas["MapImage"];
 
+/** The pictures in the draft's order. Pictures added since the draft began go last; removed ones drop out. */
+function inOrder(images: Image[], draft: number[] | null): Image[] {
+  if (!draft) return images;
+  const byId = new Map(images.map((image) => [image.id, image]));
+  const drafted = draft.flatMap((id) => byId.get(id) ?? []);
+  return [...drafted, ...images.filter((image) => !draft.includes(image.id))];
+}
+
+/**
+ * Slides tiles from where they were to where they are now after the order changes, so a drag reads as the
+ * pictures making room rather than jumping. Skipped when the visitor prefers reduced motion.
+ *
+ * `idAt` finds the tile under a point by where each tile settles, not where it's drawn mid-slide: hit-testing
+ * the moving tiles would pick whichever slid under the pointer and swap them back and forth.
+ */
+function useSlideIntoPlace(order: string) {
+  const tiles = useRef(new Map<number, HTMLElement>());
+  // Page coordinates, so they hold while the page scrolls during a drag.
+  const settled = useRef(new Map<number, DOMRect>());
+  useLayoutEffect(() => {
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const now = new Map<number, DOMRect>();
+    for (const [id, tile] of tiles.current) {
+      // A slide still running would skew the measurement, so it's ended first.
+      for (const animation of tile.getAnimations()) animation.cancel();
+      const rect = tile.getBoundingClientRect();
+      const onPage = new DOMRect(
+        rect.left + window.scrollX,
+        rect.top + window.scrollY,
+        rect.width,
+        rect.height,
+      );
+      now.set(id, onPage);
+      const before = settled.current.get(id);
+      if (reduced || !before) continue;
+      const dx = before.left - onPage.left;
+      const dy = before.top - onPage.top;
+      if (dx === 0 && dy === 0) continue;
+      tile.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
+        { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+      );
+    }
+    settled.current = now;
+  }, [order]);
+
+  function idAt(clientX: number, clientY: number): number | null {
+    const x = clientX + window.scrollX;
+    const y = clientY + window.scrollY;
+    for (const [id, rect] of settled.current) {
+      if (
+        x >= rect.left &&
+        x <= rect.right &&
+        y >= rect.top &&
+        y <= rect.bottom
+      )
+        return id;
+    }
+    return null;
+  }
+
+  const tile = (id: number) => (element: HTMLElement | null) => {
+    if (element) tiles.current.set(id, element);
+    else tiles.current.delete(id);
+  };
+  return { tile, idAt };
+}
+
 export function ImagesCard({ map, images }: { map: string; images: Image[] }) {
   const input = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [uploading, setUploading] = useState<string | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   const [removing, setRemoving] = useState<Image | null>(null);
+  const [draft, setDraft] = useState<number[] | null>(null);
+  const [dragging, setDragging] = useState<number | null>(null);
   const action = useStaffAction();
   const room = MAX_IMAGES - images.length;
+  const shown = inOrder(images, draft);
+  const order = shown.map((image) => image.id).join(",");
+  const unsaved = order !== images.map((image) => image.id).join(",");
+  // Dropped once the page's data holds the same order, not when Save answers: the refreshed data comes a
+  // moment later, and dropping it sooner would slide the pictures back to the old order and forward again.
+  if (draft && !unsaved) setDraft(null);
+  const slide = useSlideIntoPlace(order);
 
   async function add(event: ChangeEvent<HTMLInputElement>) {
     const files = [...(event.target.files ?? [])];
@@ -68,23 +155,40 @@ export function ImagesCard({ map, images }: { map: string; images: Image[] }) {
     router.refresh();
   }
 
-  function reorder(order: Image[]) {
-    void action.run(
+  async function saveOrder() {
+    await action.run(
       () =>
         api.PUT("/v1/staff/maps/{map}/images/order", {
           params: { path: { map } },
-          body: { images: order.map((image) => image.id) },
+          body: { images: shown.map((image) => image.id) },
         }),
-      "The pictures couldn't be reordered. Try again.",
+      "The order couldn't be saved. Try again.",
     );
   }
 
   function move(index: number, by: number) {
-    const order = [...images];
-    const [image] = order.splice(index, 1);
-    if (!image) return;
-    order.splice(index + by, 0, image);
-    reorder(order);
+    const ids = shown.map((image) => image.id);
+    const [id] = ids.splice(index, 1);
+    if (id === undefined) return;
+    ids.splice(index + by, 0, id);
+    setDraft(ids);
+  }
+
+  function startDrag(event: PointerEvent<HTMLElement>, id: number) {
+    if (event.button !== 0 || action.busy) return;
+    // Captured, so the drag keeps going when the pointer leaves the tile or the grid.
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(id);
+  }
+
+  function drag(event: PointerEvent<HTMLElement>) {
+    if (dragging === null) return;
+    const target = slide.idAt(event.clientX, event.clientY);
+    if (target === null || target === dragging) return;
+    const from = shown.findIndex((image) => image.id === dragging);
+    const to = shown.findIndex((image) => image.id === target);
+    if (from < 0 || to < 0) return;
+    move(from, to - from);
   }
 
   async function remove() {
@@ -104,7 +208,32 @@ export function ImagesCard({ map, images }: { map: string; images: Image[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-text-muted text-sm tabular-nums">
           {images.length} of {MAX_IMAGES}
+          {images.length > 1 && " · drag to reorder"}
         </span>
+        {unsaved && (
+          <span className="motion-enter ml-auto flex items-center gap-2">
+            <span className="text-text-muted text-sm">Order not saved</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setDraft(null);
+                action.clearError();
+              }}
+              disabled={action.busy}
+            >
+              Reset
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={saveOrder}
+              disabled={action.busy}
+            >
+              {action.busy ? "Saving…" : "Save order"}
+            </Button>
+          </span>
+        )}
         <Button
           size="sm"
           onClick={() => input.current?.click()}
@@ -136,14 +265,29 @@ export function ImagesCard({ map, images }: { map: string; images: Image[] }) {
       )}
       {images.length > 0 && (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {images.map((image, index) => (
-            <li key={image.id} className="motion-enter flex flex-col gap-1.5">
-              <div className="border-border relative overflow-hidden rounded-md border">
+          {shown.map((image, index) => (
+            <li
+              key={image.id}
+              ref={slide.tile(image.id)}
+              className="motion-enter flex flex-col gap-1.5"
+            >
+              <div
+                onPointerDown={(event) => startDrag(event, image.id)}
+                onPointerMove={drag}
+                onPointerUp={() => setDragging(null)}
+                onPointerCancel={() => setDragging(null)}
+                className={`relative touch-none overflow-hidden rounded-md border transition select-none ${
+                  dragging === image.id
+                    ? "border-accent ring-accent cursor-grabbing opacity-80 ring-2"
+                    : "border-border cursor-grab"
+                }`}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={image.thumbnail_url}
                   alt=""
                   loading="lazy"
+                  draggable={false}
                   className="aspect-video w-full object-cover"
                 />
                 {index === 0 && (
@@ -168,7 +312,7 @@ export function ImagesCard({ map, images }: { map: string; images: Image[] }) {
                     size="sm"
                     variant="ghost"
                     aria-label="Move later"
-                    disabled={index === images.length - 1 || action.busy}
+                    disabled={index === shown.length - 1 || action.busy}
                     onClick={() => move(index, 1)}
                     className="px-1.5"
                   >

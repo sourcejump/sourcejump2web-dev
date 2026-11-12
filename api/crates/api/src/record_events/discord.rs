@@ -10,7 +10,7 @@
 //! Discord being down holds a feed back until it answers. A post Discord refuses for good (the webhook was
 //! deleted, or it won't take the message) is skipped with an error in the log.
 
-mod post;
+pub(crate) mod post;
 
 use std::{path::Path, time::Duration};
 
@@ -139,11 +139,7 @@ pub fn start(db: &PgPool, feeds: Vec<Feed>, links: &Links, wake: &Wake) {
         tracing::info!("no Discord feeds configured (SJ_DISCORD_FEEDS); records aren't posted");
         return;
     }
-    let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .user_agent("SourceJump (sourcejump.net)")
-        .build()
-        .expect("the HTTP client's settings are valid");
+    let http = http_client();
     for feed in feeds {
         tokio::spawn(run(
             db.clone(),
@@ -153,6 +149,15 @@ pub fn start(db: &PgPool, feeds: Vec<Feed>, links: &Links, wake: &Wake) {
             wake.clone(),
         ));
     }
+}
+
+/// The client every Discord feed posts with.
+pub(crate) fn http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .user_agent("SourceJump (sourcejump.net)")
+        .build()
+        .expect("the HTTP client's settings are valid")
 }
 
 /// Woken when record events commit, and every 30 s in case a wake was missed.
@@ -176,7 +181,7 @@ async fn run(db: PgPool, http: reqwest::Client, feed: Feed, links: Links, mut wa
 }
 
 #[derive(Debug)]
-enum FeedError {
+pub(crate) enum FeedError {
     Database(sqlx::Error),
     /// Discord didn't answer, or answered that it can't take posts right now.
     Unavailable(String),
@@ -261,7 +266,7 @@ async fn save_cursor(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::sync::{Arc, Mutex};
 
     use axum::{Json, Router, routing::post};
@@ -308,7 +313,7 @@ mod tests {
     }
 
     /// A stand-in Discord webhook that keeps what it's sent.
-    async fn fake_webhook() -> (Url, Arc<Mutex<Vec<Value>>>) {
+    pub(crate) async fn fake_webhook() -> (Url, Arc<Mutex<Vec<Value>>>) {
         let received = Arc::new(Mutex::new(Vec::new()));
         let keep = received.clone();
         let app = Router::new().route(

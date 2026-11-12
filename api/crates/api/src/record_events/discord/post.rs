@@ -15,7 +15,7 @@ use crate::{
 };
 
 /// The site's accent colour, so the posts read as SourceJump's.
-const ACCENT: u32 = 0x00_c8_f0;
+pub(crate) const ACCENT: u32 = 0x00_c8_f0;
 /// Discord takes at most 10 embeds in a message, and 6000 characters across them.
 const EMBEDS_PER_MESSAGE: usize = 10;
 /// Kept well under Discord's 6000, since this counts a little differently (`text_length`).
@@ -95,7 +95,8 @@ pub(super) async fn post(
         let (ids, embeds): (Vec<i64>, Vec<Value>) = message.iter().cloned().unzip();
         send(
             http,
-            feed,
+            &feed.name,
+            &feed.webhook,
             &json!({ "embeds": embeds, "allowed_mentions": { "parse": [] } }),
         )
         .await?;
@@ -280,12 +281,18 @@ fn text_length(value: &Value) -> usize {
     }
 }
 
-/// Sends a message to a feed's webhook, waiting out Discord's rate limit when it asks.
-async fn send(http: &reqwest::Client, feed: &Feed, message: &Value) -> Result<(), FeedError> {
+/// Sends a message to a feed's webhook, waiting out Discord's rate limit when it asks. `feed` names the feed in
+/// logs, since the webhook is a secret.
+pub(crate) async fn send(
+    http: &reqwest::Client,
+    feed: &str,
+    webhook: &str,
+    message: &Value,
+) -> Result<(), FeedError> {
     let body = serde_json::to_vec(message).expect("a JSON value serializes");
     for _ in 0..5 {
         let response = http
-            .post(&feed.webhook)
+            .post(webhook)
             .header("content-type", "application/json")
             .body(body.clone())
             .send()
@@ -305,18 +312,16 @@ async fn send(http: &reqwest::Client, feed: &Feed, message: &Value) -> Result<()
         }
         if status.is_server_error() {
             return Err(FeedError::Unavailable(format!(
-                "feed {:?} answered {status}",
-                feed.name
+                "feed {feed:?} answered {status}"
             )));
         }
-        // Retrying won't change a refusal, so these records are skipped for this feed.
+        // Retrying won't change a refusal, so this post is skipped for this feed.
         let answer = response.text().await.unwrap_or_default();
-        tracing::error!(feed = %feed.name, %status, %answer, "Discord refused a record post; skipped");
+        tracing::error!(%feed, %status, %answer, "Discord refused a post; skipped");
         return Ok(());
     }
     Err(FeedError::Unavailable(format!(
-        "feed {:?} still rate limited",
-        feed.name
+        "feed {feed:?} still rate limited"
     )))
 }
 
@@ -346,7 +351,7 @@ fn format_time(seconds: f64) -> String {
 }
 
 /// Player and server names are typed by players, so Discord markdown in them is shown as written.
-fn escape(text: &str) -> String {
+pub(crate) fn escape(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());
     for c in text.chars() {
         if matches!(

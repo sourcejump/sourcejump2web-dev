@@ -400,6 +400,7 @@ async fn serve() -> Result<(), Box<dyn Error>> {
     let storage = storage::Storage::from_env()?;
     let staging = storage::Staging::from_env()?;
     let discord_feeds = record_events::discord::feeds_from_env()?;
+    let map_edits_webhook = staff::map_edits::webhook_from_env()?;
 
     // In the background: a full recount takes minutes on a lot of data, and pages can show the totals counted
     // before meanwhile.
@@ -427,6 +428,7 @@ async fn serve() -> Result<(), Box<dyn Error>> {
         storage: storage.clone(),
     };
     record_events::discord::start(&db, discord_feeds, &links, &record_events);
+    staff::map_edits::start(&db, map_edits_webhook, &links);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "listening");

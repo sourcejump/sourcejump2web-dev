@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT z.version, z.zones AS \"zones: JsonColumn<Vec<Zone>>\"\n           FROM map_zones z JOIN maps m ON m.id = z.map_id\n           WHERE m.name = $1 AND z.version = ANY($2)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "map_zones",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "zones: JsonColumn<Vec<Zone>>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "map_zones",
+            "name": "zones"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "3215d2557cd849ccb285460a39816c48be22a5f35995ecdcf25301985377ddca"
+}

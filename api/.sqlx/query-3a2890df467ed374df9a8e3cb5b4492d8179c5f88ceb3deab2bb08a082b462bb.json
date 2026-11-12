@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM discord_map_edits",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "3a2890df467ed374df9a8e3cb5b4492d8179c5f88ceb3deab2bb08a082b462bb"
+}

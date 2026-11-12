@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.key FROM map_images i JOIN maps m ON m.id = i.map_id\n                 WHERE m.name = $1 AND i.position = 0",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_images",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9e4a71e3d626f62d21a8093c800008be97f1dcc341240a892022d703538f423c"
+}
